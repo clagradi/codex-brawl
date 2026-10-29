@@ -655,7 +655,8 @@
     // ---- stinger synth ----
     let nbuf = null, nbufAC = null;
     function noiseBuf(a) { if (nbuf && nbufAC === a) return nbuf; nbufAC = a; nbuf = a.createBuffer(1, Math.floor(a.sampleRate * 1.2), a.sampleRate); const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return nbuf; }
-    function env(g, t0, atk, dur, vol) { g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + atk); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
+    const voiceVol = () => { try { return typeof SETTINGS !== 'undefined' ? SETTINGS.get('voiceVol') : 1; } catch (e) { return 1; } };   // the 'voiceVol' setting scales speech and stingers; 1 = the mix the tests measure
+    function env(g, t0, atk, dur, vol) { vol *= voiceVol(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + atk); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
     function osc(a, type, f0, f1, dur, vol, delay, atk) {
       const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + (delay || 0); o.type = type; o.frequency.setValueAtTime(f0, t0);
       if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
@@ -703,7 +704,7 @@
             if (!voice) voice = pickVoice(s);
             const u = new SpeechSynthesisUtterance(ph.text);
             if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
-            u.pitch = ph.pitch; u.rate = ph.rate; u.volume = 1; u.onerror = () => { };
+            u.pitch = ph.pitch; u.rate = ph.rate; u.volume = voiceVol(); u.onerror = () => { };
             s.speak(u);
           } catch (e) { }
         }, 45);
@@ -719,8 +720,8 @@
   // ======================================================================
   const FX = (() => {
     const P = [], S = [], MAXP = 520, MAXS = 150;
-    let gore = true;
-    try { const v = localStorage.getItem('brawl.gore'); if (v !== null) gore = v !== '0'; } catch (e) { /* storage blocked: default on */ }
+    let gore = typeof SETTINGS !== 'undefined' ? SETTINGS.get('gore') : true;   // the 'gore' setting (migrated from the old 'brawl.gore' key); the viewers in tools/ load hud.js without settings.js
+    if (typeof BUS !== 'undefined') BUS.on('settings', e => { if (e.key === 'gore') gore = e.value; });
     let rnd = prng((Math.random() * 4294967296) >>> 0);
     const BLOOD = ['#6a070c', '#8a0a10', '#a80e16', '#c8141c', '#e01c24', '#f03a3a'];
     const add = p => { if (P.length < MAXP) P.push(p); };
@@ -813,7 +814,7 @@
       seed(n) { rnd = prng(n >>> 0); },
       get count() { return P.length + S.length; },
     };
-    Object.defineProperty(api, 'gore', { enumerable: true, get() { return gore; }, set(v) { gore = !!v; try { localStorage.setItem('brawl.gore', gore ? '1' : '0'); } catch (e) { /* not persisted */ } } });
+    Object.defineProperty(api, 'gore', { enumerable: true, get() { return gore; }, set(v) { gore = !!v; if (typeof SETTINGS !== 'undefined') SETTINGS.set('gore', gore); } });
     return api;
   })();
 

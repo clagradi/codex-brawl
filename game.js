@@ -1,5 +1,5 @@
 // ===== AGENT BRAWL: parody arcade fighter. Engine, input, AI, phases, menus =====
-// Load order (dev.html): pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), music.js (MUSIC), moves.js (MOVES), game.js.
+// Load order (dev.html): bus.js (BUS, HOOKS), settings.js (SETTINGS), modes.js (MODES), pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), music.js (MUSIC), moves.js (MOVES), game.js, then the feature files (docs/ARCHITECTURE.md).
 'use strict';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 // W, H and GROUND are declared in dev.html before every script (moves.js needs GROUND at load).
@@ -18,9 +18,9 @@ function fit() {
 addEventListener('resize', fit); fit();
 
 // ---------- audio (tiny synth, unlocked on first interaction) ----------
-let AC = null, muted = false;
-try { muted = localStorage.getItem('brawl.muted') === '1'; } catch (e) { /* storage blocked: start unmuted */ }
-function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } if (v && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { } }
+let AC = null, muted = SETTINGS.get('muted');   // the saved state is the 'muted' setting (migrated from the old 'brawl.muted' key); this top-level let is what music.js and hud.js read
+function setMuted(v) { SETTINGS.set('muted', !!v); muted = SETTINGS.get('muted'); }
+BUS.on('settings', e => { if (e.key !== 'muted') return; muted = e.value; if (muted && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (x) { } });
 // Levels: music.js plays at about -17 dBFS RMS (each theme trimmed to match). Effects are scaled up to sit clearly above it (a normal hit peaks near -9 dBFS)
 // and pass through a soft limiter (SFX), so effects stacked in a special move or a KO cannot clip the output.
 const SFX_BEEP = 6, SFX_THUD = 9, SFX_CEIL = 0.6, SFX_RANGE = 4;
@@ -41,7 +41,7 @@ function audioInit() { // runs on every gesture type: a context made on a gestur
 function beep(f, d, type = 'square', v = 0.06, slide = 0.5) {
   if (!AC || muted || AC.state !== 'running') return;
   try {
-    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v * SFX_BEEP / SFX_RANGE; o.connect(g); g.connect(SFX || AC.destination);
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v * SFX_BEEP / SFX_RANGE * SETTINGS.get('sfxVol'); o.connect(g); g.connect(SFX || AC.destination);
     const n = AC.currentTime; o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), n + d); g.gain.exponentialRampToValueAtTime(0.0001, n + d); o.start(); o.stop(n + d);
   } catch (e) { }
 }
@@ -50,13 +50,13 @@ function thud(d = 0.12, v = 0.12) { // short noise burst for impacts
   if (!AC || muted || AC.state !== 'running') return;
   try {
     if (!NOISE) { NOISE = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const ch = NOISE.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length); }
-    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v * SFX_THUD / SFX_RANGE;
+    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v * SFX_THUD / SFX_RANGE * SETTINGS.get('sfxVol');
     s.connect(f); f.connect(g); g.connect(SFX || AC.destination); const n = AC.currentTime; g.gain.exponentialRampToValueAtTime(0.0001, n + d); s.start(); s.stop(n + d);
   } catch (e) { }
 }
 for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchstart', 'touchend']) addEventListener(ev, audioInit, { passive: true });
 function say(key, arg) { try { ANNOUNCER.say(key, arg); } catch (e) { /* the announcer is optional */ } }
-function setGore(v) { FX.gore = v; try { localStorage.setItem('brawl.gore', v ? '1' : '0'); } catch (e) { } }
+function setGore(v) { FX.gore = v; }   // FX.gore (hud.js) stores it in the 'gore' setting
 
 // ---------- input ----------
 // P1: WASD + J punch, K kick, L special, I super (1P also: arrows + Z X C V). P2: arrows + numpad 1/2/3/0 (or , . / and right shift).
@@ -71,7 +71,16 @@ const ALT = { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDow
 const LABEL = [{ p: 'J', k: 'K', s: 'L', x: 'I' }, { p: 'NUM1', k: 'NUM2', s: 'NUM3', x: 'NUM0' }];
 const ALTL = { p: 'Z', k: 'X', s: 'C', x: 'V' };   // the 1P alternate keys, shown next to LABEL[0] in the move lists
 const GAME_KEYS = new Set(['Space', 'Enter', 'Escape', 'KeyP', 'KeyQ', 'KeyE', 'KeyM', 'KeyB', 'KeyT', 'Tab']);
-for (const m of [...MAP, ALT]) for (const a in m) for (const c of m[a]) GAME_KEYS.add(c);
+// SETTINGS 'binds' overrides the three maps above: { p1?, p2?, alt? }, each action letter (l r u d p k s x) -> array of KeyboardEvent.code; whatever it leaves out keeps its default.
+const BIND_DEFAULTS = JSON.parse(JSON.stringify({ p1: MAP[0], p2: MAP[1], alt: ALT }));
+function applyBinds() {
+  const b = SETTINGS.get('binds') || {}, tgt = { p1: MAP[0], p2: MAP[1], alt: ALT };
+  for (const who in tgt) for (const a in BIND_DEFAULTS[who]) {
+    const v = b[who] && b[who][a], ok = Array.isArray(v) && v.length && v.every(c => typeof c === 'string');
+    tgt[who][a] = ok ? v.slice() : BIND_DEFAULTS[who][a].slice(); for (const c of tgt[who][a]) GAME_KEYS.add(c);
+  }
+}
+applyBinds(); BUS.on('settings', e => { if (e.key === 'binds') applyBinds(); });
 addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true;
   if (e.code === 'KeyM') setMuted(!muted);
@@ -147,7 +156,7 @@ const GAME_URL = 'https://clagradi.github.io/codex-brawl/';
 const named = r => SHORT(r) + (r.handle ? ' (@' + r.handle.replace(/^@/, '') + ')' : '');
 function shareText() {
   const [a, b] = game.f; if (!a) return 'Agent Brawl: a parody fighter starring AI agents.';
-  const w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
+  const w = game.wins[0] >= roundsToWin() ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
   const fin = game.fin ? ', finished with ' + game.fin.name : '';
   if (game.mode === 1 && w.cpu) return named(w.d) + ' destroyed my ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl. Rematch incoming.';
   if (game.mode === 1) return 'I beat ' + named(l.d) + ' with ' + named(w.d) + ' ' + score + fin + ' in Agent Brawl.';
@@ -212,7 +221,8 @@ class Fighter {
     if (s === 'hurt' || s === 'down' || s === 'grabbed' || s === 'ko' || s === 'dizzy') { this.bufP = this.bufK = this.bufS = 0; this.lie = 0; }
   }
   startAtk(key) { const A = ATK[key]; this.set(A.st); this.atk = key; this.air = !!A.air; if (A.st === 'kick') beep(220, 0.06); else beep(300, 0.05); }
-  input() { if (this.cpu) return this.aiInput(); const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
+  input() { return HOOKS.filter('input', this.cpu ? this.aiInput() : this.keyInput(), this.side, this); }   // the 'input' hook sees the input object of player `side` before the fighter acts on it
+  keyInput() { const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
   // ---- CPU brain: picks an intent every few ticks, reacts to threats, chains after a landed hit, never camps in a corner ----
   aiInput() {
     const o = game.f[1 - this.side], a = this.ai, i = {}, M = MOVES[this.d.id];
@@ -288,6 +298,7 @@ class Fighter {
     this.set(kind); this.mv = mv; this.airSp = !this.onGround;   // airSp: moves.js bends special 1 into a dive shot
     if (kind === 'super') { this.meter = 0; game.flash = 8; game.hitstop = 10; game.dark = 50; banner(mv.name, { style: 'gold', life: 80, size: 64, y: 150 }); beep(880, 0.4, 'sawtooth', 0.07); }
     else beep(520, 0.06, 'triangle');
+    BUS.emit(kind, { fighter: this, foe: o, move: mv });   // 'special' or 'super'
     if (mv.start) mv.start(this, o);
   }
   // on contact a normal cancels into the next chain step or a special; presses were buffered, so mashing works. The super cancel lives in update().
@@ -304,7 +315,7 @@ class Fighter {
   canThrow(o) { return this.onGround && o.onGround && !o.hidden && o.inv <= 0 && Math.abs(o.x - this.x) <= THROW_REACH && THROWABLE.includes(o.state); }
   startThrow(o) {
     this.set('throw'); this.thr = o; this.vx = 0; o.set('grabbed'); o.grabber = this; o.vx = o.vy = 0; o.face = -this.face; o.y = GROUND;
-    beep(200, 0.1, 'sawtooth', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'THROW' });
+    beep(200, 0.1, 'sawtooth', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'THROW' }); BUS.emit('throw', { src: this, victim: o });
   }
   runThrow() {
     const v = this.thr, f = this.face;
@@ -429,6 +440,7 @@ class Fighter {
     if (!opt.force && (this.inv > 0 || this.state === 'down' || this.state === 'grabbed')) return;
     const facingSrc = (src.x > this.x) === (this.face > 0);
     const guarding = !opt.unblock && (this.state === 'block' || (this.back && this.onGround && !this.busy())) && facingSrc;
+    { const pl = HOOKS.filter('damage', { src, victim: this, dmg, kb, stun, kind, guarding, opt }); if (pl) { if (isFinite(pl.dmg)) dmg = pl.dmg; if (isFinite(pl.kb)) kb = pl.kb; if (isFinite(pl.stun)) stun = pl.stun; } }   // 'damage' filter: change the numbers before they apply
     let soft = false;
     if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; soft = true; FX.sparks(this.x, this.y - 90, '#7ef0ff', 8); }
     if (guarding) {
@@ -451,6 +463,8 @@ class Fighter {
     }
     this.hp = Math.max(0, this.hp - dmg); this.dmgTaken += dmg; this.vx = (this.x < src.x ? -1 : 1) * kb;
     src.meter = Math.min(100, src.meter + dmg * 1.5); this.meter = Math.min(100, this.meter + dmg * 0.7);
+    if (guarding) BUS.emit('block', { src, victim: this, dmg, kind, hp: this.hp });
+    else { BUS.emit('hit', { src, victim: this, dmg, kind, combo: src.combo, hp: this.hp }); if (opt.knock) BUS.emit('knockdown', { src, victim: this }); }
     if (this.hp <= 0) game.koBy(src, this);
   }
   // which sheet row/frame to show right now
@@ -487,34 +501,54 @@ class Fighter {
 
 // ---------- game state ----------
 const game = {
-  phase: 'title', phaseT: 0, mode: 1, sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
+  _phase: 'title', get phase() { return this._phase; }, set phase(p) { const from = this._phase; if (p === from) return; this._phase = p; BUS.emit('phase', { from, to: p }); },   // every change of phase, from setPhase or a direct assignment, emits BUS 'phase'
+  phaseT: 0, mode: 1, modeId: 'versus', sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
   shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, banner: null, arena: 0, arenaPick: -1, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
   cam: { x: 0, zoom: 1 }, winner: null, loser: null, fin: null, finT: 0, flawless: false, endAt: 160,
   later(t, fn) { this.delayed.push({ t, fn }); },
 };
-function setPhase(p) { game.phase = p; game.phaseT = 0; }
+function setPhase(p) { game.phaseT = 0; game.phase = p; }
+// settings the match flow reads (settings.js): CPU level at the start of a match and added after each round (capped at 1); rounds to win; the round that is sudden death
+const DIFFICULTY = { easy: [0.2, 0.15], normal: [0.45, 0.2], hard: [0.7, 0.25] };
+const roundsToWin = () => SETTINGS.get('rounds'), suddenRound = () => 2 * roundsToWin();
+function roundEnded(reason) { const dr = reason === 'draw'; BUS.emit('round:end', { round: game.round, reason, winner: dr ? null : game.winner, loser: dr ? null : game.loser, wins: game.wins.slice(), flawless: reason === 'ko' && game.flawless }); }
+// the title menu: every mode (MODES.list) plus the entries features add through HOOKS 'titleItems' ({ id, label, order, run(game) }), lowest order first
+function titleItems() {
+  const items = MODES.list().map(m => ({ id: m.id, label: m.label, order: m.order, mode: m }));
+  for (const x of HOOKS.collect('titleItems')) if (x && typeof x.label === 'string') items.push(Object.assign({ order: 100 }, x));
+  return items.sort((a, b) => a.order - b.order);
+}
+function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six)
+  if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
+  if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
+  const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
+  return { x: W / 2 + (col ? 170 : -170), y: 436 + row * 28, on: 24, off: 19 };
+}
 function banner(txt, opts = {}) { const life = opts.life || 90; game.banner = { txt, t: 0, life, opts: Object.assign({ dur: life }, opts) }; }
 function startMatch() {
   game.f = [new Fighter(ROSTER[game.sel[0]], 0, false), new Fighter(ROSTER[game.sel[1]], 1, game.mode === 1)];
-  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.cpuLevel = 0.45;
+  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.cpuLevel = DIFFICULTY[SETTINGS.get('difficulty')][0];
   game.arena = game.arenaPick >= 0 ? game.arenaPick : Math.floor(Math.random() * ARENAS.length);
   game.proj = []; game.fx = []; game.popups = []; game.delayed = []; game.banner = null; game.fin = null; FX.clear();
   setPhase('vs'); clearPressed();
+  BUS.emit('match:start', { modeId: game.modeId, mode: game.mode, p1: game.sel[0], p2: game.sel[1], arena: game.arena, fighters: game.f });
 }
 function startRound() {
   game.f.forEach(f => f.reset()); game.proj = []; game.fx = []; game.popups = []; game.delayed = []; FX.clear();
-  game.timer = game.sudden ? 30 : 99; game.clock = 0; game.hitstop = 0; game.slow = 0; game.dark = 0; game.winner = game.loser = game.fin = null; game.cam = { x: 0, zoom: 1 };
+  game.timer = game.sudden ? 30 : SETTINGS.get('time'); game.clock = 0; game.hitstop = 0; game.slow = 0; game.dark = 0; game.winner = game.loser = game.fin = null; game.cam = { x: 0, zoom: 1 };
   if (game.sudden) game.f.forEach(f => f.hp = Math.ceil(f.d.hp * 0.25));
   if (typeof hudReset === 'function') hudReset();
   setPhase('intro'); banner(game.sudden ? 'SUDDEN DEATH' : 'ROUND ' + game.round, { style: game.sudden ? 'blood' : 'gold', life: INTRO_LEN, sub: game.round === 1 ? ARENAS[game.arena].name : '' });
   say(game.sudden ? 'sudden' : 'round', game.round); clearPressed();
+  BUS.emit('round:start', { round: game.round, sudden: game.sudden, time: game.timer });
 }
 // a fighter hit 0 HP: the match-deciding KO opens the FINISH IT window, any other one ends the round
 game.koBy = function (w, l) {
   if (game.phase !== 'fight') return;
   game.wins[w.side]++; game.winner = w; game.loser = l; game.flawless = w.dmgTaken === 0;
   game.proj = []; game.dark = 0;
-  if (game.wins[w.side] >= 2 && MOVES[w.d.id].fin) {
+  BUS.emit('ko', { winner: w, loser: l, flawless: game.flawless });
+  if (game.wins[w.side] >= roundsToWin() && MOVES[w.d.id].fin) {
     setPhase('finish'); l.set('dizzy'); l.hp = 0; l.vx = (l.x < w.x ? -1 : 1) * 5; l.inv = 0;
     if (w.busy()) w.set('idle');
     game.slow = 40; game.hitstop = 14; game.shake = 12; game.flash = 6; thud(0.3, 0.2);
@@ -522,7 +556,7 @@ game.koBy = function (w, l) {
   } else knockOut(w, l);
 };
 function knockOut(w, l) {
-  setPhase('ko'); l.set('ko'); l.vy = -9; l.vx = (l.x < w.x ? -1 : 1) * 7;
+  setPhase('ko'); roundEnded('ko'); l.set('ko'); l.vy = -9; l.vx = (l.x < w.x ? -1 : 1) * 7;
   game.slow = 70; game.hitstop = 12; game.shake = 14; game.flash = 8; game.endAt = game.flawless ? 210 : 160;
   banner('K.O.', { style: 'blood', life: 110 }); beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2);
   FX.blood(l.x, l.y - 110, l.x < w.x ? -1 : 1, 3);
@@ -532,7 +566,7 @@ function knockOut(w, l) {
 function finishOff() { if (game.phase === 'finish') knockOut(game.winner, game.loser); }
 function startFinisher(w, l) {
   const fin = MOVES[w.d.id].fin; if (!fin) return finishOff();
-  game.fin = fin; game.finT = 0; setPhase('finisher');
+  game.fin = fin; game.finT = 0; setPhase('finisher'); BUS.emit('finisher', { winner: w, loser: l, move: fin });
   w.set('idle'); w.vx = 0; l.vx = 0; game.proj = []; game.dark = 30;
   banner(fin.name, { style: 'toxic', life: 140 }); say('finisher', fin.name); beep(220, 0.8, 'sawtooth', 0.07, 0.25);
   if (fin.start) fin.start(w, l);
@@ -540,17 +574,20 @@ function startFinisher(w, l) {
 function endRoundTime() {
   const [a, b] = game.f; setPhase('ko'); game.endAt = 170;
   const pa = a.hp / a.d.hp, pb = b.hp / b.d.hp; let w = Math.abs(pa - pb) < 0.001 ? -1 : (pa > pb ? 0 : 1);
-  if (w < 0 && game.round >= 4) w = a.meter >= b.meter ? 0 : 1;   // sudden death never draws
+  if (w < 0 && game.round >= suddenRound()) w = a.meter >= b.meter ? 0 : 1;   // sudden death never draws
   banner(w < 0 ? 'DRAW' : 'TIME', { style: 'steel', life: 120 });
   if (w >= 0) { game.wins[w]++; game.winner = game.f[w]; game.loser = game.f[1 - w]; game.f[w].set('win'); game.f[1 - w].set('ko'); game.f[1 - w].vy = -6; }
+  roundEnded(w < 0 ? 'draw' : 'time');
 }
 function nextRound() {
-  if (game.wins[0] >= 2 || game.wins[1] >= 2) { // match over: winner call, then the end screen
-    const w = game.f[game.wins[0] >= 2 ? 0 : 1];
-    setPhase('outro'); banner(SHORT(w.d) + ' WINS', { style: 'gold', life: 140 }); say('wins', SHORT(w.d)); return;
+  const need = roundsToWin();
+  if (game.wins[0] >= need || game.wins[1] >= need) { // match over: winner call, then the end screen
+    const w = game.f[game.wins[0] >= need ? 0 : 1];
+    setPhase('outro'); banner(SHORT(w.d) + ' WINS', { style: 'gold', life: 140 }); say('wins', SHORT(w.d));
+    BUS.emit('match:end', { winner: w, loser: game.f[1 - w.side], wins: game.wins.slice(), rounds: game.round, modeId: game.modeId }); return;
   }
-  game.round++; game.cpuLevel = Math.min(1, game.cpuLevel + 0.2);
-  if (game.round >= 4) game.sudden = true;
+  game.round++; game.cpuLevel = Math.min(1, game.cpuLevel + DIFFICULTY[SETTINGS.get('difficulty')][1]);
+  if (game.round >= suddenRound()) game.sudden = true;
   startRound();
 }
 
@@ -567,14 +604,20 @@ function updateCam() {
   c.zoom += (tz - c.zoom) * 0.07; c.x += (tx - c.x) * 0.07;
 }
 function update() {
-  game.tick++; pollPads();
+  game.tick++; pollPads(); HOOKS.run('update', game);   // 'update' runs every tick in every phase, before the phase logic
   if (game.shake > 0) game.shake--; if (game.flash > 0) game.flash--;
   if (game.banner && ++game.banner.t > game.banner.life) game.banner = null;
   if (tap('KeyB') && ['title', 'select', 'pause'].includes(game.phase)) setGore(!FX.gore);
   if (game.phase === 'sheet' || !game.f.length && !['title', 'select'].includes(game.phase)) { if (game.phase !== 'sheet') game.phase = 'title'; return; }
   if (game.phase === 'title') {
-    if (tap('KeyW') || tap('ArrowUp') || tap('KeyS') || tap('ArrowDown')) { game.titleSel ^= 1; beep(400, 0.04); }
-    if (tap('Enter') || tap('Space') || hit(0, 'p') || tap('Numpad1')) { game.mode = game.titleSel ? 2 : 1; setPhase('select'); game.ready = [false, false]; beep(700, 0.1); say('choose'); clearPressed(); }
+    const items = titleItems(), n = items.length; if (game.titleSel >= n) game.titleSel = 0;
+    const up = tap('KeyW') || tap('ArrowUp'), dn = !up && (tap('KeyS') || tap('ArrowDown'));
+    if (up || dn) { game.titleSel = (game.titleSel + (up ? n - 1 : 1)) % n; beep(400, 0.04); }
+    if (tap('Enter') || tap('Space') || hit(0, 'p') || tap('Numpad1')) {
+      const it = items[game.titleSel];
+      if (it.mode) { MODES.pick(it.mode.id); if (!it.mode.onPick || it.mode.onPick(game) !== false) { setPhase('select'); game.ready = [false, false]; beep(700, 0.1); say('choose'); } } else if (it.run) it.run(game);
+      clearPressed();
+    }
     return;
   }
   if (game.phase === 'select') { updateSelect(); return; }
@@ -591,7 +634,7 @@ function update() {
     if (tap('Escape')) setPhase('title');
     return;
   }
-  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) setPhase('title'); return; }
+  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) setPhase('title'); for (const it of HOOKS.collect('pauseItems')) if (it.key && tap(it.key)) it.run(game); return; }
   if (game.phase === 'fight' && (tap('KeyP') || tap('Escape'))) { game.phase = 'pause'; return; }
   game.phaseT++;
   if (game.phase === 'intro' && game.phaseT >= INTRO_LEN) { setPhase('fight'); banner('FIGHT!', { style: 'blood', life: 50 }); say('fight'); beep(1000, 0.3, 'square', 0.06); clearPressed(); }
@@ -607,8 +650,8 @@ function update() {
   if (game.phase === 'finisher') { // the finisher owns both fighters: no physics, no AI
     for (const f of game.f) { f.t++; f.st++; }
     game.finT++; if (game.fin.update) game.fin.update(game.winner, game.loser, game.finT);
-    if (game.finT >= game.fin.len) { setPhase('ko'); game.endAt = 100; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
-  } else { a.update(b); b.update(a); }
+    if (game.finT >= game.fin.len) { setPhase('ko'); roundEnded('ko'); game.endAt = 100; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
+  } else { a.update(b); b.update(a); HOOKS.run('fighterUpdate', a, b); }
   for (const d of game.delayed) d.t--; for (const d of game.delayed.filter(d => d.t <= 0)) d.fn(); game.delayed = game.delayed.filter(d => d.t > 0);
   if (game.phase === 'fight' && ++game.clock % 60 === 0) { game.timer--; if (game.timer <= 0) endRoundTime(); }
   updateProjectiles();
@@ -672,7 +715,8 @@ function drawTitle() {
   drawArena(ctx, ai, t, { x: Math.sin(t / 260) * 60, zoom: 1 }); shade(0.5);
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
-  ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  const items = titleItems();
+  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
   uiText(touch.on ? 'TAP TO START' : 'W/S + ENTER · FIGHT WITH WASD + J K L I OR ARROWS + Z X C V · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
   if (!muted && !audioFail && !(AC && AC.state === 'running')) {   // browsers keep a page silent until the first key press / tap
@@ -749,18 +793,19 @@ function drawWorld() {
   if (game.dark > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.55, game.dark / 50) + ')'; ctx.fillRect(-100, -100, W + 200, H + 200); }
   FX.draw(ctx, 'floor');
   for (const fx of game.fx) if (!fx.front) fx.draw(ctx, fx);
-  const rank = f => ATTACKS.has(f.state) || f === game.winner ? 1 : 0; [...game.f].sort((x, y) => rank(x) - rank(y)).forEach(f => f.draw());
+  const rank = f => ATTACKS.has(f.state) || f === game.winner ? 1 : 0; [...game.f].sort((x, y) => rank(x) - rank(y)).forEach(f => { f.draw(); HOOKS.run('drawFighter', ctx, f); });
   if (game.fin) game.fin.draw(ctx, game.winner, game.loser, game.finT);
   for (const p of game.proj) drawProj(p);
   FX.draw(ctx, 'air');
   for (const fx of game.fx) if (fx.front) fx.draw(ctx, fx);
   drawArenaFront(ctx, game.arena, t, c);
   for (const p of game.popups) drawTitleText(ctx, p.txt, p.x, p.y, 20, { align: 'center', style: 'steel', alpha: Math.min(1, p.t / 15) });
+  HOOKS.run('drawWorld', ctx, game);   // still in world space (camera, shake and zoom applied)
   ctx.restore();
 }
 function drawFight() {
   const t = game.tick, [a, b] = game.f;
-  drawWorld(); drawHUD(ctx, game);
+  drawWorld(); drawHUD(ctx, game); HOOKS.run('drawHud', ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
   if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
     uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
@@ -776,10 +821,11 @@ function drawFight() {
     uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
     uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
     uiText('P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 470, 18, '#c9a24a');
+    const pit = HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, 500, 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
   }
 }
 function drawOver() {
-  const t = game.tick, [a, b] = game.f, w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a;
+  const t = game.tick, [a, b] = game.f, w = game.wins[0] >= roundsToWin() ? a : b, l = w === a ? b : a;
   drawArena(ctx, game.arena, t, { x: Math.sin(t / 200) * 40, zoom: 1 }); shade(0.55);
   drawSprite(ctx, l.d.id, 'ko', 4, W / 2 + 230, GROUND, -1);
   drawSprite(ctx, w.d.id, 'win', loopFrame('win', t), W / 2 - 40, GROUND, 1, 3);
@@ -799,6 +845,7 @@ function render() {
   if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
   if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
   drawTouch();
+  HOOKS.run('drawTop', ctx, game);   // last thing drawn, in every phase
   if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }
 }
 

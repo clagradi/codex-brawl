@@ -31,8 +31,11 @@
 <body>
 <canvas id="c" width="960" height="540"></canvas>
 <a id="share" hidden target="_blank" rel="noopener" href="https://x.com/intent/post">SHARE ON X</a>
-<!-- build.mjs inlines these scripts into index.html. Load order: pixelfont, sprites, arenas, hud, music (procedural chiptune, no audio files), moves, game. -->
+<!-- build.mjs inlines these scripts into index.html. Load order: the inline W/H script, the extension layer (bus: BUS + HOOKS, settings, modes), pixelfont, sprites, arenas, hud, music (procedural chiptune, no audio files), moves, game, then the feature files (combat, arcade, training, arenas2, music2, options, touch; see docs/ARCHITECTURE.md). A new script goes at the end of its group and in the same place in this list. -->
 <script>const W = 960, H = 540, GROUND = 468; // canvas size and feet line, shared by every script below</script>
+<script src="bus.js"></script>
+<script src="settings.js"></script>
+<script src="modes.js"></script>
 <script src="pixelfont.js"></script>
 <script src="sprites.js"></script>
 <script src="arenas.js"></script>
@@ -40,5 +43,12 @@
 <script src="music.js"></script>
 <script src="moves.js"></script>
 <script src="game.js"></script>
+<script src="combat.js"></script>
+<script src="arcade.js"></script>
+<script src="training.js"></script>
+<script src="arenas2.js"></script>
+<script src="music2.js"></script>
+<script src="options.js"></script>
+<script src="touch.js"></script>
 </body>
 </html>

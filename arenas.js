@@ -730,7 +730,12 @@ const wasteland = def({ id: 'wasteland', name: 'POTATO WASTELAND', tagline: 'THE
   },
   front(g, t, cam, A) { const l = A.l; fogDraw(g, l.dust, t, 0.55, 208, 0.18, 90 + cam.x * 0.3); fogDraw(g, l.dust2, t, 0.8, 226, 0.16, 300); put(g, l.fg, cam); motes(g, t, 42, 9, 0, AW, 60, AH, 'rgba(232,184,74,0.45)', -0.5, 1, 4); } });
 
-return [gpupit, cathedral, bridge, furnace, forest, temple, graveyard, rooftop, wasteland];
+const list = [gpupit, cathedral, bridge, furnace, forest, temple, graveyard, rooftop, wasteland];
+// Extension point for arenas2.js (docs/ARCHITECTURE.md): ARENAS.make(o) builds an entry from the same description the nine above use, ARENAS.kit is the painter's kit they share
+// (half-res canvas size AW x AH, the walking line AG, drawing and noise helpers). A new stage is ARENAS.push(ARENAS.make({ id, name, tagline, accent, build(A), paint(g, t, cam, A), front? })).
+list.make = def;
+list.kit = { AW, AH, AG, TAU, hash1, rng, rgb, mix, rgba, clamp, flick, cv, grad, layer, off, put, fill, R, line, disc, ring, poly, box, fpoly, speck, ridge, text, tw, textC, glow, pool, fogTex, fogDraw, flame, chain, motes, lightning, bolt, floorBase };
+return list;
 })();
 
 function drawArena(ctx, i, t, cam) { const n = ARENAS.length; ARENAS[((i % n) + n) % n].draw(ctx, t, cam); }

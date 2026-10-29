@@ -3,7 +3,7 @@
 // reaches the 'over' phase without console errors or exceptions. Run: node tools/headless.mjs --test
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const URL_BASE = 'file://' + path.join(ROOT, 'index.html');
@@ -414,6 +414,22 @@ export async function runTests(p) {
   const tilts = Object.entries(dive).filter(([k]) => /^(tibo|dot|muse) /.test(k)), flat = Object.entries(dive).filter(([k]) => /^(poteto|wang) /.test(k));
   check(tilts.length === 6 && tilts.every(([, v]) => v && v.air && Math.sign(v.ang) === v.face && Math.abs(v.ang) > 0.3 && Math.abs(v.ang) < 1.5 && v.diff > 20), 'diving air specials of Tibo, Dot and Muse lean into the dive, both ways round: ' + JSON.stringify(tilts));
   check(flat.length === 4 && flat.every(([, v]) => v && v.ang === 0), "Wang's bubble and Poteto's lob keep their upright art: " + JSON.stringify(flat));
+
+  // Feature tests: every tools/tests/*.mjs, core.mjs first and then alphabetical, each exporting `async function run(t)`. New checks do not go above this line; they go in
+  // tools/tests/core.mjs (scaffold, engine and extension layer) or the file named after the feature (docs/ARCHITECTURE.md, "How to add a test").
+  const t = {
+    p, check, tap, stepUntil, park,
+    key: (code, down) => p.key(code, down),                                   // raw key event; tap(code) is down + up
+    wait: ms => p.wait(ms),
+    open: async (hash = '') => { await p.goto(URL_BASE + hash); await p.wait(300); },   // fresh page load of index.html, optionally with a #hash route
+    eval: expr => p.eval(expr),
+  };
+  const testDir = path.join(ROOT, 'tools', 'tests');
+  const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.mjs')).sort((a, b) => (a === 'core.mjs' ? -1 : b === 'core.mjs' ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  for (const f of testFiles) {
+    try { await (await import(pathToFileURL(path.join(testDir, f)).href)).run(t); }
+    catch (e) { check(false, 'tools/tests/' + f + ' threw: ' + String(e && e.message || e).split('\n')[0]); }
+  }
 
   if (p.errors.length) { console.log('console errors:\n' + p.errors.join('\n')); ok = false; } else console.log('ok    no console errors');
   return ok;
