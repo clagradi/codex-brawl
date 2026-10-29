@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| last | `p-strings.js` | named combo strings, chase jump, air chains, juggle scaling; loads after `vfx.js` so its `tryCancel` wrapper is the outermost | p-strings agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-strings.js`, `tools/tests/x-p-strings.mjs` | p-strings agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -87,6 +89,9 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
+| `strings:land` | `{ fighter, foe, name, hits, kind, combo }` | `p-strings.js`: a named combo string landed; `kind` is `'AIR'`, `'JUGGLE'` or `'CANCEL'` |
+| `strings:chase` | `{ fighter, foe }` | `p-strings.js`: a chase jump after a launcher |
+| `strings:juggle` | `{ src, victim }` | `p-strings.js`: a launch started a juggle owned by `src` |
 
 ### HOOKS points
 
@@ -111,6 +116,8 @@ With nothing registered a call returns at once, so the engine calls them from ho
 | `titleItems` | collect | no arguments (read the global `game`); items `{ id, label, order?, run(game) }` added to the title menu next to the modes (default `order` 100); called every tick on the title and every frame it is drawn |
 | `pauseItems` | collect | no arguments; items `{ key, label, run(game) }`: while paused, pressing `key` (a `KeyboardEvent.code`) calls `run`; the labels are drawn under the pause text |
 | `musicTheme` | filter | `(themeName, game)`; return the name of any defined theme to replace the one the engine picked |
+
+`p-strings.js` uses `update` (order -10), `input` (order 5, CPU only), `fighterUpdate`, `damage` (order 20, after `combat.js`: juggle scaling and the 35 percent cap), `drawFighter`, `drawHud`, `drawTop` and `pauseItems` (`N STRINGS`).
 
 ### SETTINGS keys
 
@@ -142,6 +149,8 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `strings.on` | bool, `true` | | `p-strings.js`: combo strings, the chase jump, air chains, juggle scaling and the STRINGS page; off is the game without them |
+| `strings.callouts` | bool, `true` | | `p-strings.js`: the on-screen string name and its sting (detection and `strings:land` stay on) |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
