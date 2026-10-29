@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-tutorial.js` | TUTORIAL mode: ten lessons against a scripted dummy, last in `dev.html` | p-tutorial agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-tutorial.js`, `tools/tests/x-p-tutorial.mjs`, `docs/features/p-tutorial.md` | p-tutorial agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -87,6 +89,8 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
+| `tutorial:step` | `{ lesson, id, step }` | `p-tutorial.js`: a step of a TUTORIAL lesson is done; `lesson` is the lesson index (0 to 9), `id` its name (`move`, `attack`, ... `getup`), `step` the index of the step |
+| `tutorial:done` | `{ lesson, id, cleared, total }` | `p-tutorial.js`: a TUTORIAL lesson is cleared (LESSON CLEAR); `cleared` is how many of the `total` lessons are now cleared |
 
 ### HOOKS points
 
@@ -142,6 +146,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `tutorial.done` | num, `0` | 0..1023 | `p-tutorial.js`: the cleared TUTORIAL lessons as a bit mask (bit k = lesson k + 1) |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
