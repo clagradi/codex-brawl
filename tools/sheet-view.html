@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>sheet view</title>
+<style>body{margin:0;background:#3a4370}canvas{image-rendering:pixelated;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script src="../heads.js"></script><script src="../sprites.js"></script>
+<script>
+// tools/sheet-view.html?id=tibo&z=3  (or id=all)
+const q=new URLSearchParams(location.search);const id=q.get('id')||'tibo';const z=+(q.get('z')||3);
+buildSheets();
+const ids=id==='all'?Object.keys(LOOK):[id];
+const cv=document.getElementById('c');cv.width=FW*MAXF*z;cv.height=FH*ANIMS.length*z*ids.length;const c=cv.getContext('2d');c.imageSmoothingEnabled=false;
+ids.forEach((k,i)=>{c.drawImage(SHEETS[k],0,i*FH*ANIMS.length*z,FW*MAXF*z,FH*ANIMS.length*z);
+ c.fillStyle='rgba(255,255,255,0.08)';for(let r=0;r<ANIMS.length;r++)for(let f=0;f<MAXF;f++)if((r+f)%2)c.fillRect(f*FW*z,(i*ANIMS.length+r)*FH*z,FW*z,FH*z);
+ c.fillStyle='#fff';c.font='12px monospace';ANIMS.forEach((a,r)=>c.fillText(k+' '+a.n,4,(i*ANIMS.length+r)*FH*z+12));});
+</script></body></html>
