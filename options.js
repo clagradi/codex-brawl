@@ -366,7 +366,7 @@
   const drawTitle0 = window.drawTitle;
   window.drawTitle = function () { drawTitle0.apply(this, arguments); if (ui.screen) drawScreen(); else drawFsButton(); };
   const drawTouch0 = window.drawTouch;
-  window.drawTouch = function () { if (ui.screen || game.phase === 'pause') return; return drawTouch0.apply(this, arguments); };   // the on-screen buttons would sit on top of the menus
+  window.drawTouch = function () { if (!drawTouch0 || ui.screen || game.phase === 'pause') return; return drawTouch0.apply(this, arguments); };   // the on-screen buttons would sit on top of the menus
   if (window.ANNOUNCER && ANNOUNCER.say) { const say0 = ANNOUNCER.say; ANNOUNCER.say = function () { if (!SETTINGS.get('announcer')) return; return say0.apply(this, arguments); }; }
 
   window.OPTIONS = {

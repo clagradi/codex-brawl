@@ -2,9 +2,9 @@
 
 Play it: https://clagradi.github.io/codex-brawl/
 
-Or open `index.html` in any modern browser. It is one self-contained file (under 600 KB): the chibi fighters, the arenas, the HUD, the announcer and the engine are all generated in code and inlined. No network requests, no image or audio files, no build step needed to play. It also works on a phone: the page fits the screen and shows on-screen controls.
+Or open `index.html` in any modern browser. It is one self-contained file (under 900 KB): the chibi fighters, the arenas, the HUD, the announcer and the engine are all generated in code and inlined. No network requests, no image or audio files, no build step needed to play. It also works on a phone: the page fits the screen and shows on-screen controls.
 
-Five fighters, 1 player vs CPU or 2 players on one keyboard (or two gamepads), best of 3 rounds, chain combos, throws, sweeps, air attacks, dashes, three specials plus an air special, a super and a finisher each, 15 arenas (pick one or leave it on RANDOM, with a reveal before round 1), each with its own chiptune theme generated in code.
+Five fighters, 1 player vs CPU or 2 players on one keyboard (or two gamepads), best of 3 rounds, chain combos, throws, sweeps, air attacks, dashes, three specials plus an air special, a super and a finisher each, 21 arenas (pick one or leave it on RANDOM, with a reveal before round 1), each with its own chiptune theme generated in code.
 
 Source: https://github.com/clagradi/codex-brawl
 
@@ -49,7 +49,7 @@ Rules: 99-second rounds, best of 3. A timed-out round goes to whoever has more h
 | Fighter | `L` | forward + `L` | down + `L` | up + `L` (air) | Super | Finisher |
 |---|---|---|---|---|---|---|
 | Tibo (Codex at OpenAI) | Commit Bolt | Hotfix Rush | Revert | Drop Table | Push to Prod | Outage |
-| Poteto | Hot Potato | Hot Take | Tater Drop | Air Fry | Sweet Potato Storm | Mashed Up |
+| Poteto (Grok bot) | Hot Potato | Hot Take | Tater Drop | Air Fry | Sweet Potato Storm | Mashed Up |
 | Dot (OpenAI's dots) | Dot Dot Dot | Pop In | Seen | Dot Rain | Big Dot Energy | Full Stop |
 | Alexandr Wang (Meta) | Bubble Sort | Lab Drones | Singularity | Deep Dive | Superintelligence | Acqui-hire |
 | Muse (Meta's agent) | Ping | Secure VM | Undo | Packet Drop | Agent Swarm | Uninstall |
@@ -58,7 +58,7 @@ Finishers are cartoon gags, nothing gory. The fighters are parody caricatures dr
 
 ## Arenas
 
-GPU Pit, Datacenter Cathedral, Rate-Limit Bridge, Token Furnace, Deprecated Forest, Merge-Conflict Temple, Server Graveyard, Launch-Night Rooftop, Potato Wasteland, Context Window Cliff, Hallucination Hall, Benchmark Stadium, Prompt Injection Sewer, Latency Lagoon, Alignment Dojo. Each has parallax layers, lighting and a foreground layer. Pick one on the select screen or leave it on RANDOM: the versus screen reveals the arena with a short roulette.
+GPU Pit, Datacenter Cathedral, Rate-Limit Bridge, Token Furnace, Deprecated Forest, Merge-Conflict Temple, Server Graveyard, Launch-Night Rooftop, Potato Wasteland, Context Window Cliff, Hallucination Hall, Benchmark Stadium, Prompt Injection Sewer, Latency Lagoon, Alignment Dojo, Tech-Debt Swamp, Cache Miss Canyon, Open-Plan Office, Cloud Billing Volcano, Nightly Build Express, Keynote Stage. Each has parallax layers, lighting and a foreground layer. Pick one on the select screen or leave it on RANDOM: the versus screen reveals the arena with a short roulette.
 
 ## Music
 
@@ -81,7 +81,7 @@ Source files (loaded in this order by `dev.html`, which you can open directly wh
 
 - `pixelfont.js`: 5x7 bitmap font, `ptext()`.
 - `sprites.js`: the chibi fighters. Procedural pose rigs rasterised into sprite sheets at load time (11 animation rows: idle, walk, jump, punch, kick, special, super, block, hit, KO, win), plus a few extra pose strips for the throw, the low jab and the sweep (used in the game only, not in the pet atlas), portraits, head icons and effect sprites.
-- `arenas.js`: the original arenas, their thumbnails and foreground layers. `arenas2.js` adds six more.
+- `arenas.js`: the original arenas, their thumbnails and foreground layers. `arenas2.js` and `arenas3.js` add six more each.
 - `hud.js`: health bars, timer, meters, banners, versus screen, logo, move list panel, post-processing, announcer (speech synthesis plus WebAudio stingers) and the particle system (sparks, dust, blood).
 - `music.js`: the procedural chiptune player, one theme per arena plus the menu themes. It polls the game state, so it needs no hooks in the engine.
 - `moves.js`: every special, air special, super and finisher.

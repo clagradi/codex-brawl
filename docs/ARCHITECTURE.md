@@ -139,6 +139,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `palettes.p1` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the colourway player 1 last picked for each fighter (0 classic, 1 to 3 alternates, 4 the star colourway) |
 | `palettes.p2` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the same for player 2 |
 | `palettes.unlocked` | any, `{}` | `{ fighterId: true }` | `palettes.js`: the star colourways opened by winning a match as a human player |
+| `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
+| `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
+| `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 

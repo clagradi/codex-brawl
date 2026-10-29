@@ -65,7 +65,7 @@
     if (S.pg && S.pg.victim === v && S.pg.n === S.n) { S.pg = null; perfect(v, e.src, e.kind); return; }
     if (D.ownBlockstun) r.bstun = Math.max(r.bstun, bstunFor(S.stun, e.kind));
   });
-  BUS.on('hit', e => { if (e && e.victim) REC[e.victim.side].bstun = 0; });
+  BUS.on('hit', e => { const r = e && e.victim && REC[e.victim.side]; if (r) r.bstun = 0; });
   const reset = () => { (game.f || []).forEach((f, s) => { if (REC[s] && REC[s].rollT > 0) f.hidden = false; }); for (const s of [0, 1]) Object.assign(REC[s], mk()); S.fx.length = 0; S.flash = 0; S.pg = null; };
   BUS.on('match:start', reset); BUS.on('round:start', reset);
 
@@ -187,13 +187,13 @@
   HOOKS.add('drawHud', (c, g) => {   // the two new lines sit above the engine's own round 1 hint strip and fade with it
     if (!D.on || g.phase !== 'fight' || g.round !== 1 || g.clock >= 360 || (typeof touch !== 'undefined' && touch.on) || (g.f[0].cpu && g.f[1].cpu)) return;
     const a = Math.min(1, (360 - g.clock) / 60);
-    uiText('PERFECT GUARD: TAP BACK JUST AS A HIT LANDS · BLOCKING + L: PUSHBACK, COSTS METER', W / 2, H - 58, 13, '#9fd3ff', 'center', a);
-    uiText('KNOCKED DOWN: P OR K GETS UP FAST · ADD A DIRECTION TO ROLL · HOLD DOWN TO STAY DOWN', W / 2, H - 38, 13, '#9fd3ff', 'center', a);
+    uiText('PERFECT GUARD: TAP BACK JUST AS A HIT LANDS · BLOCKING + L: PUSHBACK, COSTS METER', W / 2, H - 96, 13, '#9fd3ff', 'center', a);
+    uiText('KNOCKED DOWN: P OR K GETS UP FAST · ADD A DIRECTION TO ROLL · HOLD DOWN TO STAY DOWN', W / 2, H - 76, 13, '#9fd3ff', 'center', a);
   });
   HOOKS.add('drawTop', (c, g) => {
     if (!D.on) return;
     if (S.flash > 0 && g.phase !== 'pause') { c.fillStyle = 'rgba(110,180,255,' + (0.32 * S.flash / 12).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
-    if (g.phase === 'pause') {
+    if (g.phase === 'pause' && !(typeof OPTIONS !== 'undefined' && OPTIONS.screen)) {   // the options sub-screens (MOVES, CONTROLS...) use the bottom rows
       uiText('DEFENSE · TAP BACK AS A HIT LANDS: PERFECT GUARD · WHILE BLOCKING, SPECIAL: PUSHBACK (COSTS METER)', W / 2, 496, 13, '#9fd3ff');
       uiText('KNOCKED DOWN · PUNCH OR KICK: QUICK RISE · WITH A DIRECTION: ROLL · HOLD DOWN: STAY DOWN LONGER', W / 2, 514, 13, '#9fd3ff');
     }

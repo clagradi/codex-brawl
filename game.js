@@ -280,7 +280,7 @@ function pollPads() {
 // bio: one line about the look and the moves (kept in step with INFO in tools/export-pets.mjs).
 const ROSTER = [
   { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, handle: '', bio: 'HOODIE, COMMITS AND REVERTS. SHIPS FAST.' },
-  { id: 'poteto', name: 'POTETO', tag: 'SPUD SLINGER', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, handle: '', bio: 'LONG HAIR, ROUND GLASSES. THROWS HOT SWEET POTATOES.' },
+  { id: 'poteto', name: 'POTETO', tag: 'GROK BOT', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, handle: '', bio: 'LONG HAIR, ROUND GLASSES. THROWS HOT SWEET POTATOES.' },
   { id: 'dot', name: 'DOT', tag: "OPENAI'S DOTS", col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, handle: '', bio: 'SOFT, ROUND AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
   { id: 'wang', name: 'ALEXANDR WANG', tag: 'AI @ META', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, handle: '', bio: 'CALM. IRIDESCENT BUBBLES. SUMMONS THE LAB.' },
   { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, handle: '', bio: 'FLUFFY AND QUICK. PINGS, UNDOES AND SWARMS.' },

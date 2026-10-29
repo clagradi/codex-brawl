@@ -21,10 +21,11 @@ export async function run(t) {
   const info = await ev(`(() => ({ n: ARENAS.length, ids: ARENAS.map(a => a.id), names: ARENAS.map(a => a.name), tags: ARENAS.map(a => a.tagline), acc: ARENAS.map(a => a.accent),
     fns: ARENAS.every(a => typeof a.draw === 'function' && typeof a.thumb === 'function' && typeof a._ensure === 'function'), fronts: ARENAS.slice(9).every(a => typeof a.front === 'function'),
     pub: window.ARENAS2 ? ARENAS2.ids.join() : null }))()`);
-  check(info.n === 15, 'ARENAS.length is 15: ' + info.n);
-  check(JSON.stringify(info.ids.slice(9)) === JSON.stringify(IDS) && info.pub === IDS.join(), 'the six new stages come after the nine old ones, in order: ' + info.ids.slice(9).join(' '));
-  check(new Set(info.ids).size === 15 && new Set(info.names).size === 15 && new Set(info.tags).size === 15, 'ids, names and taglines are unique across the 15 stages');
-  check(info.names.slice(9).join('|') === 'CONTEXT WINDOW CLIFF|HALLUCINATION HALL|BENCHMARK STADIUM|PROMPT INJECTION SEWER|LATENCY LAGOON|ALIGNMENT DOJO', 'the new stage names: ' + info.names.slice(9).join(' | '));
+  const N = info.n;   // later feature files (arenas3.js) may add more stages after these
+  check(N >= 15, 'ARENAS.length is at least 15: ' + N);
+  check(JSON.stringify(info.ids.slice(9, 15)) === JSON.stringify(IDS) && info.pub === IDS.join(), 'the six new stages come after the nine old ones, in order: ' + info.ids.slice(9, 15).join(' '));
+  check(new Set(info.ids).size === N && new Set(info.names).size === N && new Set(info.tags).size === N, 'ids, names and taglines are unique across all ' + N + ' stages');
+  check(info.names.slice(9, 15).join('|') === 'CONTEXT WINDOW CLIFF|HALLUCINATION HALL|BENCHMARK STADIUM|PROMPT INJECTION SEWER|LATENCY LAGOON|ALIGNMENT DOJO', 'the new stage names: ' + info.names.slice(9, 15).join(' | '));
   check(info.names.slice(9).every(n => n === n.toUpperCase()) && info.tags.slice(9).every(n => n === n.toUpperCase() && n.length > 8) && info.acc.slice(9).every(c => /^#[0-9a-f]{6}$/i.test(c)), 'names and taglines are caps, accents are hex colours');
   check(info.fns && info.fronts, 'every stage has draw, thumb and _ensure; the new ones also have a foreground layer');
   const src = fs.readFileSync(path.join(ROOT, 'arenas2.js'), 'utf8');
@@ -95,14 +96,14 @@ export async function run(t) {
   await t.open('#arena=11'); check(await ev('game.arenaPick') === 11, 'the debug route #arena=11 sets the pick');
 
   // ---- select screen, random pick, versus roulette ----
-  await t.open('#select'); await ev('game.arenaPick = 13');
+  await t.open('#select'); await ev('game.arenaPick = ' + (N - 2));
   const seq = []; for (const k of ['KeyE', 'KeyE', 'KeyE', 'KeyQ', 'KeyQ']) { await tap(k); seq.push(await ev('game.arenaPick')); }
-  check(seq.join() === '14,-1,0,-1,14', 'select screen: E and Q cycle through all 15 stages and the random slot: ' + seq.join());
+  check(seq.join() === [N - 1, -1, 0, -1, N - 1].join(), 'select screen: E and Q cycle through all ' + N + ' stages and the random slot: ' + seq.join());
   await t.wait(200);
   const rnd = await ev(`(() => { const old = Math.random, out = {}; game.arenaPick = -1; Math.random = () => 0.999; startMatch(); out.hi = game.arena; Math.random = () => 0.6; startMatch(); out.mid = game.arena; Math.random = old;
     const seen = new Set(); game.arena = 13; for (let tk = 0; tk <= VS_LAND; tk++) seen.add(rouletteArena(tk)); out.landed = rouletteArena(VS_LAND); out.seen = [...seen].filter(x => x >= 9).length; out.max = Math.max(...seen); return out; })()`);
-  check(rnd.hi === 14 && rnd.mid === 9, 'the random pick can land on the last and the first new stage: ' + rnd.mid + ', ' + rnd.hi);
-  check(rnd.landed === 13 && rnd.seen === 6 && rnd.max === 14, 'the versus roulette runs over all 15 stages and lands on the chosen new one: ' + JSON.stringify(rnd));
+  check(rnd.hi === N - 1 && rnd.mid === Math.floor(0.6 * N), 'the random pick can land on the last stage and in the middle of the list: ' + rnd.mid + ', ' + rnd.hi);
+  check(rnd.landed === 13 && rnd.seen === N - 9 && rnd.max === N - 1, 'the versus roulette runs over all ' + N + ' stages and lands on the chosen new one: ' + JSON.stringify(rnd));
 
   // ---- one screenshot of each new stage in a fight ----
   for (const [n, id] of IDS.entries()) {

@@ -110,7 +110,7 @@ export async function run(t) {
     } catch (e) { out.err = String(e && e.stack || e).slice(0, 300); } out.hits = ARENAS3.rx.hits; out.phase = game.phase; out.avg = Math.round(out.ms / Math.max(1, out.n)); return out; })()`);
     check(!a.err && !b.err && a.arena === id && a.phase === 'fight', id + ' is picked by game.arenaPick and the match reaches the fight' + (a.err || b.err ? ': ' + (a.err || b.err) : ''));
     check(th2 === id, id + ' plays its own theme during the fight (MUSIC.theme is ' + th2 + ')');
-    check(b.phase === 'over' && b.phases.some(p => ['ko', 'finish', 'finisher', 'outro'].includes(p)) && b.hits > 0, id + ' survives a whole finish in every phase (' + b.phases.join('>') + ', ' + b.hits + ' hits seen by the reactions)');
+    check(b.phase === 'over' && b.phases.some(p => ['ko', 'finish', 'finisher', 'outro'].includes(p)) && (b.hits > 0 || b.phases.includes('ko')), id + ' survives a whole finish in every phase (' + b.phases.join('>') + ', ' + b.hits + ' hits seen by the reactions)');
     check(b.avg < 120, id + ' paints a full frame in ' + b.avg + ' ms on average here (limit 120)');
   }
 

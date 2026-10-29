@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ROSTER bios in game.js and with the "description" in pets/<id>/pet.json.
 const INFO = {
   tibo: 'Hoodie-wearing parody of Tibo from Codex at OpenAI. Fights with commits, hotfixes and reverts.',
-  poteto: 'Long-haired fighter in round glasses who throws hot sweet potatoes.',
+  poteto: 'Grok bot. Long-haired fighter in round glasses who throws hot sweet potatoes.',
   dot: "Fuzzy yellow pom-pom in round glasses and a bow tie, a parody of OpenAI's dots. Fast but fragile.",
   wang: 'Parody of Alexandr Wang at Meta. Calm, with iridescent bubbles and lab drones.',
   muse: "Fluffy cream-pink hooded plush, a parody of Meta's agent. Pings, undoes and swarms.",

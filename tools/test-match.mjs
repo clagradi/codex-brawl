@@ -476,9 +476,9 @@ function bannedHits() { // file names and the text of every source, doc and data
   return hits;
 }
 
-// Real organisations a fighter's text may name: the four affiliations of the README roster table (Poteto has none).
+// Real organisations a fighter's text may name: the affiliations of the README roster table.
 const ORG_WORDS = /\b(openai|codex|meta|xai|grok|google|deepmind|anthropic|claude|microsoft|amazon|apple|nvidia|tesla|spacex|twitter|facebook|instagram|mistral|perplexity|scale ai)\b/gi;
-const ORG_OK = { tibo: ['openai', 'codex'], poteto: [], dot: ['openai'], wang: ['meta'], muse: ['meta'] };
+const ORG_OK = { tibo: ['openai', 'codex'], poteto: ['grok'], dot: ['openai'], wang: ['meta'], muse: ['meta'] };
 const orgsIn = s => [...new Set((String(s).match(ORG_WORDS) || []).map(x => x.toLowerCase()))];
 const orgProblems = (id, s, where) => orgsIn(s).filter(o => !ORG_OK[id].includes(o)).map(o => where + ' names ' + o);
 function petInfo() { // the INFO table at the top of tools/export-pets.mjs
@@ -595,10 +595,10 @@ export async function uxDesktopChecks(p, check, tap) {
     const ro = await p.eval(`ROSTER.map(r => ({ id: r.id, name: r.name, tag: r.tag, bio: r.bio, handle: r.handle, mv: [...MOVES[r.id].sp.map(m => m.name), MOVES[r.id].air.name, MOVES[r.id].su.name, MOVES[r.id].fin.name] }))`);
     check(ro.map(r => r.id).join() === IDS.join(), 'the roster is exactly Tibo, Poteto, Dot, Wang and Muse');
     check(ro.every(r => r.handle === ''), 'fighter X handles stay empty');
-    const NEED = { tibo: ['OPENAI'], poteto: [], dot: ['OPENAI'], wang: ['META'], muse: ['META'] };   // what the in-game tag has to say
+    const NEED = { tibo: ['OPENAI'], poteto: ['GROK'], dot: ['OPENAI'], wang: ['META'], muse: ['META'] };   // what the in-game tag has to say
     const bad = ro.flatMap(r => [r.name, r.tag, r.bio, ...r.mv].flatMap(s => orgProblems(r.id, s, r.id + ' "' + s + '"')));
     for (const r of ro) for (const w of NEED[r.id]) if (!r.tag.includes(w)) bad.push(r.id + ' tag "' + r.tag + '" does not say ' + w);
-    check(!bad.length, 'in-game fighter text carries only the allowed affiliations (Tibo: Codex at OpenAI, Dot: OpenAI, Wang: Meta, Muse: Meta, Poteto: none)' + more(bad));
+    check(!bad.length, 'in-game fighter text carries only the allowed affiliations (Tibo: Codex at OpenAI, Dot: OpenAI, Wang: Meta, Muse: Meta, Poteto: Grok)' + more(bad));
     const info = petInfo(), petBad = [];
     for (const r of ro) {
       let pet = {}; try { pet = JSON.parse(read('pets/' + r.id + '/pet.json')); } catch (e) { petBad.push(r.id + ': pet.json unreadable'); }
@@ -607,7 +607,7 @@ export async function uxDesktopChecks(p, check, tap) {
       if (pet.description !== info[r.id]) petBad.push(r.id + ': pet.json description differs from INFO');
       if (pet.id !== 'brawl-' + r.id || pet.displayName !== dn) petBad.push(r.id + ': id or displayName');
       petBad.push(...orgProblems(r.id, (info[r.id] || '') + ' ' + (pet.description || ''), r.id + ' pet text'));
-      for (const w of { tibo: ['OpenAI', 'Codex'], poteto: [], dot: ["OpenAI's dots"], wang: ['Meta'], muse: ["Meta's agent"] }[r.id]) if (!(info[r.id] || '').includes(w)) petBad.push(r.id + ': INFO does not say ' + w);
+      for (const w of { tibo: ['OpenAI', 'Codex'], poteto: ['Grok'], dot: ["OpenAI's dots"], wang: ['Meta'], muse: ["Meta's agent"] }[r.id]) if (!(info[r.id] || '').includes(w)) petBad.push(r.id + ': INFO does not say ' + w);
     }
     check(!petBad.length, 'the INFO strings in tools/export-pets.mjs match pets/*/pet.json and name only the allowed affiliations' + more(petBad));
   });
@@ -617,7 +617,7 @@ export async function uxDesktopChecks(p, check, tap) {
     const N = await p.eval('ROSTER.length'), names = await p.eval('ARENAS.map(a => a.name)');
     const rows = readme.split('\n').filter(l => /^\| (Tibo|Poteto|Dot|Alexandr Wang|Muse)\b/.test(l)).map(cells);
     const mv = await p.eval(`ROSTER.map(r => { const M = MOVES[r.id], by = i => (M.sp.find(m => m.input === i) || {}).name; return [by('L'), by('FWD+L'), by('DOWN+L'), M.air.name, M.su.name, M.fin.name]; })`);
-    const AFF = ['Tibo (Codex at OpenAI)', 'Poteto', "Dot (OpenAI's dots)", 'Alexandr Wang (Meta)', "Muse (Meta's agent)"], tbl = [];
+    const AFF = ['Tibo (Codex at OpenAI)', 'Poteto (Grok bot)', "Dot (OpenAI's dots)", 'Alexandr Wang (Meta)', "Muse (Meta's agent)"], tbl = [];
     if (rows.length !== mv.length) tbl.push('the README roster table has ' + rows.length + ' rows, the game has ' + mv.length + ' fighters');
     rows.forEach((r, i) => {
       if (r[0] !== AFF[i]) tbl.push('row ' + (i + 1) + ' says "' + r[0] + '", expected "' + AFF[i] + '"');

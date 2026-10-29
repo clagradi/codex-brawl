@@ -59,7 +59,7 @@ export async function run(t) {
     game.wins[0] = roundsToWin() - 1; a.set('idle'); b.set('idle'); a.x = 400; b.x = 300; a.inv = b.inv = 0; b.hp = 1; game.koBy(a, b);
     out.finish = game.phase; n = 0; while ((game.hitstop > 0 || game.slow > 0) && n++ < 300) step(1);
     b.x = ${loserX}; b.vx = 0; a.x = ${loserX} + (${loserX} < 480 ? 150 : -150); render();
-    ${down ? 'keys.KeyS = true;' : ''} pressed.KeyI = true; step(1); keys.KeyS = false; for (let i = 0; i < 3; i++) step(1);
+    ${down ? 'keys.KeyS = true;' : ''} pressed.KeyI = true; for (let i = 0; i < 8 && game.phase === 'finish'; i++) step(1); keys.KeyS = false; for (let i = 0; i < 3; i++) step(1);   // vfx's KO slow motion freezes 3 ticks in 4: hold until a tick runs
     out.phase = game.phase; out.name = game.fin && game.fin.name; out.stage = !!(game.fin && game.fin.stage); out.restored = !!MOVES[a.d.id].fin && !MOVES[a.d.id].fin.stage;
     n = 0; while (game.phase !== 'over' && n++ < 4000) { step(1); if (n % 4 === 0) render(); }
     out.end = game.phase; out.ends = ends; out.sf = sf; out.stats = HAZARDS.stats(); out.winner = game.winner === a; return out; })()`;
