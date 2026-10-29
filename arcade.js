@@ -13,7 +13,7 @@
     easy: ['EASY', '#5cff8a', 'SLOW CPU. NO SPECIAL CANCELS.'],
     normal: ['NORMAL', '#ffffff', 'THE STANDARD CPU.'],
     hard: ['HARD', '#ffb347', 'A SHARP CPU THAT LEARNS FAST.'],
-    nightmare: ['NIGHTMARE', '#ff4155', 'NEAR PERFECT GUARD. USES EVERYTHING.'],
+    nightmare: ['NIGHTMARE', '#ff4155', 'NEAR PERFECT GUARD. NO MERCY.'],
   };
   const C = { bg: '#0b0a14', panel: '#1b1830', edge: '#463f7a', gold: '#ffd23f', red: '#ff4155', green: '#5cff8a', cyan: '#7ef0ff', dim: '#8f89bd', white: '#ffffff', ink: '#05040a' };
   const STAGES = 5;                 // four rivals and the overclocked mirror
@@ -407,18 +407,18 @@
       const on = i === A.diffSel, info = DIFF_INFO[d];
       T(c, (on ? '> ' : '  ') + info[0], px + 16, py + 40 + i * 24, 2, on ? info[1] : C.dim);
     });
-    T(c, DIFF_INFO[DIFFS[A.diffSel]][2], px + 16, py + 138, 1, C.dim);
+    T(c, DIFF_INFO[DIFFS[A.diffSel]][2], px + 16, py + 136, 2, C.dim);
     badgeRow(c, 14, 10, 22, 4);
     T(c, 'A D FIGHTER   W S DIFFICULTY   J START   K BACK', W / 2, 512, 2, C.dim, 'center');
   }
   function stageCard(c, R, i, x, y, cw, ch) {
     const boss = i >= STAGES - 1, won = R.won.includes(i), next = i === R.idx, id = boss ? ROSTER[R.pid].id : ROSTER[R.order[i]].id, r = fx(id);
     panel(c, x, y, cw, ch, next ? (blink(14) ? C.gold : '#c79a00') : boss ? '#7a2030' : C.edge, next ? '#26204a' : C.panel);
-    drawPortrait(c, id, x + 6, y + 22, cw - 12, 96);
-    if (boss) { c.fillStyle = 'rgba(255,40,60,0.28)'; c.fillRect(x + 6, y + 22, cw - 12, 96); }
+    drawPortrait(c, id, x + 6, y + 22, cw - 12, 88);
+    if (boss) { c.fillStyle = 'rgba(255,40,60,0.28)'; c.fillRect(x + 6, y + 22, cw - 12, 88); }
     T(c, boss ? 'BOSS' : 'STAGE ' + (i + 1), x + cw / 2, y + 6, 2, boss ? C.red : C.dim, 'center');
     T(c, boss ? SHORT(r) + ' OC' : SHORT(r), x + cw / 2, y + ch - 36, 2, boss ? C.red : r.col, 'center');
-    if (won) { c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(x + 6, y + 22, cw - 12, 96); T(c, 'WON', x + cw / 2, y + 60, 3, C.green, 'center'); }
+    if (won) { c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(x + 6, y + 22, cw - 12, 88); T(c, 'WON', x + cw / 2, y + 56, 3, C.green, 'center'); }
     else if (next && blink(14)) T(c, 'NEXT', x + cw / 2, y + ch - 18, 2, C.gold, 'center');
   }
   function drawLadder(c) {
@@ -434,11 +434,12 @@
     if (boss) { c.save(); c.globalCompositeOperation = 'lighter'; const gr = c.createRadialGradient(810, 400, 8, 810, 400, 130); gr.addColorStop(0, 'rgba(255,40,60,0.35)'); gr.addColorStop(1, 'rgba(255,40,60,0)'); c.fillStyle = gr; c.fillRect(670, 260, 280, 250); c.restore(); }
     drawSprite(c, o.id, 'idle', loopFrame('idle', A.st + 7), 810, 500, -1);
     T(c, boss ? 'FINAL BOSS' : 'NEXT RIVAL', W / 2, 252, 2, boss ? C.red : C.dim, 'center');
-    drawTitleText(c, boss ? SHORT(o) + ' OVERCLOCKED' : o.name, W / 2, 304, boss ? 30 : 34, { align: 'center', style: boss ? 'blood' : 'steel', maxW: 400 });
-    wrap('"' + tauntOf(R) + '"', 26).forEach((ln, k) => T(c, ln, W / 2, 342 + k * 22, 2, C.white, 'center'));
+    drawTitleText(c, boss ? SHORT(o) : o.name, W / 2, 300, 34, { align: 'center', style: boss ? 'blood' : 'steel', maxW: 400 });
+    if (boss) T(c, '(OVERCLOCKED)', W / 2, 326, 2, C.red, 'center');
+    wrap('"' + tauntOf(R) + '"', 26).forEach((ln, k) => T(c, ln, W / 2, (boss ? 354 : 342) + k * 22, 2, C.white, 'center'));
     T(c, 'ARENA: ' + ARENAS[arenaOf(R)].name, W / 2, 422, 2, C.cyan, 'center');
     if (blink(24)) T(c, 'PRESS A BUTTON TO FIGHT', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: LEAVE THE LADDER', W / 2, 512, 1, C.dim, 'center');
+    T(c, 'ESC: LEAVE THE LADDER', W / 2, 512, 2, C.dim, 'center');
   }
   function drawContinue(c) {
     const R = A.run; backdrop(c, 'rgba(200,60,80,0.14)');
@@ -447,7 +448,7 @@
     drawTitleText(c, String(secs), W / 2, 290, 190, { align: 'center', style: secs <= 3 ? 'blood' : 'gold' });
     if (blink(24)) T(c, 'PRESS ANY BUTTON TO CONTINUE', W / 2, 410, 2, C.white, 'center');
     T(c, 'STAGE ' + (R.idx + 1) + ' OF ' + STAGES + '   CONTINUES USED ' + R.conts, W / 2, 448, 2, C.dim, 'center');
-    T(c, 'ESC: GIVE UP', W / 2, 500, 1, C.dim, 'center');
+    T(c, 'ESC: GIVE UP', W / 2, 500, 2, C.dim, 'center');
   }
   function drawSurv(c) {
     const R = A.run; backdrop(c);
@@ -460,21 +461,21 @@
     T(c, 'METER ' + Math.round(R.meter || 0) + '%', W / 2, 284, 2, C.cyan, 'center');
     T(c, 'NEXT UP IS A NEW RIVAL.', W / 2, 330, 2, C.white, 'center');
     drawSprite(c, f0.id, 'win', loopFrame('win', A.st), 230, 500, 1);
-    drawSprite(c, f0.id, 'idle', 0, -400, 500, 1);
     if (blink(24)) T(c, 'PRESS A BUTTON', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: CASH OUT', W / 2, 512, 1, C.dim, 'center');
+    T(c, 'ESC: CASH OUT', W / 2, 512, 2, C.dim, 'center');
   }
   function drawEnding(c) {
     const R = A.run, r = ROSTER[R.pid], lines = ENDINGS[r.id][A.card]; backdrop(c, 'rgba(90,160,200,0.12)');
     T(c, SHORT(r) + ' ENDING   ' + (A.card + 1) + '/3', W / 2, 34, 2, C.dim, 'center');
     panel(c, 70, 90, 300, 300, r.col, '#0a0818'); drawPortrait(c, r.id, 78, 98, 284, 284);
-    panel(c, 400, 120, 490, 240, C.edge, 'rgba(10,8,24,0.9)');
-    let left = Math.floor(A.cardT / 2); const flat = lines.join('').length;
-    lines.forEach((ln, k) => {
-      const part = ln.slice(0, Math.max(0, left)); left -= ln.length;
-      wrap(part, 38).forEach((w, j) => T(c, w, 420, 150 + k * 70 + j * 24, 2, C.white));
+    panel(c, 400, 90, 490, 300, C.edge, 'rgba(10,8,24,0.9)');
+    let left = Math.floor(A.cardT / 2), yy = 112; const flat = lines.join('').length;
+    lines.forEach(ln => {                                     // wrap the whole line first so words never jump while it types
+      const shown = Math.max(0, left); left -= ln.length; let used = 0;
+      wrap(ln, 24).forEach(w => { const n = Math.min(w.length, shown - used); if (n > 0) T(c, w.slice(0, n), 420, yy, 3, C.white); used += w.length + 1; yy += 30; });
+      yy += 18;
     });
-    if (A.cardT > flat * 2 && blink(20)) T(c, 'ENTER', 870, 330, 2, C.gold, 'right');
+    if (A.cardT >= flat * 2 + 4 && blink(20)) T(c, 'ENTER', 870, 360, 2, C.gold, 'right');
     T(c, 'ENTER: NEXT   ESC: SKIP', W / 2, 512, 2, C.dim, 'center');
   }
   function drawCredits(c) {
@@ -490,7 +491,7 @@
       y += 34;
     }
     const f = R && ROSTER[R.pid]; if (f) drawSprite(c, f.id, 'win', loopFrame('win', A.st), 130, 500, 1);
-    T(c, 'ENTER OR ESC: SKIP', W - 20, 516, 1, C.dim, 'right');
+    T(c, 'ENTER OR ESC: SKIP', W - 20, 512, 2, C.dim, 'right');
   }
   function drawScores(c, entry) {
     backdrop(c, 'rgba(200,60,80,0.1)');
@@ -515,24 +516,24 @@
   function drawStats(c) {
     backdrop(c);
     bigTitle(c, 'STATS', 44, 52);
-    panel(c, 40, 86, 440, 214);
-    T(c, 'FIGHTER', 100, 98, 2, C.gold); T(c, 'WINS', 360, 98, 2, C.gold, 'right'); T(c, 'LOSSES', 450, 98, 2, C.gold, 'right');
+    panel(c, 40, 86, 440, 196);
+    T(c, 'FIGHTER', 100, 96, 2, C.gold); T(c, 'WINS', 360, 96, 2, C.gold, 'right'); T(c, 'LOSSES', 450, 96, 2, C.gold, 'right');
     ROSTER.forEach((r, i) => {
-      const y = 128 + i * 34, s = rec(r.id); drawHeadIcon(c, r.id, 52, y - 6, 32); T(c, SHORT(r), 100, y + 2, 2, r.col); T(c, String(s.w), 360, y + 2, 2, C.white, 'right'); T(c, String(s.l), 450, y + 2, 2, C.white, 'right');
+      const y = 124 + i * 30, s = rec(r.id); drawHeadIcon(c, r.id, 52, y - 7, 30); T(c, SHORT(r), 100, y, 2, r.col); T(c, String(s.w), 360, y, 2, C.white, 'right'); T(c, String(s.l), 450, y, 2, C.white, 'right');
     });
-    panel(c, 500, 86, 420, 214);
-    T(c, 'BEST COMBO', 520, 100, 2, C.gold); T(c, String(ST.combo), 900, 100, 2, C.white, 'right');
-    T(c, 'BEST SURVIVAL', 520, 128, 2, C.gold); T(c, ST.surv.score + ' (W' + ST.surv.wins + ')', 900, 128, 2, C.white, 'right');
-    T(c, 'MATCHES PLAYED', 520, 156, 2, C.gold); T(c, String(ST.matches), 900, 156, 2, C.white, 'right');
-    T(c, 'LADDER CLEARS', 520, 190, 2, C.gold);
-    DIFFS.forEach((d, i) => { T(c, DIFF_INFO[d][0], 540, 218 + i * 20, 2, DIFF_INFO[d][1]); T(c, String(ST.clears[d]), 900, 218 + i * 20, 2, C.white, 'right'); });
-    T(c, 'BADGES  ' + BADGES.filter(b => ST.badges[b.id]).length + '/' + BADGES.length, 40, 318, 2, C.gold);
-    BADGES.forEach((b, i) => {
-      const col = i % 4, row = Math.floor(i / 4), x = 40 + col * 222, y = 346 + row * 74, on = ST.badges[b.id];
-      panel(c, x, y, 210, 66, on ? C.gold : '#2a2550', on ? '#2a2108' : '#100e22');
-      T(c, on ? b.ch : '?', x + 26, y + 26, 3, on ? C.gold : '#4a4478', 'center');
-      T(c, on ? b.name : '???', x + 50, y + 10, 2, on ? C.white : '#4a4478');
-      wrap(b.desc, 17).slice(0, 2).forEach((w, k) => T(c, w, x + 50, y + 32 + k * 14, 1, on ? C.dim : '#3a3466'));
+    panel(c, 500, 86, 420, 196);
+    T(c, 'BEST COMBO', 520, 98, 2, C.gold); T(c, String(ST.combo), 900, 98, 2, C.white, 'right');
+    T(c, 'BEST SURVIVAL', 520, 122, 2, C.gold); T(c, ST.surv.score + ' (W' + ST.surv.wins + ')', 900, 122, 2, C.white, 'right');
+    T(c, 'MATCHES PLAYED', 520, 146, 2, C.gold); T(c, String(ST.matches), 900, 146, 2, C.white, 'right');
+    T(c, 'LADDER CLEARS', 520, 176, 2, C.gold);
+    DIFFS.forEach((d, i) => { T(c, DIFF_INFO[d][0], 540, 200 + i * 19, 2, DIFF_INFO[d][1]); T(c, String(ST.clears[d]), 900, 200 + i * 19, 2, C.white, 'right'); });
+    T(c, 'BADGES  ' + BADGES.filter(b => ST.badges[b.id]).length + '/' + BADGES.length, 40, 292, 2, C.gold);
+    BADGES.forEach((b, i) => {                                   // two columns of four, a name line and a description line each
+      const col = i % 2, row = Math.floor(i / 2), x = 40 + col * 450, y = 316 + row * 48, on = ST.badges[b.id];
+      panel(c, x, y, 430, 44, on ? C.gold : '#2a2550', on ? '#2a2108' : '#100e22');
+      T(c, on ? b.ch : '?', x + 24, y + 14, 3, on ? C.gold : '#4a4478', 'center');
+      T(c, on ? b.name : '???', x + 52, y + 5, 2, on ? C.white : '#4a4478');
+      T(c, b.desc, x + 52, y + 24, 2, on ? C.dim : '#4a4478');
     });
     T(c, 'ESC OR ANY CONFIRM KEY: BACK', W / 2, 516, 2, C.dim, 'center');
   }
@@ -540,8 +541,8 @@
     const q = A.toasts[0]; if (!q) return;
     const e = q.t < 20 ? q.t / 20 : q.t > 195 ? Math.max(0, (220 - q.t) / 25) : 1, y = 62 - (1 - e) * 60, x = W / 2 - 170;
     c.save(); c.globalAlpha = Math.min(1, e + 0.1);
-    panel(c, x, y, 340, 50, C.gold, '#1d1708'); c.fillStyle = '#6b4d00'; c.fillRect(x + 8, y + 8, 34, 34); c.strokeStyle = C.gold; c.strokeRect(x + 9, y + 9, 32, 32);
-    T(c, q.b.ch, x + 25, y + 17, 2, C.gold, 'center'); T(c, 'BADGE UNLOCKED', x + 54, y + 9, 1, C.gold); T(c, q.b.name, x + 54, y + 24, 2, C.white);
+    panel(c, x, y, 340, 58, C.gold, '#1d1708'); c.fillStyle = '#6b4d00'; c.fillRect(x + 8, y + 8, 42, 42); c.strokeStyle = C.gold; c.strokeRect(x + 9, y + 9, 40, 40);
+    T(c, q.b.ch, x + 29, y + 22, 2, C.gold, 'center'); T(c, 'BADGE UNLOCKED', x + 62, y + 10, 2, C.gold); T(c, q.b.name, x + 62, y + 32, 2, C.white);
     c.restore();
   }
   HOOKS.add('drawTop', (c, g) => {
