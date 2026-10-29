@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| last | `p-training2.js` | the TRAINING mode: dummy behaviours, record and playback, input display, frame advantage, hitboxes, reset (loaded after every other feature file, so its `training` mode wins over the `training.js` stub) | p-training2 agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-training2.js`, `tools/tests/x-p-training2.mjs`, `docs/features/p-training2.md` | p-training2 agent | no engine edit: MODES, SETTINGS, BUS `hit`/`block` and HOOKS `input` (order -1000), `update`, `fighterUpdate`, `damage` (order 1e9), `drawWorld`, `drawHud`, `pauseItems` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -142,6 +144,10 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `training2.dummy` | enum, `'stand'` | `'stand'`, `'crouch'`, `'jump'`, `'block'`, `'after'` | `p-training2.js`: what the training dummy does (BLOCK ALL guards high or low as needed, BLOCK AFTER HIT guards for a second after it is hit) |
+| `training2.hitbox` | bool, `false` | | `p-training2.js`: the hurtbox, attack box and projectile overlay in training |
+| `training2.inputs` | bool, `true` | | `p-training2.js`: the input display (P1's last 12 inputs) in training |
+| `training2.refill` | bool, `true` | | `p-training2.js`: health refills after a quiet moment and P1 keeps a full meter in training |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
