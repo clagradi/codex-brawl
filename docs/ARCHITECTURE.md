@@ -136,6 +136,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `announcer` | bool, `true` | | `options.js`: `false` silences `ANNOUNCER.say` (the stingers follow `voiceVol`) |
 | `trackToast` | bool, `true` | | `options.js` hides the note with the arena track name at the start of a round |
 | `bonus.scores` | any, `{ benchmark: [], squash: [] }` | per mode, up to five `{ s, f }` rows (score, fighter index), best first | `bonus.js`: the top-five lists of BENCHMARK BREAK and BUG SQUASH; migrated from the old `brawl.bonus` key |
+| `palettes.p1` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the colourway player 1 last picked for each fighter (0 classic, 1 to 3 alternates, 4 the star colourway) |
+| `palettes.p2` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the same for player 2 |
+| `palettes.unlocked` | any, `{}` | `{ fighterId: true }` | `palettes.js`: the star colourways opened by winning a match as a human player |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
