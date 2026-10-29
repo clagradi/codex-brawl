@@ -5,7 +5,7 @@
 // runPhoneTests repeats the menus and controls on an emulated touch phone. Run: node tools/headless.mjs --test
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const URL_BASE = 'file://' + path.join(ROOT, 'index.html');
@@ -193,7 +193,9 @@ export async function runTests(p) {
   check(dB(liveRms) > -23 && dB(liveRms) < -11, `audio: the live title music measures ${dB(liveRms).toFixed(1)} dBFS RMS (expected about -17)`);
   await tap('KeyM'); check(await until('MUSIC.now === null', 600), 'audio: M mutes the music on the title');
   await tap('KeyM'); check(await until('MUSIC.now === "title"', 1000), 'audio: M again brings it back');
+  await p.eval('AC.resume = () => new Promise(() => { })');   // the music clock asks a suspended context to resume by itself, which brings the music back within a tick or two: hold that off for the length of the check, or the silence is too short to catch
   check(await p.eval('AC.suspend().then(() => AC.state)') === 'suspended' && await until('MUSIC.now === null', 600), 'audio: a suspended context silences the music');
+  await p.eval('delete AC.resume');
   await tap('KeyW'); check(await until('AC.state === "running" && MUSIC.now === "title"', 2000), 'audio: a suspended context is resumed (by the next gesture or by the music clock) and the music returns');
   for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchstart', 'touchend']) { // Safari / iOS only accept some of these as an unlock: every one must start the audio
     await p.goto(URL_BASE); await p.wait(150);
@@ -382,7 +384,7 @@ export async function runTests(p) {
   check(art.heads.length === 0, 'every fighter has a filled portrait / head icon' + (art.heads.length ? ': ' + art.heads.join(' ') : ''));
   check(parseInt(art.farfur.slice(1, 3), 16) > parseInt(art.farfur.slice(5, 7), 16) + 20, 'plush far-side limbs shade towards warm rose, not cold violet (' + art.farfur + ')');
   check(art.wang.lid && art.wang.ry <= 2.6, 'Wang keeps calm narrow half-lidded eyes');
-  const live = await p.eval(`(() => {
+  const artLive = await p.eval(`(() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 400; const g = cv.getContext('2d', { willReadFrequently: true });
     const grab = () => g.getImageData(0, 0, 400, 400).data.slice();
     const ndiff = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2] || a[i + 3] !== b[i + 3]) n++; return n; };
@@ -403,11 +405,11 @@ export async function runTests(p) {
     for (const k of ['low', 'sweep', 'kickf']) { reset(200); f.startAtk(k); step(ATK[k].hit); const [a, b, name] = view(f); out.atk[k] = [f.atk, ndiff(a, b), name]; }
     return out;
   })()`);
-  check(live.names.slice(0, 4).every(s => s.startsWith('punch:')) && live.thrower.slice(0, 4).every(n => n > 60), 'a throwing fighter is drawn in its own throw pose, not the punch frame (' + live.thrower.join(',') + ' px differ)');
-  check(live.steps.slice(1, 4).every(n => n > 20) && live.thrower[4] > 60, 'the throw pose changes from grab to lift to overhead to slam and release (' + live.steps.join(',') + ')');
-  check(live.victim.length === 4 && live.victim.every(n => n > 60) && live.tum.slice(1).every(n => n > 20), 'the thrown foe tumbles over the thrower instead of showing one hit frame (' + live.victim.join(',') + ')');
-  check(live.plain === 0, 'a sprite that matches no live fighter (menus, finishers) is exactly the plain sheet frame (' + live.plain + ' px differ)');
-  check(['low', 'sweep', 'kickf'].every(k => live.atk[k][0] === k && live.atk[k][1] > 40), 'low jab, sweep and forward kick are drawn with their own low poses: ' + JSON.stringify(live.atk));
+  check(artLive.names.slice(0, 4).every(s => s.startsWith('punch:')) && artLive.thrower.slice(0, 4).every(n => n > 60), 'a throwing fighter is drawn in its own throw pose, not the punch frame (' + artLive.thrower.join(',') + ' px differ)');
+  check(artLive.steps.slice(1, 4).every(n => n > 20) && artLive.thrower[4] > 60, 'the throw pose changes from grab to lift to overhead to slam and release (' + artLive.steps.join(',') + ')');
+  check(artLive.victim.length === 4 && artLive.victim.every(n => n > 60) && artLive.tum.slice(1).every(n => n > 20), 'the thrown foe tumbles over the thrower instead of showing one hit frame (' + artLive.victim.join(',') + ')');
+  check(artLive.plain === 0, 'a sprite that matches no live fighter (menus, finishers) is exactly the plain sheet frame (' + artLive.plain + ' px differ)');
+  check(['low', 'sweep', 'kickf'].every(k => artLive.atk[k][0] === k && artLive.atk[k][1] > 40), 'low jab, sweep and forward kick are drawn with their own low poses: ' + JSON.stringify(artLive.atk));
   const dive = await p.eval(`(() => {
     const out = {}, cv = document.createElement('canvas'); cv.width = cv.height = 400; const g = cv.getContext('2d', { willReadFrequently: true });
     const shot = (q, a) => { q.ang = a; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 400, 400); g.setTransform(1, 0, 0, 1, 200 - q.x, 200 - q.y); q.draw(g, q); g.setTransform(1, 0, 0, 1, 0, 0); return g.getImageData(0, 0, 400, 400).data.slice(); };
@@ -425,6 +427,22 @@ export async function runTests(p) {
   const tilts = Object.entries(dive).filter(([k]) => /^(tibo|dot|muse) /.test(k)), flat = Object.entries(dive).filter(([k]) => /^(poteto|wang) /.test(k));
   check(tilts.length === 6 && tilts.every(([, v]) => v && v.air && Math.sign(v.ang) === v.face && Math.abs(v.ang) > 0.3 && Math.abs(v.ang) < 1.5 && v.diff > 20), 'diving air specials of Tibo, Dot and Muse lean into the dive, both ways round: ' + JSON.stringify(tilts));
   check(flat.length === 4 && flat.every(([, v]) => v && v.ang === 0), "Wang's bubble and Poteto's lob keep their upright art: " + JSON.stringify(flat));
+
+  // Feature tests: every tools/tests/*.mjs, core.mjs first and then alphabetical, each exporting `async function run(t)`. New checks do not go above this line; they go in
+  // tools/tests/core.mjs (scaffold, engine and extension layer) or the file named after the feature (docs/ARCHITECTURE.md, "How to add a test").
+  const t = {
+    p, check, tap, stepUntil, park,
+    key: (code, down) => p.key(code, down),                                   // raw key event; tap(code) is down + up
+    wait: ms => p.wait(ms),
+    open: async (hash = '') => { await p.goto(URL_BASE + hash); await p.wait(300); },   // fresh page load of index.html, optionally with a #hash route
+    eval: expr => p.eval(expr),
+  };
+  const testDir = path.join(ROOT, 'tools', 'tests');
+  const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.mjs')).sort((a, b) => (a === 'core.mjs' ? -1 : b === 'core.mjs' ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  for (const f of testFiles) {
+    try { await (await import(pathToFileURL(path.join(testDir, f)).href)).run(t); }
+    catch (e) { check(false, 'tools/tests/' + f + ' threw: ' + String(e && e.message || e).split('\n')[0]); }
+  }
 
   if (p.errors.length) { console.log('console errors:\n' + p.errors.join('\n')); ok = false; } else console.log('ok    no console errors');
   return ok;
@@ -771,14 +789,14 @@ export async function uxDesktopChecks(p, check, tap) {
   await group('mute and blood', async () => {
     await fresh();
     const store = await p.eval(`(() => { try { localStorage.setItem('t', '1'); localStorage.removeItem('t'); return true; } catch (e) { return false; } })()`);
-    const r = await p.eval(`(() => { const out = { m0: muted, g0: FX.gore }; game.phase = 'title'; __key('KeyM'); out.m1 = muted; out.ms = store(); __key('KeyB'); out.g1 = FX.gore; out.gs = store(); return out; function store() { try { return [localStorage.getItem('brawl.muted'), localStorage.getItem('brawl.gore')].join(); } catch (e) { return ''; } } })()`);
+    const r = await p.eval(`(() => { const out = { m0: muted, g0: FX.gore }; game.phase = 'title'; __key('KeyM'); out.m1 = muted; out.ms = store(); __key('KeyB'); out.g1 = FX.gore; out.gs = store(); return out; function store() { try { const o = JSON.parse(localStorage.getItem('brawl.settings') || '{}'); return [o.muted === true ? '1' : '0', o.gore === true ? '1' : '0'].join(); } catch (e) { return ''; } } })()`);   // both live in the one SETTINGS store (settings.js)
     check(r.m1 === !r.m0 && r.g1 === !r.g0, 'M toggles the sound and B the blood');
     if (store) {
       check(r.gs === (r.m1 ? '1' : '0') + ',' + (r.g1 ? '1' : '0'), 'both choices are stored in the browser');
       await p.goto(URL_BASE); await p.wait(300);
       const back = await p.eval('[muted, FX.gore]');
       check(back[0] === r.m1 && back[1] === r.g1, 'a reload restores the sound and blood choices (README: remembered between visits)');
-      await p.eval(`(() => { localStorage.removeItem('brawl.muted'); localStorage.removeItem('brawl.gore'); })()`);
+      await p.eval(`(() => { localStorage.removeItem('brawl.settings'); localStorage.removeItem('brawl.muted'); localStorage.removeItem('brawl.gore'); })()`);
     } else console.log('skip  browser storage is not available here: persistence of M and B not checked');
   });
 

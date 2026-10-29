@@ -6,7 +6,8 @@
 (function () {
   'use strict';
   const MASTER = 0.3, LOOK = 0.25, DUCK = 0.35, TRIM = { title: .88, vs: 1.07, over: .63, gpupit: .85, cathedral: .61, bridge: .8, furnace: .76, forest: .61, temple: .75, graveyard: .71, rooftop: .87, wasteland: 1.22 };   // MASTER: output gain of every theme; TRIM[name]: per-theme level correction so all themes sound equally loud
-  const level = name => MASTER * (TRIM[name] || 1);
+  const musicVol = () => { try { return typeof SETTINGS !== 'undefined' ? SETTINGS.get('musicVol') : 1; } catch (e) { return 1; } };   // the 'musicVol' setting; 1 = the level the tests measure
+  const level = name => MASTER * (TRIM[name] || 1) * musicVol();
   const MIN = [0, 2, 3, 5, 7, 8, 10], HMIN = [0, 2, 3, 5, 7, 8, 11], PHR = [0, 1, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11];
   const CHR = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], PENT = [0, 2, 4, 7, 9], MPENT = [0, 3, 5, 7, 10], SEN = [0, 1, 5, 7, 10];
   const AR = ['gpupit', 'cathedral', 'bridge', 'furnace', 'forest', 'temple', 'graveyard', 'rooftop', 'wasteland'];
@@ -176,7 +177,9 @@
   function tick() {
     if (cool > 0) { cool--; return; }
     try {
-      const g = rd(() => typeof game !== 'undefined' ? game : window.game), w = want(g); M.theme = w;
+      const g = rd(() => typeof game !== 'undefined' ? game : window.game); let w = want(g);
+      if (w && typeof HOOKS !== 'undefined') { const o = HOOKS.filter('musicTheme', w, g); if (o !== w && T[o]) w = o; }   // 'musicTheme' filter: a feature may swap the theme (it must name a theme in T)
+      M.theme = w;
       const A = rd(() => typeof AC !== 'undefined' ? AC : window.AC), mu = rd(() => typeof muted !== 'undefined' ? muted : window.muted);
       if (A && (A.state === 'suspended' || A.state === 'interrupted') && !document.hidden && Date.now() - tried > 1000) {   // Safari / iOS leave the context suspended or 'interrupted' (calls, tab switches): ask to resume, harmless outside a gesture
         tried = Date.now(); try { const r = A.resume(); if (r && r.catch) r.catch(() => { /* needs a gesture: audioInit retries on the next one */ }); } catch (e) { /* ignore */ }
@@ -196,5 +199,9 @@
     let out; try { S = null; begin(A, name, level(name)); pump(th, sd, len); out = A.startRendering(); } finally { S = saved[0]; M.now = saved[1]; }
     return out;
   };
+  // extension points for music2.js. define: add or replace a theme (opt.trim = level correction like TRIM, opt.arena = also use it for the arena whose id equals the name); instrument: add an instrument (INS shape); themes: every theme name
+  M.define = (name, theme, opt) => { opt = opt || {}; T[name] = theme; if (opt.trim) TRIM[name] = opt.trim; if (opt.arena && !AR.includes(name)) AR.push(name); };
+  M.instrument = (name, spec) => { INS[name] = spec; };
+  M.themes = () => Object.keys(T);
   setInterval(tick, 80);
 })();

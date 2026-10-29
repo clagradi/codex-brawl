@@ -59,6 +59,167 @@
 <a id="share" hidden target="_blank" rel="noopener" aria-label="Share the match result on X" href="https://x.com/intent/post">SHARE ON X</a>
 <script>const W = 960, H = 540, GROUND = 468; // canvas size and feet line, shared by every script below</script>
 <script>
+// ---- bus.js ----
+// ===== AGENT BRAWL extension layer, part 1: BUS (events) and HOOKS (extension points). Loaded first, right after the inline W/H script. =====
+// Owner: scaffold. Feature files talk to the engine only through BUS, HOOKS, SETTINGS (settings.js) and MODES (modes.js); the contracts are listed in docs/ARCHITECTURE.md.
+//   BUS   fire-and-forget notifications. BUS.on(name, fn) returns an unsubscribe function. BUS.once(name, fn), BUS.off(name, fn), BUS.emit(name, payload), BUS.count(name).
+//   HOOKS places where a feature changes what the engine does. HOOKS.add(name, fn, order = 0) returns a remove function (lower order runs first, ties run in registration order).
+//         HOOKS.run(name, ...args)           call every handler (draw and update points)
+//         HOOKS.filter(name, value, ...args) pass value through every handler, each returns the new value (undefined keeps it); the engine uses what comes out
+//         HOOKS.collect(name, ...args)       gather what the handlers return (single items or arrays) into one flat array (menu items)
+//         HOOKS.has(name)                    true when something is registered
+// A handler that throws is caught and logged once per name (console.error, so the test run fails on it); the game keeps going.
+// With nothing registered every call returns at once: the engine can call them from its hot paths.
+'use strict';
+const BUS = (() => {
+  const subs = Object.create(null), warned = Object.create(null);
+  const bad = (name, e) => { if (warned[name]) return; warned[name] = 1; try { console.error('BUS handler for "' + name + '" threw: ' + (e && e.stack || e)); } catch (x) { /* no console */ } };
+  function on(name, fn) { (subs[name] || (subs[name] = [])).push(fn); return () => off(name, fn); }
+  function off(name, fn) { const l = subs[name]; if (!l) return; const i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); }
+  function once(name, fn) { const w = p => { off(name, w); fn(p); }; return on(name, w); }
+  function emit(name, payload) { const l = subs[name]; if (!l || !l.length) return; for (const fn of l.slice()) { try { fn(payload); } catch (e) { bad(name, e); } } }
+  return { on, off, once, emit, count: name => (subs[name] || []).length };
+})();
+
+const HOOKS = (() => {
+  const pts = Object.create(null), warned = Object.create(null);
+  let seq = 0;
+  const bad = (name, e) => { if (warned[name]) return; warned[name] = 1; try { console.error('HOOK "' + name + '" threw: ' + (e && e.stack || e)); } catch (x) { /* no console */ } };
+  function add(name, fn, order = 0) {
+    const l = pts[name] || (pts[name] = []); l.push({ fn, order, n: seq++ }); l.sort((a, b) => a.order - b.order || a.n - b.n);
+    return () => remove(name, fn);
+  }
+  function remove(name, fn) { const l = pts[name]; if (!l) return; const i = l.findIndex(h => h.fn === fn); if (i >= 0) l.splice(i, 1); }
+  function run(name, ...args) {
+    const l = pts[name]; if (!l || !l.length) return;
+    for (const h of l.slice()) { try { h.fn(...args); } catch (e) { bad(name, e); } }
+  }
+  function filter(name, value, ...args) {
+    const l = pts[name]; if (!l || !l.length) return value;
+    for (const h of l.slice()) { try { const r = h.fn(value, ...args); if (r !== undefined) value = r; } catch (e) { bad(name, e); } }
+    return value;
+  }
+  function collect(name, ...args) {
+    const out = [], l = pts[name]; if (!l || !l.length) return out;
+    for (const h of l.slice()) { try { const r = h.fn(...args); if (Array.isArray(r)) out.push(...r); else if (r != null) out.push(r); } catch (e) { bad(name, e); } }
+    return out;
+  }
+  return { add, remove, run, filter, collect, has: name => !!(pts[name] && pts[name].length) };
+})();
+
+</script>
+<script>
+// ---- settings.js ----
+// ===== AGENT BRAWL extension layer, part 2: SETTINGS. One persisted store for every option. Loaded after bus.js. =====
+// Owner: scaffold (core keys); options.js owns the screen that edits them. Stored as JSON under localStorage 'brawl.settings'; storage that is blocked or corrupt just means the defaults.
+//   SETTINGS.define(key, spec)  register a key: spec = { def, type?, min?, max?, step?, values?, label?, legacy?, fromLegacy? }
+//                               type is inferred: boolean -> 'bool', number -> 'num' (clamped to min..max, rounded to step), values array -> 'enum', anything else -> 'any' (JSON-safe value)
+//                               legacy / fromLegacy: an older localStorage key to read once when nothing is stored yet (fromLegacy turns its string into the value)
+//   SETTINGS.get(key)           current value (the default when unset or invalid; undefined for an unknown key)
+//   SETTINGS.set(key, value)    validate, store, persist, emit BUS 'settings' { key, value, old } when it changed; returns the stored value
+//   SETTINGS.toggle(key)        flip a bool key
+//   SETTINGS.reset(key)         back to the default (no key: reset all)
+//   SETTINGS.all()              { key: value } for every defined key
+//   SETTINGS.list()             definitions in registration order, for an options screen
+// Feature files add their own keys with SETTINGS.define at load time. Do not read localStorage for options anywhere else.
+'use strict';
+const SETTINGS = (() => {
+  const KEY = 'brawl.settings', defs = Object.create(null);
+  let store = {};
+  try { const raw = localStorage.getItem(KEY), o = raw && JSON.parse(raw); if (o && typeof o === 'object' && !Array.isArray(o)) store = o; } catch (e) { store = {}; }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* storage blocked: the value lives for this visit only */ } };
+  // strict: a value read back from storage must already have the right type; otherwise (set) it is converted when it can be
+  function norm(d, v, strict) {
+    switch (d.type) {
+      case 'bool': return strict ? (typeof v === 'boolean' ? v : d.def) : !!v;
+      case 'num': {
+        if (!strict) v = Number(v); if (typeof v !== 'number' || !isFinite(v)) return d.def;
+        if (d.step) v = Math.round(v / d.step) * d.step;
+        return +Math.min(d.max, Math.max(d.min, v)).toFixed(6);
+      }
+      case 'enum': return d.values.includes(v) ? v : d.def;
+      default: return v === undefined ? d.def : v;
+    }
+  }
+  function get(key) { const d = defs[key]; if (!d) return undefined; return key in store ? norm(d, store[key], true) : d.def; }
+  function define(key, spec) {
+    const def = spec.def, d = Object.assign({ key, label: key.toUpperCase(), min: -Infinity, max: Infinity, type: spec.values ? 'enum' : typeof def === 'boolean' ? 'bool' : typeof def === 'number' ? 'num' : 'any' }, spec);
+    defs[key] = d;
+    if (!(key in store) && d.legacy) { try { const raw = localStorage.getItem(d.legacy); if (raw !== null) store[key] = d.fromLegacy ? d.fromLegacy(raw) : raw; } catch (e) { /* blocked: default */ } }
+    return get(key);
+  }
+  function set(key, v) {
+    const d = defs[key]; if (!d) return undefined;
+    const old = get(key); v = norm(d, v, false); store[key] = v; save();
+    if (v !== old) BUS.emit('settings', { key, value: v, old });
+    return v;
+  }
+  function reset(key) {
+    const keys = key ? [key] : Object.keys(defs);
+    for (const k of keys) { if (!(k in defs)) continue; const old = get(k); delete store[k]; if (old !== defs[k].def) BUS.emit('settings', { key: k, value: defs[k].def, old }); }
+    save();
+  }
+  const api = {
+    define, get, set, reset, toggle: key => set(key, !get(key)),
+    all() { const o = {}; for (const k in defs) o[k] = get(k); return o; },
+    list() { return Object.keys(defs).map(k => Object.assign({}, defs[k])); },
+  };
+  return api;
+})();
+
+// ---- core keys (the engine reads these) ----
+SETTINGS.define('difficulty', { def: 'normal', values: ['easy', 'normal', 'hard'], label: 'DIFFICULTY' });         // CPU level at the start of a match and how fast it ramps (game.js DIFFICULTY)
+SETTINGS.define('rounds', { def: 2, min: 1, max: 4, step: 1, label: 'ROUNDS TO WIN' });                            // rounds a fighter must win; sudden death is round 2 * rounds
+SETTINGS.define('time', { def: 99, min: 30, max: 99, step: 1, label: 'ROUND TIME' });                              // seconds per round (sudden death stays 30)
+SETTINGS.define('musicVol', { def: 1, min: 0, max: 1, step: 0.05, label: 'MUSIC' });                              // 1 = the mix the tests measure; applied in music.js
+SETTINGS.define('sfxVol', { def: 1, min: 0, max: 1, step: 0.05, label: 'EFFECTS' });                              // beep() and thud() in game.js
+SETTINGS.define('voiceVol', { def: 1, min: 0, max: 1, step: 0.05, label: 'ANNOUNCER' });                          // speech and stingers in hud.js
+SETTINGS.define('gore', { def: true, label: 'BLOOD', legacy: 'brawl.gore', fromLegacy: v => v !== '0' });          // FX.gore (hud.js) mirrors it
+SETTINGS.define('muted', { def: false, label: 'MUTE', legacy: 'brawl.muted', fromLegacy: v => v === '1' });        // game.js keeps its top-level `muted` in step
+SETTINGS.define('binds', { def: null, label: 'KEY BINDINGS' });                                                    // null = defaults; or { p1?, p2?, alt? }: action letter -> array of KeyboardEvent.code (game.js applyBinds)
+
+</script>
+<script>
+// ---- modes.js ----
+// ===== AGENT BRAWL extension layer, part 3: MODES. The registry behind the title menu. Loaded after settings.js. =====
+// Owner: scaffold (registry and the two built-in modes); arcade.js and training.js register more.
+//   MODES.register(def)   add (or replace, same id) a mode. def: { id, label, order?, players?, onPick?, onMatchStart?, onRoundStart?, onRoundEnd?, onMatchEnd? }
+//       id       unique string, also stored in game.modeId while the mode is played
+//       label    the title menu text (capitals)
+//       order    menu position, lower first (built-ins: versus 10, versus2 20; default 100)
+//       players  1 = P1 against the CPU, 2 = two humans; becomes game.mode (the engine and the tests still read game.mode)
+//       onPick(game)             the title entry was chosen, before the select screen; return false to skip the select screen (the mode took over)
+//       onMatchStart(info)       the callbacks below run for the current mode only (game.modeId), from the BUS events of the same names
+//       onRoundStart(info) onRoundEnd(info) onMatchEnd(info)   info is the BUS payload (docs/ARCHITECTURE.md)
+//   MODES.get(id), MODES.list() (sorted by order), MODES.current() (the mode of game.modeId), MODES.pick(id) (set game.modeId and game.mode, returns the mode)
+// The title menu is MODES.list() plus whatever HOOKS 'titleItems' collects, so a feature that is a place to go (options) is an item and one that is a way to fight is a mode.
+'use strict';
+const MODES = (() => {
+  const reg = []; let seq = 0;
+  function register(def) {
+    if (!def || typeof def.id !== 'string') throw new Error('MODES.register needs an id');
+    const m = Object.assign({ label: def.id.toUpperCase(), order: 100, players: 1 }, def, { seq: seq++ });
+    const i = reg.findIndex(x => x.id === m.id); if (i >= 0) reg.splice(i, 1);
+    reg.push(m); reg.sort((a, b) => a.order - b.order || a.seq - b.seq);
+    return m;
+  }
+  const get = id => reg.find(m => m.id === id) || null;
+  const current = () => get(typeof game !== 'undefined' ? game.modeId : 'versus');
+  function pick(id) {
+    const m = get(id); if (!m) return null;
+    game.modeId = m.id; game.mode = m.players === 2 ? 2 : 1;
+    return m;
+  }
+  for (const [ev, cb] of [['match:start', 'onMatchStart'], ['round:start', 'onRoundStart'], ['round:end', 'onRoundEnd'], ['match:end', 'onMatchEnd']])
+    BUS.on(ev, info => { const m = current(); if (m && typeof m[cb] === 'function') m[cb](info); });
+  return { register, get, list: () => reg.slice(), current, pick };
+})();
+
+MODES.register({ id: 'versus', label: '1 PLAYER VS CPU', order: 10, players: 1 });
+MODES.register({ id: 'versus2', label: '2 PLAYERS', order: 20, players: 2 });
+
+</script>
+<script>
 // ---- pixelfont.js ----
 // ===== pixelfont.js: tiny 5x7 bitmap font so all UI text matches the 8-bit sprites =====
 // Glyphs are 7 rows of 5 columns; '#' is a lit pixel. Lowercase is drawn as uppercase.
@@ -1604,7 +1765,12 @@ const wasteland = def({ id: 'wasteland', name: 'POTATO WASTELAND', tagline: 'THE
   },
   front(g, t, cam, A) { const l = A.l; fogDraw(g, l.dust, t, 0.55, 208, 0.18, 90 + cam.x * 0.3); fogDraw(g, l.dust2, t, 0.8, 226, 0.16, 300); put(g, l.fg, cam); motes(g, t, 42, 9, 0, AW, 60, AH, 'rgba(232,184,74,0.45)', -0.5, 1, 4); } });
 
-return [gpupit, cathedral, bridge, furnace, forest, temple, graveyard, rooftop, wasteland];
+const list = [gpupit, cathedral, bridge, furnace, forest, temple, graveyard, rooftop, wasteland];
+// Extension point for arenas2.js (docs/ARCHITECTURE.md): ARENAS.make(o) builds an entry from the same description the nine above use, ARENAS.kit is the painter's kit they share
+// (half-res canvas size AW x AH, the walking line AG, drawing and noise helpers). A new stage is ARENAS.push(ARENAS.make({ id, name, tagline, accent, build(A), paint(g, t, cam, A), front? })).
+list.make = def;
+list.kit = { AW, AH, AG, TAU, hash1, rng, rgb, mix, rgba, clamp, flick, cv, grad, layer, off, put, fill, R, line, disc, ring, poly, box, fpoly, speck, ridge, text, tw, textC, glow, pool, fogTex, fogDraw, flame, chain, motes, lightning, bolt, floorBase };
+return list;
 })();
 
 function drawArena(ctx, i, t, cam) { const n = ARENAS.length; ARENAS[((i % n) + n) % n].draw(ctx, t, cam); }
@@ -2272,7 +2438,8 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
     // ---- stinger synth ----
     let nbuf = null, nbufAC = null;
     function noiseBuf(a) { if (nbuf && nbufAC === a) return nbuf; nbufAC = a; nbuf = a.createBuffer(1, Math.floor(a.sampleRate * 1.2), a.sampleRate); const d = nbuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return nbuf; }
-    function env(g, t0, atk, dur, vol) { g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + atk); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
+    const voiceVol = () => { try { return typeof SETTINGS !== 'undefined' ? SETTINGS.get('voiceVol') : 1; } catch (e) { return 1; } };   // the 'voiceVol' setting scales speech and stingers; 1 = the mix the tests measure
+    function env(g, t0, atk, dur, vol) { vol *= voiceVol(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + atk); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
     function osc(a, type, f0, f1, dur, vol, delay, atk) {
       const o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + (delay || 0); o.type = type; o.frequency.setValueAtTime(f0, t0);
       if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
@@ -2320,7 +2487,7 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
             if (!voice) voice = pickVoice(s);
             const u = new SpeechSynthesisUtterance(ph.text);
             if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
-            u.pitch = ph.pitch; u.rate = ph.rate; u.volume = 1; u.onerror = () => { };
+            u.pitch = ph.pitch; u.rate = ph.rate; u.volume = voiceVol(); u.onerror = () => { };
             s.speak(u);
           } catch (e) { }
         }, 45);
@@ -2336,8 +2503,8 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
   // ======================================================================
   const FX = (() => {
     const P = [], S = [], MAXP = 520, MAXS = 150;
-    let gore = true;
-    try { const v = localStorage.getItem('brawl.gore'); if (v !== null) gore = v !== '0'; } catch (e) { /* storage blocked: default on */ }
+    let gore = typeof SETTINGS !== 'undefined' ? SETTINGS.get('gore') : true;   // the 'gore' setting (migrated from the old 'brawl.gore' key); the viewers in tools/ load hud.js without settings.js
+    if (typeof BUS !== 'undefined') BUS.on('settings', e => { if (e.key === 'gore') gore = e.value; });
     let rnd = prng((Math.random() * 4294967296) >>> 0);
     const BLOOD = ['#6a070c', '#8a0a10', '#a80e16', '#c8141c', '#e01c24', '#f03a3a'];
     const add = p => { if (P.length < MAXP) P.push(p); };
@@ -2430,7 +2597,7 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
       seed(n) { rnd = prng(n >>> 0); },
       get count() { return P.length + S.length; },
     };
-    Object.defineProperty(api, 'gore', { enumerable: true, get() { return gore; }, set(v) { gore = !!v; try { localStorage.setItem('brawl.gore', gore ? '1' : '0'); } catch (e) { /* not persisted */ } } });
+    Object.defineProperty(api, 'gore', { enumerable: true, get() { return gore; }, set(v) { gore = !!v; if (typeof SETTINGS !== 'undefined') SETTINGS.set('gore', gore); } });
     return api;
   })();
 
@@ -2448,7 +2615,8 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
 (function () {
   'use strict';
   const MASTER = 0.3, LOOK = 0.25, DUCK = 0.35, TRIM = { title: .88, vs: 1.07, over: .63, gpupit: .85, cathedral: .61, bridge: .8, furnace: .76, forest: .61, temple: .75, graveyard: .71, rooftop: .87, wasteland: 1.22 };   // MASTER: output gain of every theme; TRIM[name]: per-theme level correction so all themes sound equally loud
-  const level = name => MASTER * (TRIM[name] || 1);
+  const musicVol = () => { try { return typeof SETTINGS !== 'undefined' ? SETTINGS.get('musicVol') : 1; } catch (e) { return 1; } };   // the 'musicVol' setting; 1 = the level the tests measure
+  const level = name => MASTER * (TRIM[name] || 1) * musicVol();
   const MIN = [0, 2, 3, 5, 7, 8, 10], HMIN = [0, 2, 3, 5, 7, 8, 11], PHR = [0, 1, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11];
   const CHR = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], PENT = [0, 2, 4, 7, 9], MPENT = [0, 3, 5, 7, 10], SEN = [0, 1, 5, 7, 10];
   const AR = ['gpupit', 'cathedral', 'bridge', 'furnace', 'forest', 'temple', 'graveyard', 'rooftop', 'wasteland'];
@@ -2618,7 +2786,9 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
   function tick() {
     if (cool > 0) { cool--; return; }
     try {
-      const g = rd(() => typeof game !== 'undefined' ? game : window.game), w = want(g); M.theme = w;
+      const g = rd(() => typeof game !== 'undefined' ? game : window.game); let w = want(g);
+      if (w && typeof HOOKS !== 'undefined') { const o = HOOKS.filter('musicTheme', w, g); if (o !== w && T[o]) w = o; }   // 'musicTheme' filter: a feature may swap the theme (it must name a theme in T)
+      M.theme = w;
       const A = rd(() => typeof AC !== 'undefined' ? AC : window.AC), mu = rd(() => typeof muted !== 'undefined' ? muted : window.muted);
       if (A && (A.state === 'suspended' || A.state === 'interrupted') && !document.hidden && Date.now() - tried > 1000) {   // Safari / iOS leave the context suspended or 'interrupted' (calls, tab switches): ask to resume, harmless outside a gesture
         tried = Date.now(); try { const r = A.resume(); if (r && r.catch) r.catch(() => { /* needs a gesture: audioInit retries on the next one */ }); } catch (e) { /* ignore */ }
@@ -2638,6 +2808,10 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
     let out; try { S = null; begin(A, name, level(name)); pump(th, sd, len); out = A.startRendering(); } finally { S = saved[0]; M.now = saved[1]; }
     return out;
   };
+  // extension points for music2.js. define: add or replace a theme (opt.trim = level correction like TRIM, opt.arena = also use it for the arena whose id equals the name); instrument: add an instrument (INS shape); themes: every theme name
+  M.define = (name, theme, opt) => { opt = opt || {}; T[name] = theme; if (opt.trim) TRIM[name] = opt.trim; if (opt.arena && !AR.includes(name)) AR.push(name); };
+  M.instrument = (name, spec) => { INS[name] = spec; };
+  M.themes = () => Object.keys(T);
   setInterval(tick, 80);
 })();
 
@@ -3573,7 +3747,7 @@ return { tibo: TIBO, poteto: POTETO, dot: DOT, wang: WANG, muse: MUSE };
 <script>
 // ---- game.js ----
 // ===== AGENT BRAWL: parody arcade fighter. Engine, input, AI, phases, menus =====
-// Load order (dev.html): pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), music.js (MUSIC), moves.js (MOVES), game.js.
+// Load order (dev.html): bus.js (BUS, HOOKS), settings.js (SETTINGS), modes.js (MODES), pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), music.js (MUSIC), moves.js (MOVES), game.js, then the feature files (docs/ARCHITECTURE.md).
 'use strict';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 // W, H and GROUND are declared in dev.html before every script (moves.js needs GROUND at load).
@@ -3606,9 +3780,9 @@ function fit() {
 addEventListener('resize', fit); addEventListener('orientationchange', fit); if (window.visualViewport) visualViewport.addEventListener('resize', fit); fit();
 
 // ---------- audio (tiny synth, unlocked on first interaction) ----------
-let AC = null, muted = false;
-try { muted = localStorage.getItem('brawl.muted') === '1'; } catch (e) { /* storage blocked: start unmuted */ }
-function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } if (v && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { } }
+let AC = null, muted = SETTINGS.get('muted');   // the saved state is the 'muted' setting (migrated from the old 'brawl.muted' key); this top-level let is what music.js and hud.js read
+function setMuted(v) { SETTINGS.set('muted', !!v); muted = SETTINGS.get('muted'); }
+BUS.on('settings', e => { if (e.key !== 'muted') return; muted = e.value; if (muted && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (x) { } });
 // Levels: music.js plays at about -17 dBFS RMS (each theme trimmed to match). Effects are scaled up to sit clearly above it (a normal hit peaks near -9 dBFS)
 // and pass through a soft limiter (SFX), so effects stacked in a special move or a KO cannot clip the output.
 const SFX_BEEP = 6, SFX_THUD = 9, SFX_CEIL = 0.6, SFX_RANGE = 4;
@@ -3629,7 +3803,7 @@ function audioInit() { // runs on every gesture type: a context made on a gestur
 function beep(f, d, type = 'square', v = 0.06, slide = 0.5) {
   if (!AC || muted || AC.state !== 'running') return;
   try {
-    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v * SFX_BEEP / SFX_RANGE; o.connect(g); g.connect(SFX || AC.destination);
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v * SFX_BEEP / SFX_RANGE * SETTINGS.get('sfxVol'); o.connect(g); g.connect(SFX || AC.destination);
     const n = AC.currentTime; o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), n + d); g.gain.exponentialRampToValueAtTime(0.0001, n + d); o.start(); o.stop(n + d);
   } catch (e) { }
 }
@@ -3638,13 +3812,13 @@ function thud(d = 0.12, v = 0.12) { // short noise burst for impacts
   if (!AC || muted || AC.state !== 'running') return;
   try {
     if (!NOISE) { NOISE = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const ch = NOISE.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length); }
-    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v * SFX_THUD / SFX_RANGE;
+    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v * SFX_THUD / SFX_RANGE * SETTINGS.get('sfxVol');
     s.connect(f); f.connect(g); g.connect(SFX || AC.destination); const n = AC.currentTime; g.gain.exponentialRampToValueAtTime(0.0001, n + d); s.start(); s.stop(n + d);
   } catch (e) { }
 }
 for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchstart', 'touchend']) addEventListener(ev, audioInit, { passive: true });
 function say(key, arg) { try { ANNOUNCER.say(key, arg); } catch (e) { /* the announcer is optional */ } }
-function setGore(v) { FX.gore = v; try { localStorage.setItem('brawl.gore', v ? '1' : '0'); } catch (e) { } }
+function setGore(v) { FX.gore = v; }   // FX.gore (hud.js) stores it in the 'gore' setting
 
 // ---------- input ----------
 // P1: WASD + J punch, K kick, L special, I super (1P also: arrows + Z X C V). P2: arrows + numpad 1/2/3/0 (or , . / and right shift).
@@ -3659,7 +3833,16 @@ const ALT = { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDow
 const LABEL = [{ p: 'J', k: 'K', s: 'L', x: 'I' }, { p: 'NUM1', k: 'NUM2', s: 'NUM3', x: 'NUM0' }];
 const ALTL = { p: 'Z', k: 'X', s: 'C', x: 'V' };   // the 1P alternate keys, shown next to LABEL[0] in the move lists
 const GAME_KEYS = new Set(['Space', 'Enter', 'Escape', 'KeyP', 'KeyQ', 'KeyE', 'KeyM', 'KeyB', 'KeyT', 'Tab']);
-for (const m of [...MAP, ALT]) for (const a in m) for (const c of m[a]) GAME_KEYS.add(c);
+// SETTINGS 'binds' overrides the three maps above: { p1?, p2?, alt? }, each action letter (l r u d p k s x) -> array of KeyboardEvent.code; whatever it leaves out keeps its default.
+const BIND_DEFAULTS = JSON.parse(JSON.stringify({ p1: MAP[0], p2: MAP[1], alt: ALT }));
+function applyBinds() {
+  const b = SETTINGS.get('binds') || {}, tgt = { p1: MAP[0], p2: MAP[1], alt: ALT };
+  for (const who in tgt) for (const a in BIND_DEFAULTS[who]) {
+    const v = b[who] && b[who][a], ok = Array.isArray(v) && v.length && v.every(c => typeof c === 'string');
+    tgt[who][a] = ok ? v.slice() : BIND_DEFAULTS[who][a].slice(); for (const c of tgt[who][a]) GAME_KEYS.add(c);
+  }
+}
+applyBinds(); BUS.on('settings', e => { if (e.key === 'binds') applyBinds(); });
 addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true;
   if (e.code === 'KeyM') setMuted(!muted);
@@ -3859,7 +4042,7 @@ const GAME_URL = 'https://clagradi.github.io/codex-brawl/';
 const named = r => SHORT(r) + (r.handle ? ' (@' + r.handle.replace(/^@/, '') + ')' : '');
 function shareText() {
   const [a, b] = game.f; if (!a) return 'Agent Brawl: a parody fighter starring AI agents.';
-  const w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
+  const w = game.wins[0] >= roundsToWin() ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
   const fin = game.fin ? ', finished with ' + game.fin.name : '';
   if (game.mode === 1 && w.cpu) return named(w.d) + ' destroyed my ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl.';
   if (game.mode === 1) return 'I beat ' + named(l.d) + ' with ' + named(w.d) + ' ' + score + fin + ' in Agent Brawl.';
@@ -3925,7 +4108,8 @@ class Fighter {
     if (s === 'hurt' || s === 'down' || s === 'grabbed' || s === 'ko' || s === 'dizzy') { this.bufP = this.bufK = this.bufS = 0; this.lie = 0; }
   }
   startAtk(key) { const A = ATK[key]; this.set(A.st); this.atk = key; this.air = !!A.air; if (A.st === 'kick') beep(220, 0.06); else beep(300, 0.05); }
-  input() { if (this.cpu) return this.aiInput(); const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
+  input() { return HOOKS.filter('input', this.cpu ? this.aiInput() : this.keyInput(), this.side, this); }   // the 'input' hook sees the input object of player `side` before the fighter acts on it
+  keyInput() { const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
   // ---- CPU brain: picks an intent every few ticks, reacts to threats, chains after a landed hit, never camps in a corner ----
   aiInput() {
     const o = game.f[1 - this.side], a = this.ai, i = {}, M = MOVES[this.d.id];
@@ -4001,6 +4185,7 @@ class Fighter {
     this.set(kind); this.mv = mv; this.airSp = !this.onGround;   // airSp: moves.js bends special 1 into a dive shot
     if (kind === 'super') { this.meter = 0; game.flash = 8; game.hitstop = 10; game.dark = 50; banner(mv.name, { style: 'gold', life: 80, size: 64, y: 150 }); beep(880, 0.4, 'sawtooth', 0.07); }
     else beep(520, 0.06, 'triangle');
+    BUS.emit(kind, { fighter: this, foe: o, move: mv });   // 'special' or 'super'
     if (mv.start) mv.start(this, o);
   }
   // on contact a normal cancels into the next chain step or a special; presses were buffered, so mashing works. The super cancel lives in update().
@@ -4017,7 +4202,7 @@ class Fighter {
   canThrow(o) { return this.onGround && o.onGround && !o.hidden && o.inv <= 0 && Math.abs(o.x - this.x) <= THROW_REACH && THROWABLE.includes(o.state); }
   startThrow(o) {
     this.set('throw'); this.thr = o; this.vx = 0; o.set('grabbed'); o.grabber = this; o.vx = o.vy = 0; o.face = -this.face; o.y = GROUND;
-    beep(200, 0.1, 'sawtooth', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'THROW' });
+    beep(200, 0.1, 'sawtooth', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'THROW' }); BUS.emit('throw', { src: this, victim: o });
   }
   runThrow() {
     const v = this.thr, f = this.face;
@@ -4142,6 +4327,7 @@ class Fighter {
     if (!opt.force && (this.inv > 0 || this.state === 'down' || this.state === 'grabbed')) return;
     const facingSrc = (src.x > this.x) === (this.face > 0);
     const guarding = !opt.unblock && (this.state === 'block' || (this.back && this.onGround && !this.busy())) && facingSrc;
+    { const pl = HOOKS.filter('damage', { src, victim: this, dmg, kb, stun, kind, guarding, opt }); if (pl) { if (isFinite(pl.dmg)) dmg = pl.dmg; if (isFinite(pl.kb)) kb = pl.kb; if (isFinite(pl.stun)) stun = pl.stun; } }   // 'damage' filter: change the numbers before they apply
     let soft = false;
     if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; soft = true; FX.sparks(this.x, this.y - 90, '#7ef0ff', 8); }
     if (guarding) {
@@ -4164,6 +4350,8 @@ class Fighter {
     }
     this.hp = Math.max(0, this.hp - dmg); this.dmgTaken += dmg; this.vx = (this.x < src.x ? -1 : 1) * kb;
     src.meter = Math.min(100, src.meter + dmg * 1.5); this.meter = Math.min(100, this.meter + dmg * 0.7);
+    if (guarding) BUS.emit('block', { src, victim: this, dmg, kind, hp: this.hp });
+    else { BUS.emit('hit', { src, victim: this, dmg, kind, combo: src.combo, hp: this.hp }); if (opt.knock) BUS.emit('knockdown', { src, victim: this }); }
     if (this.hp <= 0) game.koBy(src, this);
   }
   // which sheet row/frame to show right now
@@ -4200,34 +4388,54 @@ class Fighter {
 
 // ---------- game state ----------
 const game = {
-  phase: 'title', phaseT: 0, mode: 1, sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
+  _phase: 'title', get phase() { return this._phase; }, set phase(p) { const from = this._phase; if (p === from) return; this._phase = p; BUS.emit('phase', { from, to: p }); },   // every change of phase, from setPhase or a direct assignment, emits BUS 'phase'
+  phaseT: 0, mode: 1, modeId: 'versus', sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
   shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, banner: null, arena: 0, arenaPick: -1, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
   cam: { x: 0, zoom: 1 }, winner: null, loser: null, fin: null, finT: 0, flawless: false, endAt: 160,
   later(t, fn) { this.delayed.push({ t, fn }); },
 };
-function setPhase(p) { game.phase = p; game.phaseT = 0; }
+function setPhase(p) { game.phaseT = 0; game.phase = p; }
+// settings the match flow reads (settings.js): CPU level at the start of a match and added after each round (capped at 1); rounds to win; the round that is sudden death
+const DIFFICULTY = { easy: [0.2, 0.15], normal: [0.45, 0.2], hard: [0.7, 0.25] };
+const roundsToWin = () => SETTINGS.get('rounds'), suddenRound = () => 2 * roundsToWin();
+function roundEnded(reason) { const dr = reason === 'draw'; BUS.emit('round:end', { round: game.round, reason, winner: dr ? null : game.winner, loser: dr ? null : game.loser, wins: game.wins.slice(), flawless: reason === 'ko' && game.flawless }); }
+// the title menu: every mode (MODES.list) plus the entries features add through HOOKS 'titleItems' ({ id, label, order, run(game) }), lowest order first
+function titleItems() {
+  const items = MODES.list().map(m => ({ id: m.id, label: m.label, order: m.order, mode: m }));
+  for (const x of HOOKS.collect('titleItems')) if (x && typeof x.label === 'string') items.push(Object.assign({ order: 100 }, x));
+  return items.sort((a, b) => a.order - b.order);
+}
+function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six)
+  if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
+  if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
+  const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
+  return { x: W / 2 + (col ? 170 : -170), y: 436 + row * 28, on: 24, off: 19 };
+}
 function banner(txt, opts = {}) { const life = opts.life || 90; game.banner = { txt, t: 0, life, opts: Object.assign({ dur: life }, opts) }; }
 function startMatch() {
   game.f = [new Fighter(ROSTER[game.sel[0]], 0, false), new Fighter(ROSTER[game.sel[1]], 1, game.mode === 1)];
-  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.cpuLevel = 0.45;
+  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.cpuLevel = DIFFICULTY[SETTINGS.get('difficulty')][0];
   game.arena = game.arenaPick >= 0 ? game.arenaPick : Math.floor(Math.random() * ARENAS.length);
   game.proj = []; game.fx = []; game.popups = []; game.delayed = []; game.banner = null; game.fin = null; FX.clear();
   setPhase('vs'); clearPressed();
+  BUS.emit('match:start', { modeId: game.modeId, mode: game.mode, p1: game.sel[0], p2: game.sel[1], arena: game.arena, fighters: game.f });
 }
 function startRound() {
   game.f.forEach(f => f.reset()); game.proj = []; game.fx = []; game.popups = []; game.delayed = []; FX.clear();
-  game.timer = game.sudden ? 30 : 99; game.clock = 0; game.hitstop = 0; game.slow = 0; game.dark = 0; game.winner = game.loser = game.fin = null; game.cam = { x: 0, zoom: 1 };
+  game.timer = game.sudden ? 30 : SETTINGS.get('time'); game.clock = 0; game.hitstop = 0; game.slow = 0; game.dark = 0; game.winner = game.loser = game.fin = null; game.cam = { x: 0, zoom: 1 };
   if (game.sudden) game.f.forEach(f => f.hp = Math.ceil(f.d.hp * 0.25));
   if (typeof hudReset === 'function') hudReset();
   setPhase('intro'); banner(game.sudden ? 'SUDDEN DEATH' : 'ROUND ' + game.round, { style: game.sudden ? 'blood' : 'gold', life: INTRO_LEN, sub: game.round === 1 ? ARENAS[game.arena].name : '' });
   say(game.sudden ? 'sudden' : 'round', game.round); clearPressed();
+  BUS.emit('round:start', { round: game.round, sudden: game.sudden, time: game.timer });
 }
 // a fighter hit 0 HP: the match-deciding KO opens the FINISH IT window, any other one ends the round
 game.koBy = function (w, l) {
   if (game.phase !== 'fight') return;
   game.wins[w.side]++; game.winner = w; game.loser = l; game.flawless = w.dmgTaken === 0;
   game.proj = []; game.dark = 0;
-  if (game.wins[w.side] >= 2 && MOVES[w.d.id].fin) {
+  BUS.emit('ko', { winner: w, loser: l, flawless: game.flawless });
+  if (game.wins[w.side] >= roundsToWin() && MOVES[w.d.id].fin) {
     setPhase('finish'); l.set('dizzy'); l.hp = 0; l.vx = (l.x < w.x ? -1 : 1) * 5; l.inv = 0;
     if (w.busy()) w.set('idle');
     game.slow = 40; game.hitstop = 14; game.shake = 12; game.flash = 6; thud(0.3, 0.2);
@@ -4235,7 +4443,7 @@ game.koBy = function (w, l) {
   } else knockOut(w, l);
 };
 function knockOut(w, l) {
-  setPhase('ko'); l.set('ko'); l.vy = -9; l.vx = (l.x < w.x ? -1 : 1) * 7;
+  setPhase('ko'); roundEnded('ko'); l.set('ko'); l.vy = -9; l.vx = (l.x < w.x ? -1 : 1) * 7;
   game.slow = 70; game.hitstop = 12; game.shake = 14; game.flash = 8; game.endAt = game.flawless ? 210 : 160;
   banner('K.O.', { style: 'blood', life: 110 }); beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2);
   FX.blood(l.x, l.y - 110, l.x < w.x ? -1 : 1, 3);
@@ -4245,7 +4453,7 @@ function knockOut(w, l) {
 function finishOff() { if (game.phase === 'finish') knockOut(game.winner, game.loser); }
 function startFinisher(w, l) {
   const fin = MOVES[w.d.id].fin; if (!fin) return finishOff();
-  game.fin = fin; game.finT = 0; setPhase('finisher');
+  game.fin = fin; game.finT = 0; setPhase('finisher'); BUS.emit('finisher', { winner: w, loser: l, move: fin });
   w.set('idle'); w.vx = 0; l.vx = 0; game.proj = []; game.dark = 30;
   banner(fin.name, { style: 'toxic', life: 140 }); say('finisher', fin.name); beep(220, 0.8, 'sawtooth', 0.07, 0.25);
   if (fin.start) fin.start(w, l);
@@ -4253,17 +4461,20 @@ function startFinisher(w, l) {
 function endRoundTime() {
   const [a, b] = game.f; setPhase('ko'); game.endAt = 170;
   const pa = a.hp / a.d.hp, pb = b.hp / b.d.hp; let w = Math.abs(pa - pb) < 0.001 ? -1 : (pa > pb ? 0 : 1);
-  if (w < 0 && game.round >= 4) w = a.meter >= b.meter ? 0 : 1;   // sudden death never draws
+  if (w < 0 && game.round >= suddenRound()) w = a.meter >= b.meter ? 0 : 1;   // sudden death never draws
   banner(w < 0 ? 'DRAW' : 'TIME', { style: 'steel', life: 120 });
   if (w >= 0) { game.wins[w]++; game.winner = game.f[w]; game.loser = game.f[1 - w]; game.f[w].set('win'); game.f[1 - w].set('ko'); game.f[1 - w].vy = -6; }
+  roundEnded(w < 0 ? 'draw' : 'time');
 }
 function nextRound() {
-  if (game.wins[0] >= 2 || game.wins[1] >= 2) { // match over: winner call, then the end screen
-    const w = game.f[game.wins[0] >= 2 ? 0 : 1];
-    setPhase('outro'); banner(SHORT(w.d) + ' WINS', { style: 'gold', life: 140 }); say('wins', SHORT(w.d)); return;
+  const need = roundsToWin();
+  if (game.wins[0] >= need || game.wins[1] >= need) { // match over: winner call, then the end screen
+    const w = game.f[game.wins[0] >= need ? 0 : 1];
+    setPhase('outro'); banner(SHORT(w.d) + ' WINS', { style: 'gold', life: 140 }); say('wins', SHORT(w.d));
+    BUS.emit('match:end', { winner: w, loser: game.f[1 - w.side], wins: game.wins.slice(), rounds: game.round, modeId: game.modeId }); return;
   }
-  game.round++; game.cpuLevel = Math.min(1, game.cpuLevel + 0.2);
-  if (game.round >= 4) game.sudden = true;
+  game.round++; game.cpuLevel = Math.min(1, game.cpuLevel + DIFFICULTY[SETTINGS.get('difficulty')][1]);
+  if (game.round >= suddenRound()) game.sudden = true;
   startRound();
 }
 
@@ -4280,14 +4491,20 @@ function updateCam() {
   c.zoom += (tz - c.zoom) * 0.07; c.x += (tx - c.x) * 0.07;
 }
 function update() {
-  game.tick++; pollPads();
+  game.tick++; pollPads(); HOOKS.run('update', game);   // 'update' runs every tick in every phase, before the phase logic
   if (game.shake > 0) game.shake--; if (game.flash > 0) game.flash--;
   if (game.banner && ++game.banner.t > game.banner.life) game.banner = null;
   if (tap('KeyB') && ['title', 'select', 'pause'].includes(game.phase)) setGore(!FX.gore);
   if (game.phase === 'sheet' || !game.f.length && !['title', 'select'].includes(game.phase)) { if (game.phase !== 'sheet') game.phase = 'title'; return; }
   if (game.phase === 'title') {
-    if (tap('KeyW') || tap('ArrowUp') || tap('KeyS') || tap('ArrowDown')) { game.titleSel ^= 1; beep(400, 0.04); }
-    if (tap('Enter') || tap('Space') || hit(0, 'p') || tap('Numpad1')) { game.mode = game.titleSel ? 2 : 1; setPhase('select'); game.ready = [false, false]; beep(700, 0.1); say('choose'); clearPressed(); }
+    const items = titleItems(), n = items.length; if (game.titleSel >= n) game.titleSel = 0;
+    const up = tap('KeyW') || tap('ArrowUp'), dn = !up && (tap('KeyS') || tap('ArrowDown'));
+    if (up || dn) { game.titleSel = (game.titleSel + (up ? n - 1 : 1)) % n; beep(400, 0.04); }
+    if (tap('Enter') || tap('Space') || hit(0, 'p') || tap('Numpad1')) {
+      const it = items[game.titleSel];
+      if (it.mode) { MODES.pick(it.mode.id); if (!it.mode.onPick || it.mode.onPick(game) !== false) { setPhase('select'); game.ready = [false, false]; beep(700, 0.1); say('choose'); } } else if (it.run) it.run(game);
+      clearPressed();
+    }
     return;
   }
   if (game.phase === 'select') { updateSelect(); return; }
@@ -4304,7 +4521,7 @@ function update() {
     if (tap('Escape')) setPhase('title');
     return;
   }
-  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) setPhase('title'); return; }
+  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) setPhase('title'); for (const it of HOOKS.collect('pauseItems')) if (it.key && tap(it.key)) it.run(game); return; }
   if (game.phase === 'fight' && (tap('KeyP') || tap('Escape'))) { game.phase = 'pause'; return; }
   game.phaseT++;
   if (game.phase === 'intro' && game.phaseT >= INTRO_LEN) { setPhase('fight'); banner('FIGHT!', { style: 'blood', life: 50 }); say('fight'); beep(1000, 0.3, 'square', 0.06); clearPressed(); }
@@ -4320,8 +4537,8 @@ function update() {
   if (game.phase === 'finisher') { // the finisher owns both fighters: no physics, no AI
     for (const f of game.f) { f.t++; f.st++; }
     game.finT++; if (game.fin.update) game.fin.update(game.winner, game.loser, game.finT);
-    if (game.finT >= game.fin.len) { setPhase('ko'); game.endAt = 100; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
-  } else { a.update(b); b.update(a); }
+    if (game.finT >= game.fin.len) { setPhase('ko'); roundEnded('ko'); game.endAt = 100; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
+  } else { a.update(b); b.update(a); HOOKS.run('fighterUpdate', a, b); }
   for (const d of game.delayed) d.t--; for (const d of game.delayed.filter(d => d.t <= 0)) d.fn(); game.delayed = game.delayed.filter(d => d.t > 0);
   if (game.phase === 'fight' && ++game.clock % 60 === 0) { game.timer--; if (game.timer <= 0) endRoundTime(); }
   updateProjectiles();
@@ -4385,8 +4602,10 @@ function drawTitle() {
   drawArena(ctx, ai, t, { x: Math.sin(t / 260) * 60, zoom: 1 }); shade(0.5);
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
-  ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
-  const keysHint = game.titleSel ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
+  const items = titleItems();
+  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  const sel = items[game.titleSel], twoP = !!(sel && sel.mode && sel.mode.players === 2);
+  const keysHint = twoP ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
   uiText(touch.on ? 'TAP 1 PLAYER TO FIGHT · 2 PLAYERS NEEDS A KEYBOARD OR TWO GAMEPADS'
     : 'W/S + ENTER · ' + keysHint + ' · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
@@ -4463,13 +4682,14 @@ function drawWorld() {
   if (game.dark > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.55, game.dark / 50) + ')'; ctx.fillRect(-100, -100, W + 200, H + 200); }
   FX.draw(ctx, 'floor');
   for (const fx of game.fx) if (!fx.front) fx.draw(ctx, fx);
-  const rank = f => ATTACKS.has(f.state) || f === game.winner ? 1 : 0; [...game.f].sort((x, y) => rank(x) - rank(y)).forEach(f => f.draw());
+  const rank = f => ATTACKS.has(f.state) || f === game.winner ? 1 : 0; [...game.f].sort((x, y) => rank(x) - rank(y)).forEach(f => { f.draw(); HOOKS.run('drawFighter', ctx, f); });
   if (game.fin) game.fin.draw(ctx, game.winner, game.loser, game.finT);
   for (const p of game.proj) drawProj(p);
   FX.draw(ctx, 'air');
   for (const fx of game.fx) if (fx.front) fx.draw(ctx, fx);
   drawArenaFront(ctx, game.arena, t, c);
   for (const p of game.popups) drawTitleText(ctx, p.txt, p.x, p.y, 20, { align: 'center', style: 'steel', alpha: Math.min(1, p.t / 15) });
+  HOOKS.run('drawWorld', ctx, game);   // still in world space (camera, shake and zoom applied)
   ctx.restore();
 }
 // The line at the foot of the playfield, kept clear of the super meters: the finisher prompt, the sudden-death rules, or the controls in round 1.
@@ -4501,10 +4721,12 @@ function drawPause() {
   L.push([(touch.on ? 'TAP A DIRECTION TWICE TO DASH' : 'TAP FWD TWICE DASH · TAP BACK TWICE BACKDASH') + ' · JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · PUNCH TECHS A THROW', 14, '#aab']);
   L.push(['NO MATCH WINNER AFTER ROUND 3? SUDDEN DEATH: 30 SECONDS · 25% HEALTH · A TIE GOES TO THE FULLER SUPER METER', 14, '#ffb4a8']);
   let y = 346; for (const [txt, size, col] of L) { uiText(txt, W / 2, y, size, col); y += size + 10; }
-  uiText(touch.on ? 'RESUME TO FIGHT ON · QUIT GOES TO THE TITLE' : 'P / ESC / ENTER RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, Math.max(470, y + 14), 18, '#c9a24a');
+  const ly = Math.max(470, y + 14);
+  uiText(touch.on ? 'RESUME TO FIGHT ON · QUIT GOES TO THE TITLE' : 'P / ESC / ENTER RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, ly, 18, '#c9a24a');
+  const pit = HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, Math.min(H - 14, ly + 26), 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
 }
 function drawFight() {
-  drawWorld(); drawHUD(ctx, game);
+  drawWorld(); drawHUD(ctx, game); HOOKS.run('drawHud', ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
   if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
     uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
@@ -4514,7 +4736,7 @@ function drawFight() {
   if (game.phase === 'pause') drawPause();
 }
 function drawOver() {
-  const t = game.tick, [a, b] = game.f, w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a;
+  const t = game.tick, [a, b] = game.f, w = game.wins[0] >= roundsToWin() ? a : b, l = w === a ? b : a;
   drawArena(ctx, game.arena, t, { x: Math.sin(t / 200) * 40, zoom: 1 }); shade(0.55);
   drawSprite(ctx, l.d.id, 'ko', 4, W / 2 + 230, GROUND, -1);
   drawSprite(ctx, w.d.id, 'win', loopFrame('win', t), W / 2 - 40, GROUND, 1, 3);
@@ -4533,6 +4755,7 @@ function render() {
   const p = game.phase; touch.tip = '';   // drawFight may set the text for under the game (portrait touch layout)
   if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
   if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
+  HOOKS.run('drawTop', ctx, game);   // last thing drawn on the canvas, in every phase
   if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }   // shown before the touch layer is laid out, so it is sized with the other buttons
   touch.sync();   // the touch layer follows the screen: buttons per phase, hidden on the debug sheet
 }
@@ -4559,6 +4782,101 @@ window.hold = on => { running = !on; };   // tests freeze the real-time loop so 
 })();
 buildSheets();
 requestAnimationFrame(frame);
+
+</script>
+<script>
+// ---- combat.js ----
+// ===== AGENT BRAWL feature file: COMBAT. Loaded after game.js (see docs/ARCHITECTURE.md). =====
+// Owner: the combat agent. Only that agent edits this file and tools/tests/combat.mjs.
+// Area: fighting depth. New moves and properties for the roster, combo and cancel rules, the super meter, chip damage, throws and guard rules.
+// Reach the engine through the extension points, not by editing game.js:
+//   HOOKS 'damage' (change dmg/kb/stun before a hit lands), 'input' (rewrite what a fighter presses), 'fighterUpdate' (run once per tick for the pair),
+//   'drawFighter' (extra art per fighter), BUS 'hit' 'block' 'knockdown' 'throw' 'special' 'super' (react to what happened), SETTINGS (read, or define a new key).
+// New move data belongs in this file (add to MOVES[id] at load) when the moves.js tables stay untouched; anything the other five agents also need goes through a hook.
+'use strict';
+(() => {
+  window.STUB_COMBAT = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- arcade.js ----
+// ===== AGENT BRAWL feature file: ARCADE. Loaded after combat.js (see docs/ARCHITECTURE.md). =====
+// Owner: the arcade agent. Only that agent edits this file and tools/tests/arcade.mjs.
+// Area: the single player ladder. A run of CPU opponents in a set order, a rising difficulty, a between-fights screen, a final result and a share line.
+// Plug in with MODES.register({ id: 'arcade', label: 'ARCADE', order: 12, players: 1, onPick, onMatchStart, onRoundEnd, onMatchEnd }) and BUS 'match:end' to advance the ladder.
+// Draw extra screens with HOOKS 'drawTop' (and 'update' for their keys) while game.modeId === 'arcade'; never write to localStorage directly, keep progress under a SETTINGS key you define.
+'use strict';
+(() => {
+  window.STUB_ARCADE = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- training.js ----
+// ===== AGENT BRAWL feature file: TRAINING. Loaded after arcade.js (see docs/ARCHITECTURE.md). =====
+// Owner: the training agent. Only that agent edits this file and tools/tests/training.mjs.
+// Area: the practice room. A dummy that stands, blocks or jumps on request, an input display, damage and combo readouts, a refilling health bar, reset keys.
+// Plug in with MODES.register({ id: 'training', label: 'TRAINING', order: 14, players: 1, ... }); drive the dummy through HOOKS 'input' (only while game.modeId === 'training'),
+// read results from BUS 'hit' and 'block', show them with HOOKS 'drawHud', and add the pause keys through HOOKS 'pauseItems'.
+'use strict';
+(() => {
+  window.STUB_TRAINING = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- arenas2.js ----
+// ===== AGENT BRAWL feature file: ARENAS2. Loaded after training.js (see docs/ARCHITECTURE.md). =====
+// Owner: the arenas agent. Only that agent edits this file and tools/tests/arenas2.mjs.
+// Area: more stages. New backdrops drawn in code (no image files), animated layers, per-stage hazards or colour grading, a stage pick on the select screen.
+// Add a stage by pushing onto the shared list at load: ARENAS.push(ARENAS.make({ id, name, tagline, accent, build(A) { ... }, paint(g, t, cam, A) { ... }, front(g, t, cam, A) { ... } })).
+// ARENAS.make is the builder behind the nine stages in arenas.js (half-resolution 480x270 canvas, built once on first use) and ARENAS.kit holds the painter's kit those stages share (R, grad, disc, fogDraw, motes ...).
+// Give the stage a theme in music2.js (MUSIC.define(name, theme, { arena: true }) when the id is the theme name). Extra scenery over the fighters goes through HOOKS 'drawWorld'.
+'use strict';
+(() => {
+  window.STUB_ARENAS2 = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- music2.js ----
+// ===== AGENT BRAWL feature file: MUSIC2. Loaded after arenas2.js (see docs/ARCHITECTURE.md). =====
+// Owner: the music agent. Only that agent edits this file and tools/tests/music2.mjs.
+// Area: more chiptune. New themes and instruments, a finishing-move sting, a low-health variation, per-arena tracks for the stages that arenas2.js adds.
+// Add content through the public MUSIC object that music.js exposes: MUSIC.define(name, theme, { trim, arena }), MUSIC.instrument(name, spec), MUSIC.themes().
+// Switch the track in play with HOOKS 'musicTheme' (a filter: return the name of any defined theme). Keep every theme between the loudness limits that tools/tests measure.
+'use strict';
+(() => {
+  window.STUB_MUSIC2 = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- options.js ----
+// ===== AGENT BRAWL feature file: OPTIONS. Loaded after music2.js (see docs/ARCHITECTURE.md). =====
+// Owner: the options agent. Only that agent edits this file and tools/tests/options.mjs.
+// Area: the settings screen. Difficulty, rounds, round time, the three volumes, gore, mute, key rebinding, a reset button, a controls page.
+// Plug in with HOOKS 'titleItems' (return [{ id: 'options', label: 'OPTIONS', order: 50, run(game) { ... } }]) and draw the screen from HOOKS 'drawTop' while it is open.
+// Read and write every value through SETTINGS (SETTINGS.list() describes each key: type, range, label); key binds are the 'binds' key, applied by game.js applyBinds().
+// A new setting that another feature needs is defined here or in that feature with SETTINGS.define; the engine keys are listed in docs/ARCHITECTURE.md.
+'use strict';
+(() => {
+  window.STUB_OPTIONS = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
+
+</script>
+<script>
+// ---- touch.js ----
+// ===== AGENT BRAWL feature file: TOUCH. Loaded last (see docs/ARCHITECTURE.md). =====
+// Owner: the touch agent. Only that agent edits this file and tools/tests/touch.mjs.
+// Area: phones and tablets. A better on-screen pad (TBTN and drawTouch live in game.js today), multi-touch handling, layout for small screens, menu taps, pause by touch.
+// Plug in with HOOKS 'drawTop' for drawing above the canvas content, HOOKS 'input' to merge touch presses into a fighter's input, and HOOKS 'update' to poll touches once per tick.
+// Keep the canvas at 960x540; scale with CSS in the page, not in the game logic.
+'use strict';
+(() => {
+  window.STUB_TOUCH = 1;   // marker: tools/tests/core.mjs checks that this file loaded. Keep the line when the real feature replaces this stub.
+})();
 
 </script>
 </body>

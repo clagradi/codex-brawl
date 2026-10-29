@@ -2,3 +2,4 @@
 tools/.shot-*.png
 node_modules/
 .claude/
+tools/shots/
