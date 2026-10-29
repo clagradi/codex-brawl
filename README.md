@@ -64,6 +64,8 @@ GPU Pit, Datacenter Cathedral, Rate-Limit Bridge, Token Furnace, Deprecated Fore
 
 Every arena has its own chiptune theme, synthesised live with WebAudio (oscillators, a shared noise buffer for drums, a compressor and an output limiter, no audio files): electro arpeggios in the GPU Pit, a dark organ in the Cathedral, a chromatic riff on the Bridge, a sawtooth gallop in the Furnace, a mellow pentatonic tune in the Forest, an eastern-flavoured beat in the Temple, eerie long notes in the Graveyard, synthwave on the Rooftop and a shuffling western twang in the Wasteland, plus a title fanfare, a versus riff and a victory jingle. The music ducks while paused, stops when muted (`M`) and never plays before the first key press or tap, as browsers require.
 
+SOUND TEST (in the title menu) lists every track by name and plays it while 24 bars dance to the music clock: the menu tracks, one per arena, and five fighter themes (Tibo SHIP IT, Poteto SWEET HEAT, Dot ROUND TRIP, Wang IRIDESCENT, Muse UNDO SWARM) that are generated in code. `W`/`S` choose, `Enter` plays, `Backspace` stops, `V` lets the versus screen play the first fighter's own theme (off by default), `Esc` leaves; the mouse and touch work too.
+
 ## Codex desktop pets
 
 `pets/<id>/` holds each fighter as a Codex desktop pet (v2 atlas: 8 x 11 cells of 192x208, `pet.json` + `spritesheet.png`), rendered from the same sprites as the game and checked with the `hatch-pet` atlas validator. To use them, copy a folder to `~/.codex/pets/brawl-<id>/`, or run `node tools/export-pets.mjs --install`, which regenerates and installs all five. The `description` in each `pet.json` comes from the `INFO` table at the top of `tools/export-pets.mjs`, so edit it there (and keep it in step with the roster in `game.js`).
