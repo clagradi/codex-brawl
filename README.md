@@ -41,6 +41,7 @@ Universal moves (P = punch, K = kick, L = special; P2 uses its own keys the same
 - `P` or `Esc` pauses; the pause screen shows both move lists, the controls and the sudden-death rule. `P`, `Esc` or `Enter` resumes, `Q` quits to the title.
 - End screen: `Enter`, `Space` or punch goes back to select, `R` (or P1's super key) is a rematch with the same fighters and the same arena (an arena left on RANDOM is rolled again), `Esc` goes to the title, `T` or the SHARE ON X button opens a post on X with the result.
 - `M` mutes (music and effects), `B` turns the stylised blood on or off. Both are remembered between visits.
+- Voice lines: the fighters trade banter on the VS screen, the announcer calls FIRST HIT, COUNTER, COMEBACK and LAST SECOND, and the winner gets a quote. Every line is captioned on screen; `N` in the pause menu turns the spoken voice lines off or on (the captions stay).
 
 Rules: 99-second rounds, best of 3. A timed-out round goes to whoever has more health left (by percentage), and an exact tie in rounds 1 to 3 is a draw that nobody wins. If nobody has two wins after round 3, round 4 and any later round is sudden death: 30 seconds, both fighters start at a quarter of their health, and a time-out tie goes to whoever has more super meter. The sudden-death round spells the rule out at the start, and the pause screen repeats it.
 

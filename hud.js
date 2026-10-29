@@ -712,7 +712,9 @@
       } catch (e) { return false; }
     }
     function stop() { token++; try { const s = synth(); if (s) s.cancel(); } catch (e) { } }
-    return { say, stop, phrases: Object.keys(PH) };
+    const api = { say, stop, phrases: Object.keys(PH) };
+    api.define = (k, mk) => { if (typeof k !== 'string' || typeof mk !== 'function') return false; if (!PH[k]) api.phrases.push(k); PH[k] = mk; return true; };   // a feature adds a phrase: mk(arg) returns { text, pitch, rate, st? } (p-voice.js)
+    return api;
   })();
 
   // ======================================================================

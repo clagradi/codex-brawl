@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| last | `p-voice.js` | VS banter, win quotes and announcer callouts with captions (`VOICE`); after `vfx.js` in `dev.html` | p-voice agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-voice.js`, `tools/tests/x-p-voice.mjs` | p-voice agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -142,6 +144,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `voice.speech` | bool, `true` | | `p-voice.js`: the banter, callouts and win quotes are spoken (captions stay on either way); N in the pause menu toggles it |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
@@ -162,6 +165,7 @@ The title menu is `MODES.list()` plus whatever `HOOKS` `titleItems` collects, so
 - `ARENAS` (in `arenas.js`) is a plain array that can be pushed to; `game.arena` indexes it modulo its length. `ARENAS.make(o)` builds an entry from the description the nine shipped stages use (`{ id, name, tagline, accent, build(A), paint(g, t, cam, A), front?(g, t, cam, A) }`, painted on a half-resolution 480x270 canvas and built once on first use). `ARENAS.kit` holds the painter's kit they share: sizes `AW`, `AH`, `AG` (the walking line) and `TAU`, plus the helpers `R`, `grad`, `disc`, `fogDraw`, `motes`, `floorBase` and the rest of the list in `arenas.js`.
 - `MUSIC` (in `music.js`) is the public music object. `MUSIC.define(name, theme, { trim?, arena? })` adds or replaces a theme (`trim` is a level correction, `arena: true` also uses it for the arena whose `id` equals `name`), `MUSIC.instrument(name, spec)` adds an instrument, `MUSIC.themes()` lists the names. Every theme must stay inside the loudness limits that the tests measure.
 - `game` (in `game.js`) is the shared state. Read it freely; write to it only through the functions and hooks above. Useful fields: `phase`, `modeId`, `mode`, `f` (the two fighters), `round`, `wins`, `timer`, `sudden`, `cpuLevel`, `sel`, `arena`, `winner`, `loser`, `tick`. A fighter has `side`, `d` (its roster entry, `d.id`), `hp`, `meter`, `state`, `x`, `y`, `face`, `combo`, `cpu`. Helpers: `startMatch()`, `startRound()`, `setPhase(p)`, `roundsToWin()`, `suddenRound()`, `setMuted(v)`, `titleItems()`.
+- `ANNOUNCER` (in `hud.js`) speaks the announcer phrases. `ANNOUNCER.define(key, mk)` adds a phrase, where `mk(arg)` returns `{ text, pitch, rate, st? }` (`st` names a stinger); `ANNOUNCER.say(key, arg)` speaks it and `ANNOUNCER.stop()` cuts the current line. `p-voice.js` adds the `voice.*` phrases this way and holds its own lines while an engine phrase plays.
 - Name collision warning: everything is one global scope, and `game.js` already has globals such as `hit`, `tap`, `held`, `keys`, `pressed`, `ctx`, `muted`. Wrap each feature file in an IIFE and expose at most one global named after the feature.
 
 ## How to add things
