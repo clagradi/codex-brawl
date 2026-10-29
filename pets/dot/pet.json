@@ -1,7 +1,7 @@
 {
   "id": "brawl-dot",
   "displayName": "Dot",
-  "description": "Soft, round, two-dot blob. Surprisingly fast, slightly fragile.",
+  "description": "Fuzzy yellow ball in round glasses and a bow tie. Surprisingly fast, slightly fragile.",
   "spriteVersionNumber": 2,
   "spritesheetPath": "spritesheet.png"
 }

@@ -259,92 +259,122 @@ function ik(ox, oy, tx, ty, L1, L2, sg) {
 // ---------- the five characters ----------
 const GOLD = R('#ffd86a', '#8a4a2a');
 const LOOK = {
-  tibo:   { kind: 'human', skin: '#f2c8a8', hair: '#4d3126', top: '#3b3d58', pants: '#2b3252', shoe: '#e8eef8', wrap: '#7cc7ff', belt: '#7cc7ff', acc: '#7cc7ff', long: false },
-  poteto: { kind: 'human', skin: '#fbd9c4', hair: '#4e3029', top: '#3c3744', pants: '#3b3046', shoe: '#f6e3a0', wrap: '#f6c544', belt: '#f6c544', acc: '#f6a23a', long: true },
-  dot:    { kind: 'blob',  body: '#f6f3ec', tint: '#6f6aa8', acc: '#f8f6f1' },
-  wang:   { kind: 'human', skin: '#e9bc92', hair: '#2a2833', top: '#8d92a3', pants: '#3a3b4f', shoe: '#e8e8f0', wrap: '#b98cff', belt: '#b98cff', acc: '#b98cff', long: false },
-  muse:   { kind: 'plush', fur: '#f5c6cb', face: '#fde8da', acc: '#7ef0ff' },
+  tibo:   { kind: 'human', skin: '#f2c8a8', hair: '#4a2f24', top: '#33406c', hood: true, pants: '#2b3252', shoe: '#e8eef8', wrap: '#7cc7ff', belt: '#7cc7ff', acc: '#7cc7ff', long: false }, // swept quiff, navy hoodie, blue wraps
+  poteto: { kind: 'human', skin: '#fbd9c4', hair: '#472a22', top: '#3c3744', pants: '#3b3046', shoe: '#f6e3a0', wrap: '#f6c544', belt: '#f6c544', acc: '#f6a23a', long: true }, // anime avatar: long straight hair, full fringe, round gold glasses, ^ ^ eyes
+  dot:    { kind: 'blob',  body: '#f6d14a', tint: '#c67a1e', acc: '#ffe27a' },
+  wang:   { kind: 'human', skin: '#ebc29c', hair: '#23212c', top: '#8d92a3', pants: '#3a3b4f', shoe: '#e8e8f0', wrap: '#b98cff', belt: '#b98cff', acc: '#b98cff', long: false }, // neat short black hair, calm narrow eyes, grey top
+  muse:   { kind: 'plush', fur: '#f3dcd3', face: '#fbeadf', acc: '#7ef0ff' }, // cream-pink hooded plush: bead eyes, peach face oval, blush
 };
 
 // face features per character (head-local units: origin = face centre, face is 34 wide)
 const FACE = {
-  tibo:   { ex: 8, ey: 3.5, rx: 3.3, ry: 4.6, dark: '#1d1520', sh: 2, my: 10.5, mouth: 'grin', blush: '#ee9488', brow: '#33201a', bt: 1.9 },
-  poteto: { ex: 8, ey: 4, rx: 3.9, ry: 5, dark: '#2a1510', iris: '#a05c2c', sh: 2, my: 11.5, mouth: 'smile', blush: '#ff8f9c', brow: '#3a2420', bt: 1.4, glasses: true },
-  wang:   { ex: 8, ey: 3.5, rx: 2.8, ry: 3.9, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 2.1 },
-  muse:   { ex: 7.8, ey: 1, rx: 3.5, ry: 5, dark: '#120d14', sh: 1, my: 9.5, mouth: 'tiny', blush: '#ff8fa6', brow: null, bt: 1.4, glossy: true },
-  dot:    { ex: 9.5, ey: 0, rx: 3.5, ry: 4.4, dark: '#16121a', sh: 3, my: 7.5, mouth: 'tiny', blush: '#ffb0ba', brow: null, bt: 1.4, glossy: true },
+  tibo:   { ex: 8, ey: 3.5, rx: 3.3, ry: 4.6, dark: '#1d1520', sh: 2, my: 10.5, mouth: 'grin', blush: '#ee9488', brow: '#3a2418', bt: 1.9 }, // warm open grin, dark brown brows
+  poteto: { ex: 8, ey: 4, rx: 3.9, ry: 5, dark: '#2a1510', iris: '#a05c2c', sh: 2, my: 11, mouth: 'open', blush: '#ff8f9c', bl: [11.6, 10.4, 3.7, 2.1], brow: '#3a2420', bt: 1.4, glasses: true, happyEyes: true }, // ^ ^ eyes when calm, big open smile, pink blush, gold round glasses
+  wang:   { ex: 8, ey: 3.5, rx: 2.6, ry: 3.2, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 1.2, bup: 1.5, pip: 1 }, // narrow calm eyes, thin straight brows set high
+  muse:   { ex: 6.6, ey: -1.2, rx: 2, ry: 2.2, dark: '#120d14', sh: 1, my: 5.8, mouth: 'tiny', ms: 0.9, blush: '#f5b3bd', bl: [7.4, 3.5, 2.7, 1.9], brow: null, bt: 1.2, pip: 1, abrow: '#8a5560' }, // small bead eyes with one glint, no brows unless angry
+  dot:    { ex: 7.4, ey: 0, rx: 1.9, ry: 2.1, dark: '#17111d', sh: 1.5, my: 8.8, mouth: 'tiny', ms: 0.8, blush: '#f6b08a', bl: [11.6, 8.8, 2.6, 1.3], brow: null, bt: 1.2, pip: 1, specs: 6.3, lens: '#fde58a', abrow: '#17111d' },
 };
 const W_ = flat('#ffffff'), MOUTH = flat('#3b1620'), TONGUE = flat('#e5607a');
 function face(H, F, ex, skin) {
   const sx = F.sh, my = F.my, bx = F.ex, dark = flat(F.dark), eyes = [-bx + sx, bx + sx];
-  if (F.blush) for (const s of [-1, 1]) H.e(s * (bx + 3.4) + sx * 0.7, F.ey + 5.8, 3.4, 1.9, flat(F.blush), { ol: false });
+  if (F.blush) { const [bd, by, brx, bry] = F.bl || [bx + 3.4, F.ey + 5.8, 3.4, 1.9]; for (const s of [-1, 1]) H.e(s * bd + sx * 0.7, by, brx, bry, flat(F.blush), { ol: false }); }
   if (skin && F.mouth !== 'tiny') H.e(sx + 1.2, F.ey + 4.8, 1.3, 0.9, skin, { ol: false, flat: true }); // nose smudge uses a ramp's md; recoloured below
   const angry = ex === 'a' || ex === 'o' || ex === 'g', pain = ex === 'p';
+  if (F.specs) for (const x of eyes) H.e(x, F.ey, F.specs - 0.5, F.specs - 0.5, flat(F.lens), { ol: false, flat: true }); // glass tint behind the eyes
   eyes.forEach((x, i) => {
     const sd = i ? 1 : -1, y = F.ey;
     if (ex === 'k') { H.l(x - 3, y - 3, x + 3, y + 3, F.dark, 1.7); H.l(x + 3, y - 3, x - 3, y + 3, F.dark, 1.7); return; }
+    if (F.happyEyes && (ex === 'n' || ex === 'w')) { const pts = [[-4, 2.2], [-2.8, 0], [-1.2, -1.5], [1.2, -1.5], [2.8, 0], [4, 2.2]]; for (let j = 1; j < pts.length; j++) H.l(x + pts[j - 1][0], y + pts[j - 1][1] + 0.6, x + pts[j][0], y + pts[j][1] + 0.6, F.dark, 1.9); return; } // happy closed-eye arcs
     if (ex === 'w') { H.l(x - 3.6, y + 1.5, x - 1.4, y - 1.2, F.dark, 1.8); H.l(x - 1.4, y - 1.2, x + 1.4, y - 1.2, F.dark, 1.8); H.l(x + 1.4, y - 1.2, x + 3.6, y + 1.5, F.dark, 1.8); return; }
     if (pain) { H.l(x - sd * 3.2, y - 3, x + sd * 2.2, y, F.dark, 1.8); H.l(x + sd * 2.2, y, x - sd * 3.2, y + 3, F.dark, 1.8); return; }
     if (ex === 'g') { H.l(x - 3.6, y - sd * 0.0 - 0.2, x + 3.6, y + 0.6, F.dark, 2.2); return; }
     const ry = angry ? F.ry * 0.78 : F.ry, cy = angry ? y + 0.9 : y;
     H.e(x, cy, F.rx, ry, dark, { ol: false, flat: true });
     if (F.iris) { H.e(x, cy + ry * 0.38, F.rx * 0.82, ry * 0.58, flat(F.iris), { ol: false, flat: true }); H.e(x, cy + ry * 0.52, F.rx * 0.45, ry * 0.3, flat('#2a1008'), { ol: false, flat: true }); }
+    if (F.pip) { H.d(x - F.rx * 0.6, cy - ry * 0.6, 0.8, 0.8, '#ffffff'); return; } // dot eyes: a single pixel of shine
     H.d(x - F.rx * 0.62, cy - ry * 0.62, 2, 2, '#ffffff');
     H.d(x + F.rx * 0.34, cy + ry * 0.38, 1, 1, '#ffffff');
     if (F.glossy) H.d(x - F.rx * 0.62 + 2.1, cy - ry * 0.62 + 2.1, 1, 1, '#ffffff');
   });
+  if (F.abrow && !F.specs && (ex === 'a' || ex === 'o')) eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 3.4, F.ey - F.ry - 1.9, x - sd * 3, F.ey - F.ry + 0.7, F.abrow, 1.2); }); // brow-less fighters grow a short slanted lid when angry
   if (F.glasses) {
     const gold = R('#e8b84a', '#7a3a2a');
     for (const x of eyes) { H.ring(x, F.ey, 7.2, 5.9, gold, { ol: false }); H.l(x - 4.6, F.ey - 3.4, x - 2.2, F.ey - 5.2, '#ffffff', 1); H.d(x - 4.8, F.ey - 1.6, 1, 1, '#ffffff'); }
     H.l(eyes[0] + 7, F.ey - 1, eyes[1] - 7, F.ey - 1, '#e8b84a', 1.1); H.l(eyes[0] - 7, F.ey - 1, eyes[0] - 11, F.ey - 2, '#e8b84a', 1.1);
   }
+  if (F.specs) { // thin round dark rims joined by a short bridge, a glint in each lens, angled lids when angry
+    const S = F.specs, D = flat(F.dark);
+    for (const x of eyes) { H.ring(x, F.ey, S, S - 1.3, D, { ol: false, flat: true }); H.l(x - 4.3, F.ey - 2.4, x - 3.3, F.ey - 3.8, '#ffffff', 0.9); }
+    H.l(eyes[0] + S - 0.8, F.ey - 0.8, eyes[1] - S + 0.8, F.ey - 0.8, F.dark, 1.3);
+    if (ex === 'a' || ex === 'o') eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 5.6, F.ey - 4.6, x - sd * 4.4, F.ey - 2, F.abrow, 1.5); });
+  }
   if (F.brow) {
-    const t = angry ? 2.4 : pain ? -2.4 : ex === 'w' ? -1.2 : (ex === 'n' && F.mouth === 'grin' ? -0.4 : 0), by = F.ey - F.ry - (ex === 'w' ? 4 : 2.8) - (F.glasses ? 1 : 0) + (angry ? 1 : 0);
+    const t = angry ? 2.4 : pain ? -2.4 : ex === 'w' ? -1.2 : (ex === 'n' && F.mouth === 'grin' ? -0.4 : 0), by = F.ey - F.ry - (ex === 'w' ? 4 : 2.8) - (F.glasses ? 1 : 0) - (F.bup || 0) + (angry ? 1 : 0);
     if (ex !== 'k') eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 4.4, by - (t > 0 ? 0.6 : 0), x - sd * 3.6, by + t, F.brow, F.bt); });
   }
   // mouth
   const m = F.mouth;
-  if (ex === 'a' || ex === 'o') { const s = ex === 'o' ? 1.25 : 1; H.e(sx, my + 1, 4.2 * s, 3.2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 2.6 * s, 1.3 * s, TONGUE, { ol: false, flat: true }); H.l(sx - 3 * s, my - 1.6 * s, sx + 3 * s, my - 1.6 * s, '#ffffff', 1.2); }
+  if (F.ms) tinyMouth(H, ex, sx, my, F.ms);
+  else if (ex === 'a' || ex === 'o') { const s = ex === 'o' ? 1.25 : 1; H.e(sx, my + 1, 4.2 * s, 3.2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 2.6 * s, 1.3 * s, TONGUE, { ol: false, flat: true }); H.l(sx - 3 * s, my - 1.6 * s, sx + 3 * s, my - 1.6 * s, '#ffffff', 1.2); }
   else if (ex === 'p') { H.e(sx, my + 1.4, 3.4, 2.6, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.6, 2, 1, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'k') { H.e(sx, my + 1.6, 3, 3.2, MOUTH, { ol: false, flat: true }); H.e(sx, my + 3.2, 2, 1.5, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'w') { H.p([[sx - 6.5, my - 2], [sx + 6.5, my - 2], [sx + 5, my + 2], [sx + 2.4, my + 4.6], [sx - 2.4, my + 4.6], [sx - 5, my + 2]], MOUTH, { ol: false, flat: true }); H.p([[sx - 5.6, my - 1.6], [sx + 5.6, my - 1.6], [sx + 4.6, my + 0.2], [sx - 4.6, my + 0.2]], W_, { ol: false, flat: true }); H.e(sx, my + 3.6, 2.4, 1.1, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'g') { H.d(sx - 5, my - 2, 10, 5, '#2a1018'); H.d(sx - 4, my - 1, 8, 3, '#ffffff'); H.d(sx - 1, my - 1, 1, 3, '#b8a8b8'); H.d(sx + 2, my - 1, 1, 3, '#b8a8b8'); }
   else if (m === 'grin') { H.p([[sx - 6.5, my - 1.5], [sx + 6.5, my - 1.5], [sx + 5, my + 2], [sx + 2.5, my + 4], [sx - 2.5, my + 4], [sx - 5, my + 2]], MOUTH, { ol: false, flat: true }); H.p([[sx - 5.6, my - 1.2], [sx + 5.6, my - 1.2], [sx + 4.6, my + 0.6], [sx - 4.6, my + 0.6]], W_, { ol: false, flat: true }); H.e(sx, my + 3, 2.4, 1, TONGUE, { ol: false, flat: true }); }
+  else if (m === 'open') { H.p([[sx - 5.6, my - 1.4], [sx + 5.6, my - 1.4], [sx + 4.8, my + 1.8], [sx + 2.8, my + 3.8], [sx - 2.8, my + 3.8], [sx - 4.8, my + 1.8]], MOUTH, { ol: false, flat: true }); H.e(sx, my + 3, 3, 1.1, TONGUE, { ol: false, flat: true }); H.l(sx - 4.2, my - 0.8, sx + 4.2, my - 0.8, '#ffffff', 0.9); } // wide D-shaped smile with a tongue
   else if (m === 'smile') { H.l(sx - 3.6, my - 0.6, sx - 2, my + 1.2, '#8a3a3e', 1.4); H.l(sx - 2, my + 1.2, sx + 2, my + 1.2, '#8a3a3e', 1.4); H.l(sx + 2, my + 1.2, sx + 3.6, my - 0.6, '#8a3a3e', 1.4); }
   else if (m === 'flat') { H.l(sx - 3, my + 0.6, sx + 3, my + 0.6, '#8a4540', 1); H.d(sx + 3, my - 0.4, 1, 1, '#8a4540'); }
   else { H.l(sx - 2.4, my - 0.4, sx - 1.2, my + 1.1, '#5a2a30', 1.3); H.l(sx - 1.2, my + 1.1, sx + 1.2, my + 1.1, '#5a2a30', 1.3); H.l(sx + 1.2, my + 1.1, sx + 2.4, my - 0.4, '#5a2a30', 1.3); }
 }
 
-// hair: back layer (behind the face) and front layer (fringe, clumps)
+// very small mouth for the dots-style blob (s scales the open shapes)
+function tinyMouth(H, ex, sx, my, s) {
+  const C = '#4a2218';
+  if (ex === 'a' || ex === 'o') { const z = (ex === 'o' ? 1.3 : 1) * s; H.e(sx, my + 0.8, 2.6 * z, 2.2 * z, MOUTH, { ol: false, flat: true }); H.e(sx, my + 1.9 * z, 1.4 * z, 0.8 * z, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'p') { H.e(sx, my + 1, 2.4 * s, 2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 1.8, 1.2 * s, 0.7 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'k') { H.e(sx, my + 1.2, 2 * s, 2.4 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.2, 1.2 * s, 0.9 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'w') { H.p([[sx - 4 * s, my - 1], [sx + 4 * s, my - 1], [sx + 2.6 * s, my + 2.2 * s], [sx, my + 3.4 * s], [sx - 2.6 * s, my + 2.2 * s]], MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 1.5 * s, 0.9 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'g') { H.d(sx - 3.2, my - 0.8, 6.4, 3, '#2a1018'); H.d(sx - 2.5, my - 0.1, 5, 1.4, '#ffffff'); }
+  else { H.l(sx - 2.5, my - 0.4, sx - 1.2, my + 1, C, 1.1); H.l(sx - 1.2, my + 1, sx + 1.2, my + 1, C, 1.1); H.l(sx + 1.2, my + 1, sx + 2.5, my - 0.4, C, 1.1); }
+}
+
+// hair: back layer (behind the face) and front layer (fringe, clumps). hairMass fills ONE shaded blob (union of head-local ellipses) cut below a hairline curve, so the forehead stays open.
+const edgeFn = pts => x => { if (x <= pts[0][0]) return pts[0][1]; for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const [a, b] = pts[i - 1], [c, d] = pts[i]; return b + (d - b) * (x - a) / (c - a); } return pts[pts.length - 1][1]; };
+function hairMass(H, hr, parts, edge, o) {
+  const k = H.k, S = sUnion(parts.map(([a, b, c, d]) => sEll(H.x + a * k, H.y + b * k, c * k, d * k)), (x, y) => LV((x - H.x) / (21 * k), (y - H.y + 9 * k) / (16 * k)));
+  H.P.fill(sAnd(S, (x, y) => (y - H.y) / k <= edge((x - H.x) / k)), hr, o);
+}
 const HAIR = {
-  tibo: {
-    back(H, hr) { H.e(0, -4, 19.5, 17, hr); },
+  tibo: { // short sides, a rounded swept fringe with a small quiff at the front
+    back(H, hr) { H.e(0, -4, 19, 16.5, hr); },
     front(H, hr) {
-      H.p([[-19, -6], [-13.5, -9], [-14.5, 2], [-19, 3]], hr); H.p([[19, -6], [13.5, -9], [14.5, 2], [19, 3]], hr);
-      H.p([[-16, -9], [-19, -20], [-6, -14]], hr); H.p([[-11, -13], [-8, -26], [3, -15]], hr); H.p([[-1, -14], [9, -28], [12, -13]], hr); H.p([[7, -13], [20, -22], [17, -8]], hr);
-      H.e(0, -11.5, 18.4, 8.4, hr);
-      const so = { ol: hr.sh }; H.p([[-16.5, -9], [-5, -10], [-10, -4.5]], hr, so); H.p([[-6, -10], [6, -10], [-1, -5.5]], hr, so); H.p([[3, -10], [17, -8], [12, -3.5]], hr, so);
-      H.l(-9, -16, -3, -19.5, R('#4d3126').hi, 1.4); H.l(2, -17.5, 6, -22, R('#4d3126').hi, 1.2);
+      H.p([[-18.4, -6], [-14, -9.5], [-14.6, 0.5], [-17.6, 0.8]], hr); H.p([[18.4, -6], [14, -9.5], [14.6, 0.5], [17.6, 0.8]], hr); // short tapered sideburns
+      hairMass(H, hr, [[-1, -10.5, 18, 9.8], [-1.5, -15.5, 14.5, 7.6], [9, -19, 9.5, 5.6]], edgeFn([[-20, -3], [-16, -7], [-10, -10], [-4, -8.8], [2, -6.6], [8, -5.4], [13, -6.2], [17, -9], [20, -5]]));
+      const hi = hr.hi, sh = hr.sh; // strands sweep from the crown down and to the front
+      H.l(-9.5, -17.5, -3.5, -10.5, sh, 1); H.l(-2, -20, 4.5, -11, sh, 1); H.l(5, -21, 11, -11.5, sh, 1);
+      H.l(-13, -16, -7.5, -20.5, hi, 1.3); H.l(-5, -20.5, 2, -23, hi, 1.2); H.l(5, -23, 9.5, -24, hi, 1);
     },
   },
-  poteto: {
-    back(H, hr, bust) { H.e(0, bust ? 8 : 0, bust ? 22 : 20, bust ? 28 : 19, hr); },
+  poteto: { // long straight hair: full blunt fringe with soft points, long side locks past the shoulders
+    back(H, hr, bust) { if (bust) H.r(0, 10, 21.5, 26, 8, hr); else H.e(0, -1, 19.8, 18.2, hr); },
     front(H, hr) {
-      H.e(0, -10.5, 19.5, 10.5, hr);
-      for (const [x, y, rx, ry] of [[-14, -6.5, 5.6, 5.4], [-6.5, -6.5, 5.2, 5.4], [1, -6.5, 5.4, 5.4], [8, -6.5, 5.2, 5.4], [14.5, -6.5, 5.2, 5.4]]) H.e(x, y, rx, ry, hr);
-      H.c(-17.5, -5, -18.5, 20, 4.2, 3.4, hr); H.c(17.5, -5, 18.5, 20, 4.2, 3.4, hr);
-      H.e(-18, 22, 3.6, 2.8, hr); H.e(18.4, 22, 3.6, 2.8, hr);
-      const hi = R('#3a2420').hi; H.p([[-12, -15.5], [-3, -18.5], [7, -17.5], [12.5, -13], [5, -14.5], [-4, -14], [-10, -12.5]], flat(hi), { ol: false, flat: true });
+      hairMass(H, hr, [[0, -9.5, 19.8, 10.5], [0, -14, 18.2, 7.6]], edgeFn([[-20, -7], [-17.5, -3.6], [-14, -1.3], [-9.5, -4.1], [-5.2, -1.2], [-1, -4.1], [3.2, -1.2], [7.4, -4.1], [11.4, -1.2], [15.4, -3.6], [17.6, -3.6], [20, -7]]));
+      H.c(-17.4, -6, -18.4, 22, 3.9, 2.9, hr); H.c(17.4, -6, 18.4, 22, 3.9, 2.9, hr); // side locks framing the face
+      H.p([[-21.2, 22], [-15.6, 22], [-18.4, 29.6]], hr); H.p([[21.2, 22], [15.6, 22], [18.4, 29.6]], hr); // straight cut tips
+      const hi = R('#3a2420').hi, sh = hr.sh;
+      for (const x of [-12.5, -4.5, 3.5, 11.5]) H.l(x, -12, x + 0.4, -3, sh, 1); // blunt strands down the fringe
+      H.l(-18, 2, -18.3, 20, sh, 1); H.l(18, 2, 18.2, 20, sh, 1);
+      H.p([[-12, -15.5], [-3, -18.5], [7, -17.5], [12.5, -13], [5, -14.5], [-4, -14], [-10, -12.5]], flat(hi), { ol: false, flat: true });
     },
   },
-  wang: {
-    back(H, hr) { H.e(0, -4.5, 18.6, 16, hr); },
+  wang: { // neat short black hair, a short fringe brushed slightly up and to the side
+    back(H, hr) { H.e(0, -4.5, 18.4, 15.6, hr); },
     front(H, hr) {
-      H.p([[-18, -6], [-13.5, -9], [-14, 0], [-18, 1]], hr); H.p([[18, -6], [13.5, -9], [14, 0], [18, 1]], hr);
-      H.p([[-9, -14], [-4, -26], [6, -15]], hr); H.p([[0, -14], [10, -24], [15, -10]], hr); H.p([[-15, -11], [-14, -20], [-4, -14]], hr);
-      H.e(0, -11.5, 17.8, 8.2, hr);
-      const so = { ol: hr.sh }; H.p([[-17, -8], [-5, -11], [-9, -4.5]], hr, so); H.p([[-6, -11], [6, -11], [0, -6]], hr, so); H.p([[3, -11], [17, -8], [10, -4.5]], hr, so);
-      H.l(-8, -16, -2, -20, R('#2a2833').hi, 1.3); H.l(3, -15.5, 8.5, -19.5, R('#2a2833').hi, 1.2);
+      H.p([[-17.6, -6], [-13.5, -9.5], [-14.2, -1], [-17, -0.4]], hr); H.p([[17.6, -6], [13.5, -9.5], [14.2, -1], [17, -0.4]], hr);
+      hairMass(H, hr, [[0, -12, 17.8, 8.8], [4, -17.2, 12.6, 6.2]], edgeFn([[-19, -2], [-15, -6.5], [-10, -9.5], [-6, -8], [-2, -10.4], [3, -8.4], [8, -10.4], [13, -8.4], [16, -9.5], [19, -3]]));
+      const hi = hr.hi, sh = hr.sh;
+      H.l(-8, -10, -4.5, -18, sh, 1); H.l(0, -10.5, 4.5, -19, sh, 1); H.l(7, -10.5, 11, -17.5, sh, 1);
+      H.l(-12, -14, -6.5, -19.5, hi, 1.2); H.l(1, -20.5, 8, -22, hi, 1);
     },
   },
 };
@@ -379,15 +409,19 @@ function drawHuman(P, L, q, id) {
     P.fill(sEll(r.t[0] + 2.6, r.t[1] + 2.4, 6.8, 3.7), Sh);
     P.rect(r.t[0] - 2, r.t[1] + 5, 11, 1, back ? dim(sho).dp : sho.dp);
   };
-  if (L.long) { // long wavy hair behind the whole body
-    P.fill(sCap(dx - 1, dy + 4, hx - 3, hy - 4, 19, 13), hr);
-    for (const [a, b, r] of [[-12, 0, 6], [-3, 2, 6.5], [6, 0, 6.3], [-7.5, 4, 4]]) P.fill(sEll(hx - 3 + a, hy - 1 + b, r, r * 0.9), hr);
+  if (L.long) { // long straight hair falling behind the whole body, tips cut in soft points
+    P.fill(sCap(dx - 1, dy + 4, hx - 3, hy - 6, 19, 14.5), hr);
+    P.fill(sPoly([[hx - 17.5, hy - 14], [hx + 11, hy - 14], [hx + 10, hy - 3], [hx + 6, hy - 0.5], [hx + 2, hy - 3.5], [hx - 2, hy - 0.5], [hx - 6, hy - 3.5], [hx - 10, hy - 0.5], [hx - 14, hy - 3], [hx - 17.5, hy - 4]]), hr);
   }
   if (!q.armsFront) arm(sx - 10, sy + 3, q.bh, true);
   leg(hx - 5, hy, q.bf, true); leg(hx + 5, hy, q.ff, false);
   P.fill(sCap(sx, sy + 1, hx, hy - 8, 11.6, 10.6), tp);
   P.fill(sCap(hx - 9.5, hy - 3.2, hx + 9.5, hy - 3.2, 2.5, 2.5), wr);
   P.fill(sRR(hx + 2.5, hy - 3.2, 2.6, 2.6, 0.8), GOLD);
+  if (L.hood) { // hoodie: a bulky collar under the chin and two drawstrings with tips
+    P.fill(sEll(sx + 0.5, sy - 3.5, 10.8, 5, 0, 0), tp, { val: (x, y) => 0.4 });
+    for (const o of [1.5, 5.5]) { P.fill(sCap(sx + o, sy + 1, sx + o - 0.4, sy + 8.5, 0.6, 0.6), flat('#dfe6f5'), { ol: false, flat: true }); P.px(sx + o - 0.5, sy + 9.2, wr.md); }
+  }
   drawHead(P, id, L, dx, dy + 1, 1, q.ex, false);
   if (q.armsFront) arm(sx - 10, sy + 3, q.bh, false);
   const fa = arm(sx + 10.5, sy + 3, q.fh, false);
@@ -395,57 +429,91 @@ function drawHuman(P, L, q, id) {
 }
 
 function eggShape(a, b, val) { return sUnion([a, b], val); }
+// muse: a tall, very fluffy cream-pink hooded plush. Head and body are one soft blob under a tall dome; a smooth peach face oval sits low inside the hood.
+function plushInk(L) { const fur = { ...R(L.fur, '#b06a70') }; fur.ol = mix(fur.sh, INK, 0.5); return { fur, crm: R(L.face, '#d08a84') }; } // warm rose shadows, softer outline than the ink
+function sFurCap(ax, ay, bx, by, r0, r1, jag = 0.06, fr = 10) { // capsule with a rippling, fuzzy edge for plush limbs
+  const S = sCap(ax, ay, bx, by, r0 * (1 + jag), r1 * (1 + jag)), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+  S.test = (x, y) => { let t = ((x - ax) * dx + (y - ay) * dy) / L2; t = t < 0 ? 0 : t > 1 ? 1 : t; const qx = ax + dx * t, qy = ay + dy * t, r = r0 + (r1 - r0) * t, l = 1 + jag * Math.sin(Math.atan2(y - qy, x - qx) * fr + t * 3); return (x - qx) * (x - qx) + (y - qy) * (y - qy) <= r * r * l * l; };
+  return S;
+}
+const furTick = (P, x, y, c) => { P.px(x, y, c); P.px(x - 1, y - 1, c); P.px(x + 1, y - 1, c); }; // tiny v-shaped fluff mark
+function plushHood(P, fur, crm, fx, fy, k) { // hood opening: shaded fur rim around a smooth peach oval
+  P.fill(sEll(fx, fy, 16.4 * k, 14.2 * k, 0.035, 18), fur, { val: (x, y) => y < fy - 2 * k ? -0.45 : 0.05, ol: mix(fur.sh, INK, 0.12) });
+  const S = sEll(fx, fy + 0.4 * k, 13.8 * k, 11.8 * k);
+  P.fill(S, crm, { ol: false, val: (x, y) => Math.min(0.5, Math.max(-0.1, S.val(x, y) * 0.8)) });
+}
+function plushTufts(P, fur, cx, cy, rx, ry, xs, val) { for (const a of xs) { const e = cy - ry * Math.sqrt(1 - (a / rx) ** 2); P.fill(sEll(cx + a, e + 1, 4.2, 3.6, 0.12, 7), fur, { val, soft: true }); } } // round fur puffs poking over the dome
 function drawPlush(P, L, q, id) {
-  const fur = R(L.fur, '#a0508c'), crm = R(L.face, '#c0607a'), pad = R('#fbe3dc', '#c0607a');
+  const { fur, crm } = plushInk(L);
   const [hx, hy] = q.hip, [sx, sy] = q.sh, [dx, dy] = q.hd;
-  const bcx = (dx * 0.7 + hx * 0.3), top = dy - 20, bot = hy + 9, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 23;
-  const egg = eggShape(sEll(dx + 0.5, dy + 1, 23, 22.5, 0.045, 14), sEll(hx * 0.6 + dx * 0.4, hy - 5, 19, 14.5, 0.05, 12), (x, y) => LV((x - bcx) / rx, (y - cy) / ry));
-  const arm = (shx, shy, hand, back) => {
-    const F = back ? dim(fur) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 7, 7, 1);
-    P.fill(sCap(shx, shy, r.e[0], r.e[1], 5.4, 4.8), F);
-    P.fill(sCap(r.e[0], r.e[1], r.t[0], r.t[1], 4.8, 4.5), F);
-    P.fill(sEll(r.t[0], r.t[1], 4.9, 4.7, 0.06, 9), back ? dim(fur) : fur);
-    P.fill(sEll(r.t[0] + 0.6, r.t[1] + 0.6, 2.6, 2.4), back ? dim(pad) : pad, { ol: false });
+  const bcx = dx * 0.65 + hx * 0.35, top = dy - 25, bot = hy + 11, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 24, val = (x, y) => LV((x - bcx) / rx, (y - cy) / ry) + 0.42;
+  const egg = eggShape(sEll(dx + 0.5, dy - 0.5, 23, 24.5, 0.06, 15), sEll(bcx, hy - 8, 22.5, 19, 0.06, 13), val);
+  const arm = (shx, shy, hand, back) => { // stubby mitten: one fuzzy capsule ending in a round paw, no fingers
+    const F = back ? dim(fur, 0.14) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 6, 6, 1);
+    const cap = sFurCap(shx, shy, r.t[0], r.t[1], 5.4, 5.2, 0.06, 10);
+    P.fill(sUnion([cap, sEll(r.t[0], r.t[1], 5.9, 5.6, 0.07, 9)], cap.val), F);
     return r;
   };
-  const leg = (ox, oy, foot, back) => {
-    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.62, L = up ? 11 : 6, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(fur) : fur;
-    P.fill(sCap(ox, oy, r.t[0], r.t[1], 5.6, 4.8), F);
-    P.fill(sEll(r.t[0] + 2.2, r.t[1] + 1.6, 6.2, 3.4), back ? dim(pad) : pad);
+  const leg = (ox, oy, foot, back, late) => { // very short stubby leg + round foot, fur-coloured; raised legs (kicks) are drawn over the belly
+    const up = foot[1] < oy + 5; if (up !== !!late) return;
+    const F = back ? dim(fur, 0.14) : fur; let tx = ox + (foot[0] - ox) * (up ? 0.9 : 0.62), ty = up ? oy + (foot[1] - oy) * 0.9 + 1 : foot[1] + 2.4;
+    const d = Math.hypot(tx - ox, ty - oy), m = up ? 24 : 21; if (d > m) { tx = ox + (tx - ox) * m / d; ty = oy + (ty - oy) * m / d; }
+    P.fill(sFurCap(ox, oy, tx, ty - (up ? 0 : 2.6), 5.6, 4.9, 0.06, 9), F);
+    P.fill(sEll(tx + 2, ty, 6.2, 3.4, 0.05, 11), F);
   };
   if (!q.armsFront) arm(bcx - 19.5, sy + 8, q.bh, true);
-  leg(hx - 6, hy + 1, q.bf, true); leg(hx + 6, hy + 1, q.ff, false);
+  leg(hx - 6, hy + 3, q.bf, true); leg(hx + 6, hy + 3, q.ff, false);
   P.fill(egg, fur);
-  // hood opening, cream face
-  const fx = dx + 3, fy = dy + 4;
-  P.fill(sEll(fx, fy, 17, 15.5), fur, { val: () => -0.5, ol: R(L.fur, '#a0508c').sh });
-  P.fill(sEll(fx, fy + 0.5, 15.4, 14), crm, { ol: false });
-  for (const [a, b] of [[-3, -17], [4, -19], [12, -15], [-11, -14], [0, -20]]) P.fill(sPoly([[dx + a - 2, dy + b + 3], [dx + a + 0.5, dy + b - 2], [dx + a + 2.5, dy + b + 3]]), fur, { ol: false, soft: true });
-  face(H_(P, fx, fy - 1, 1), FACE.muse, q.ex, null);
-  for (const [a, b] of [[-10, 22], [-4, 24], [6, 23], [12, 20], [-14, 12], [14, 10]]) { P.px(bcx + a, hy + b - 20, fur.sh); P.px(bcx + a + 1, hy + b - 19, fur.sh); P.px(bcx + a - 1, hy + b - 19, fur.sh); }
+  plushTufts(P, fur, dx + 0.5, dy - 0.5, 23, 24.5, [-9, 1, 10], val);
+  for (const [a, b] of [[-13, -15], [-6, -20], [-19, -6]]) furTick(P, dx + a, dy + b, fur.hi); // lit fluff on the dome
+  for (const [a, b] of [[17, -12], [12, -16]]) furTick(P, dx + a, dy + b, fur.sh);
+  for (const [a, b] of [[-8, 6], [4, 8], [12, 3], [-14, -3], [-1, -3]]) furTick(P, bcx + a, hy + b, fur.sh); // shaded fluff on the belly
+  const fx = dx + 3, fy = dy + 5;
+  plushHood(P, fur, crm, fx, fy, 1);
+  face(H_(P, fx, fy, 1), FACE.muse, q.ex, null);
+  leg(hx - 6, hy + 3, q.bf, true, true); leg(hx + 6, hy + 3, q.ff, false, true);
   if (q.armsFront) arm(bcx - 19.5, sy + 8, q.bh, false);
   arm(bcx + 19.5, sy + 8, q.fh, false);
 }
 
+// dots-style companion: a fuzzy round yellow pom-pom with round specs and a bow tie. Tufted edge = a sine ripple whose tips are |sin| cusps.
+function furBall(P, Rm, cx, cy, rx, ry, n) {
+  const S = sEll(cx, cy, rx, ry, 0.07), m = Math.round(rx * 0.78);
+  S.test = (x, y) => { const u = (x - cx) / rx, v = (y - cy) / ry, a = Math.atan2(v, u), t = Math.abs(Math.sin(a * m + 1.6 * Math.sin(a * 5 + 0.7))), l = 1 + 0.075 * (0.5 - t) + 0.012 * Math.sin(a * 3); return u * u + v * v <= l * l; };
+  const val = (x, y) => LV((x - cx) / rx, (y - cy) / ry) + 0.28;
+  P.fill(S, Rm, { val });
+  let sd = 20241; const rnd = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, tones = [Rm.dp, Rm.sh, Rm.md, Rm.lt, Rm.hi];
+  for (let i = 0; i < n; i++) { // fluff flecks: radial 2px strokes one tone off the local cel band
+    const a = rnd() * Math.PI * 2, d = 0.25 + Math.sqrt(rnd()) * 0.68, x = Math.floor(cx + Math.cos(a) * d * rx), y = Math.floor(cy + Math.sin(a) * d * ry), v = val(x + 0.5, y + 0.5);
+    const k = v > 0.6 ? 4 : v > 0.3 ? 3 : v > -0.12 ? 2 : v > -0.78 ? 1 : 0, c = tones[Math.max(0, Math.min(4, k + (rnd() < (v > 0 ? 0.7 : 0.4) ? 1 : -1)))];
+    if (k > 0 || c !== Rm.dp) { P.px(x, y, c); P.px(x + Math.round(Math.cos(a)), y + Math.round(Math.sin(a)), c); }
+  }
+}
+function dotBow(H, x, y) { // tiny black bow tie: two triangles meeting at a knot
+  const D = flat('#17111d'), o = { ol: false, flat: true };
+  H.p([[x - 0.4, y], [x - 6.8, y - 3.5], [x - 6.8, y + 3.5]], D, o); H.p([[x + 0.4, y], [x + 6.8, y - 3.5], [x + 6.8, y + 3.5]], D, o);
+  H.r(x, y, 1.7, 2.3, 0.7, flat('#2c2336'), o); H.d(x - 5.4, y - 1.6, 0.8, 0.8, '#4d4058');
+}
 function drawBlob(P, L, q, id) {
-  const body = R(L.body, L.tint), pad = R('#ffd0d6', '#b05a7a');
+  const body = { ...R(L.body, L.tint) }; body.ol = mix(body.sh, INK, 0.6); // warm brown outline instead of near-black ink
   const [hx, hy] = q.hip, [sx, sy] = q.sh, [dx, dy] = q.hd;
-  const bcx = dx * 0.65 + hx * 0.35, top = dy - 13, bot = hy + 10, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 27.5 + Math.max(0, 31 - ry) * 0.5;
+  const bcx = dx * 0.65 + hx * 0.35, top = dy - 13, bot = hy + 10, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 30 + Math.max(0, 31 - ry) * 0.5;
   const arm = (shx, shy, hand, back) => {
-    const F = back ? dim(body) : body, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72, ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
+    const F = back ? dim(body, 0.18) : body, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72, ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
     P.fill(sCap(shx, shy, r.t[0], r.t[1], 4.6, 4.2), F);
-    P.fill(sEll(r.t[0], r.t[1], 4.6, 4.4), F);
+    P.fill(sEll(r.t[0], r.t[1], 4.6, 4.4, 0.08, 9), F);
     return r;
   };
   const leg = (ox, oy, foot, back) => {
-    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.6, L = up ? 10.5 : 6.5, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(body) : body;
+    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.6, L = up ? 10.5 : 6.5, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(body, 0.18) : body;
     P.fill(sCap(ox, oy, r.t[0], r.t[1], 5, 4.4), F);
-    P.fill(sEll(r.t[0] + 2, r.t[1] + 1.8, 5.8, 3.4), F);
+    P.fill(sEll(r.t[0] + 2, r.t[1] + 1.8, 5.8, 3.4, 0.07, 11), F);
   };
   if (!q.armsFront) arm(bcx - 22, cy + 3, q.bh, true);
   leg(bcx - 7, bot - 3, q.bf, true); leg(bcx + 7, bot - 3, q.ff, false);
-  P.fill(sEll(bcx, cy, rx, ry), body, { val: (x, y) => LV((x - bcx) / rx, (y - cy) / ry) + 0.28 });
-  face(H_(P, bcx, cy - 5 - (ry - 31) * 0.3, 1.2), FACE.dot, q.ex, null);
+  furBall(P, body, bcx, cy, rx, ry, 70);
+  const Hf = H_(P, bcx, cy - 9 - (ry - 31) * 0.3, 1.2);
+  face(Hf, FACE.dot, q.ex, null); dotBow(Hf, FACE.dot.sh, FACE.dot.my + 6.6);
   if (q.armsFront) arm(bcx - 22, cy + 3, q.bh, false);
   arm(bcx + 22, cy + 3, q.fh, false);
 }
@@ -590,7 +658,7 @@ function renderFrame(id, anim, i) {
   if (ps.lying) {
     const tmp = new Pix(FW, FH), qq = { ...q, fx: null }; drawChar(tmp, id, qq);
     const rot = new Pix(112, 112); rot.rotCCW(tmp, 0, 0);
-    const b = rot.bounds(), dx = Math.round(48 - (b.x0 + b.x1) / 2) - 2, dy = FEET - (ps.lift || 0) - b.y1;
+    const b = rot.bounds(), dx = Math.max(1 - b.x0, Math.min(94 - b.x1, Math.round(48 - (b.x0 + b.x1) / 2) - 2)), dy = FEET - (ps.lift || 0) - b.y1;
     for (let y = 0; y < rot.h; y++) for (let x = 0; x < rot.w; x++) { const c = rot.c[y * rot.w + x]; if (c) g.px(x + dx, y + dy, c); }
     if (ps.fx) { const hx = q.hd[1] + dx, hy = (FW - 1 - q.hd[0]) + dy; fxFront(g, L, { fx: ps.fx, hd: [hx, hy + 6], fh: [0, 0], bh: [0, 0] }); }
   } else drawChar(g, id, q);
@@ -602,21 +670,24 @@ function drawBust(id) {
   const L = LOOK[id], P = new Pix(80, 80), k = 1.36, cx = 40, cy = 40;
   if (L.kind === 'human') {
     const tp = R(L.top, '#2a2a7a'), sk = R(L.skin, '#b04a5e');
-    if (L.long) P.fill(sEll(cx, 58, 31, 36), R(L.hair, '#3a2a78'));
+    if (L.long) P.fill(sRR(cx, 58, 30, 35, 12), R(L.hair, '#3a2a78'));
     P.fill(sEll(cx, 90, 34, 27), tp);
     P.fill(sRR(cx, 68, 8, 5, 3), sk);
     P.fill(sPoly([[cx - 8, 64], [cx + 8, 64], [cx, 72]]), flat(L.belt), { ol: false, flat: true });
     drawHead(P, id, L, cx, cy, k, 'n', true);
-  } else if (L.kind === 'plush') {
-    const fur = R(L.fur, '#a0508c'), crm = R(L.face, '#c0607a');
-    P.fill(sEll(cx, 50, 33, 38, 0.04, 16), fur);
-    P.fill(sEll(cx + 2, 40, 26, 25), fur, { val: () => -0.5, ol: fur.sh });
-    P.fill(sEll(cx + 2, 40.5, 23.6, 23), crm, { ol: false });
-    face(H_(P, cx + 2, 39, 1.4), FACE.muse, 'n', null);
+  } else if (L.kind === 'plush') { // hooded dome with the face oval low inside it, shoulders fading out at the bottom
+    const { fur, crm } = plushInk(L), k2 = 1.4, dome = sEll(cx, 38, 31, 34, 0.055, 15), val = (x, y) => LV((x - cx) / 36, (y - 46) / 48) + 0.42;
+    P.fill(sEll(cx, 90, 37, 28, 0.05, 14), fur);
+    P.fill(sUnion([dome, sEll(cx, 66, 33, 20, 0.05, 13)], val), fur);
+    plushTufts(P, fur, cx, 38, 31, 34, [-12, 0, 12], val);
+    for (const [a, b] of [[-19, -10], [-9, -23], [-25, 3]]) { furTick(P, cx + a, 38 + b, fur.hi); furTick(P, cx + a + 1, 38 + b + 1, fur.hi); }
+    for (const [a, b] of [[22, -10], [16, -22], [-14, 61 - 38], [10, 66 - 38]]) furTick(P, cx + a, 38 + b, fur.sh);
+    plushHood(P, fur, crm, cx + 2, 46, k2);
+    face(H_(P, cx + 2, 46, k2), FACE.muse, 'n', null);
   } else {
-    const body = R(L.body, L.tint);
-    P.fill(sEll(cx, 44, 34, 33), body, { val: (x, y) => LV((x - cx) / 34, (y - 44) / 33) + 0.28 });
-    face(H_(P, cx, 40, 1.5), FACE.dot, 'n', null);
+    const body = { ...R(L.body, L.tint) }; body.ol = mix(body.sh, INK, 0.6);
+    furBall(P, body, cx, 42, 34, 33, 110);
+    const Hf = H_(P, cx, 36, 1.5); face(Hf, FACE.dot, 'n', null); dotBow(Hf, FACE.dot.sh, FACE.dot.my + 6.6);
   }
   return P;
 }
@@ -2004,34 +2075,50 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
       const lg = c.createLinearGradient(x, 0, x + w, 0); lg.addColorStop(0, 'rgba(255,214,90,0)'); lg.addColorStop(0.5, 'rgba(255,214,90,0.8)'); lg.addColorStop(1, 'rgba(255,214,90,0)'); c.fillStyle = lg; c.fillRect(x + 14, y + titleH, w - 28, 1.5);
     }
     if (rows.length) {
-      const top = y + titleH + 8, avail = h - titleH - 16, rowH = Math.min(36, avail / rows.length), chipH = Math.min(24, rowH - 6);
+      // more than 7 rows: two columns, filled top to bottom. Input syntax: '+' keys held together, '>' tap sequence, '/' alternate keys (one chip, "J/Z")
+      const two = rows.length > 7, cols = two ? 2 : 1, per = Math.ceil(rows.length / cols);
+      const top = y + titleH + 8, avail = h - titleH - 16, rowH = Math.min(36, avail / per), chipH = Math.min(two ? 18 : 24, rowH - (two ? 5 : 6));
+      const gx = 8, gap = 6, colW = (w - gx * 2 - gap * (cols - 1)) / cols, pd = two ? 6 : pad, sepW = two ? 9 : 11, tpad = two ? 8 : 14, fs = Math.round(chipH * 0.5);
       c.textBaseline = 'middle';
-      const toks = rows.map(r => String(r.input == null ? '' : r.input).toUpperCase().split('+').map(s => s.trim()).filter(Boolean));
-      const tokW = tk => ARROWS[tk] !== undefined ? chipH : (c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT, Math.max(chipH, c.measureText(tk).width + 14));
-      const rowChipW = toks.map(ts => ts.reduce((s, tk) => s + tokW(tk), 0) + Math.max(0, ts.length - 1) * 11);
-      const nameX = x + pad + Math.max(0, ...rowChipW) + 16;
+      const toks = rows.map(r => String(r.input == null ? '' : r.input).toUpperCase().split('+').map(g => g.split('>').map(s => s.replace(/\s*\/\s*/g, '/').trim()).filter(Boolean)).filter(g => g.length));
+      const tokW = tk => ARROWS[tk] !== undefined ? chipH : (c.font = 'bold ' + fs + 'px ' + UIFONT, Math.max(chipH, c.measureText(tk).width + tpad));
+      const grpW = g => g.reduce((s, tk) => s + tokW(tk), 0) + (g.length - 1) * 3;
+      const rowChipW = toks.map(gs => gs.reduce((s, g) => s + grpW(g), 0) + Math.max(0, gs.length - 1) * sepW);
+      const alignX = pd + Math.max(0, ...rowChipW) + 16;
+      // one name size per column (the smallest that fits any of its rows) so the list does not jitter row to row
+      const nmOf = r => String(r.name == null ? '' : r.name).toUpperCase(), colSz = [];
       rows.forEach((r, i) => {
-        const ry = top + i * rowH, cy = ry + rowH / 2;
-        if (i % 2 === 0) { c.fillStyle = 'rgba(255,255,255,0.045)'; c.fillRect(x + 8, ry, w - 16, rowH); }
-        let cx = x + pad;
-        toks[i].forEach((tk, j) => {
-          if (j) { c.fillStyle = '#7d8aa3'; c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT; c.textAlign = 'center'; c.fillText('+', cx + 5.5, cy + 1); cx += 11; }
-          const tw = tokW(tk);
-          c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(cx, cy - chipH / 2 + 2, tw, chipH);
-          g = c.createLinearGradient(0, cy - chipH / 2, 0, cy + chipH / 2); g.addColorStop(0, '#3b445a'); g.addColorStop(0.5, '#1b2132'); g.addColorStop(1, '#0d111c'); c.fillStyle = g; c.fillRect(cx, cy - chipH / 2, tw, chipH);
-          c.strokeStyle = '#8a96ac'; c.lineWidth = 1; c.strokeRect(cx + 0.5, cy - chipH / 2 + 0.5, tw - 1, chipH - 1);
-          c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(cx + 1, cy - chipH / 2 + 1, tw - 2, chipH * 0.35);
-          if (ARROWS[tk] !== undefined) chipArrow(c, cx + tw / 2, cy, chipH * 0.5, ARROWS[tk]);
-          else { c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT; c.textAlign = 'center'; c.fillStyle = '#000'; c.fillText(tk, cx + tw / 2 + 1, cy + 2); c.fillStyle = '#ffe27a'; c.fillText(tk, cx + tw / 2, cy + 1); }
-          cx += tw;
+        const col = Math.floor(i / per), colX = x + gx + col * (colW + gap), note = r.note ? String(r.note).toUpperCase() : '';
+        c.font = '11px ' + UIFONT; const nw = note ? c.measureText(note).width + 6 : 0;
+        const nameX = two ? colX + pd + rowChipW[i] + 8 : x + alignX, maxW = colX + colW - pd - nameX - nw;
+        let fsz = Math.round(Math.min(17, rowH * 0.5)); c.font = fsz + 'px ' + UIFONT; const nm = nmOf(r);
+        while (fsz > 8 && c.measureText(nm).width > maxW) { fsz--; c.font = fsz + 'px ' + UIFONT; }
+        colSz[col] = Math.min(colSz[col] ?? 99, fsz);
+      });
+      rows.forEach((r, i) => {
+        const col = Math.floor(i / per), ri = i % per, colX = x + gx + col * (colW + gap), ry = top + ri * rowH, cy = ry + rowH / 2;
+        if (ri % 2 === 0) { c.fillStyle = 'rgba(255,255,255,0.045)'; c.fillRect(colX, ry, colW, rowH); }
+        let cx = colX + pd;
+        toks[i].forEach((grp, j) => {
+          if (j) { c.fillStyle = '#7d8aa3'; c.font = 'bold ' + fs + 'px ' + UIFONT; c.textAlign = 'center'; c.fillText('+', cx + sepW / 2, cy + 1); cx += sepW; }
+          grp.forEach((tk, k) => {
+            if (k) cx += 3;
+            const tw = tokW(tk);
+            c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(cx, cy - chipH / 2 + 2, tw, chipH);
+            g = c.createLinearGradient(0, cy - chipH / 2, 0, cy + chipH / 2); g.addColorStop(0, '#3b445a'); g.addColorStop(0.5, '#1b2132'); g.addColorStop(1, '#0d111c'); c.fillStyle = g; c.fillRect(cx, cy - chipH / 2, tw, chipH);
+            c.strokeStyle = '#8a96ac'; c.lineWidth = 1; c.strokeRect(cx + 0.5, cy - chipH / 2 + 0.5, tw - 1, chipH - 1);
+            c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(cx + 1, cy - chipH / 2 + 1, tw - 2, chipH * 0.35);
+            if (ARROWS[tk] !== undefined) chipArrow(c, cx + tw / 2, cy, chipH * 0.5, ARROWS[tk]);
+            else { c.font = 'bold ' + fs + 'px ' + UIFONT; c.textAlign = 'center'; c.fillStyle = '#000'; c.fillText(tk, cx + tw / 2 + 1, cy + 2); c.fillStyle = '#ffe27a'; c.fillText(tk, cx + tw / 2, cy + 1); }
+            cx += tw;
+          });
         });
         const note = r.note ? String(r.note).toUpperCase() : '';
         c.font = '11px ' + UIFONT; const nw = note ? c.measureText(note).width + 6 : 0;
-        let fsz = Math.round(Math.min(17, rowH * 0.5)); const maxNameW = x + w - pad - nameX - nw;
-        c.font = fsz + 'px ' + UIFONT; const nm = String(r.name == null ? '' : r.name).toUpperCase();
-        while (fsz > 8 && c.measureText(nm).width > maxNameW) { fsz--; c.font = fsz + 'px ' + UIFONT; }
-        c.textAlign = 'left'; c.fillStyle = '#000'; c.fillText(nm, nameX + 1, cy + 2); c.fillStyle = r.col || '#f2f5fb'; c.fillText(nm, nameX, cy + 1);
-        if (note) { c.font = '11px ' + UIFONT; c.textAlign = 'right'; c.fillStyle = '#8f9bb3'; c.fillText(note, x + w - pad, cy + 1); }
+        const nameX = two ? cx + 8 : x + alignX, maxNameW = colX + colW - pd - nameX - nw;
+        c.font = colSz[Math.floor(i / per)] + 'px ' + UIFONT; const nm = nmOf(r);
+        c.textAlign = 'left'; c.fillStyle = '#000'; c.fillText(nm, nameX + 1, cy + 2, maxNameW); c.fillStyle = r.col || '#f2f5fb'; c.fillText(nm, nameX, cy + 1, maxNameW);
+        if (note) { c.font = '11px ' + UIFONT; c.textAlign = 'right'; c.fillStyle = '#8f9bb3'; c.fillText(note, colX + colW - pd, cy + 1); }
       });
     }
     c.restore();
@@ -2268,6 +2355,196 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
 
 </script>
 <script>
+// ---- music.js ----
+// ===== AGENT BRAWL: procedural chiptune music. One theme per arena plus title / vs / over, synthesised live with WebAudio. No audio files. =====
+// Self-contained, no hooks in game.js: setInterval(tick, 80) polls game / AC / muted (top-level lets of game.js, read by bare name inside try) and schedules ~0.25 s ahead on a 16th-note grid.
+// Pattern strings: 16 chars per bar (spaces ignored). Notes: '.' rest, '-' holds the previous note, 0-9a-z = scale degree 0..35 above the tonic, A-Z = degrees -1..-26 below it. Drums: x hit, X accent, g ghost, o open hat.
+// Theme fields: bpm, root (MIDI tonic), sc (scale), l / b / a = [instrument, octave offset in semitones, volume, [pattern, variant for odd repeats], chord?], d = drum rows {k,s,h,t},
+// sw shuffle (fraction of a 16th), tm [tremolo Hz, depth], fill (snare roll before odd repeats), dv drum level, lf loop-from bar, qv level after the first pass.
+(function () {
+  'use strict';
+  const MASTER = 0.12, LOOK = 0.25, DUCK = 0.35;
+  const MIN = [0, 2, 3, 5, 7, 8, 10], HMIN = [0, 2, 3, 5, 7, 8, 11], PHR = [0, 1, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11];
+  const CHR = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], PENT = [0, 2, 4, 7, 9], MPENT = [0, 3, 5, 7, 10], SEN = [0, 1, 5, 7, 10];
+  const AR = ['gpupit', 'cathedral', 'bridge', 'furnace', 'forest', 'temple', 'graveyard', 'rooftop', 'wasteland'];
+  // instruments: w = partials [wave, detune cents, level]; a attack, d decay constant, s sustain fraction, r release constant, sl start-pitch ratio (twang scoop), max note length (s)
+  const INS = {
+    sq: { w: [['square', 0, 1]], a: .005, d: .12, s: .55, r: .04 }, sq2: { w: [['square', -8, .6], ['square', 8, .6]], a: .006, d: .14, s: .6, r: .05 },
+    saw: { w: [['sawtooth', 0, 1]], a: .004, d: .1, s: .6, r: .03 }, saw2: { w: [['sawtooth', -9, .6], ['sawtooth', 9, .6]], a: .01, d: .2, s: .7, r: .08 },
+    tri: { w: [['triangle', 0, 1]], a: .015, d: .25, s: .8, r: .08 }, pl: { w: [['square', 0, 1]], a: .002, d: .035, s: .05, r: .02, max: .12 },
+    spl: { w: [['sawtooth', 0, 1]], a: .002, d: .05, s: .08, r: .03, max: .16 }, tw: { w: [['sawtooth', 0, 1]], a: .002, d: .07, s: .12, r: .04, sl: .94, max: .3 },
+    org: { w: [['triangle', -7, 1], ['triangle', 7, 1], ['sine', 1200, .5]], a: .07, d: .3, s: .9, r: .22 },
+    bell: { w: [['sine', 0, 1], ['sine', 1902, .35], ['sine', 2786, .18]], a: .003, d: .35, s: .05, r: .5, max: 1.5 },
+    gh: { w: [['sine', 0, 1], ['triangle', 6, .5]], a: .14, d: .5, s: .85, r: .45 },
+  };
+  const T = {
+    gpupit: { bpm: 150, root: 57, sc: MIN, fill: 1, // fast electro, A minor, 16th arpeggios
+      l: ['sq', 0, .34, ['7.7.9.7.4...2.4. 5.5.7.5.2...0.2. 6.6.8.6.4...1.4. 7.9.b.9.7.4.2.0.', '7.7.9.7.4...2.4. 5.5.7.5.2...0.2. 6.8.a.8.6.4.3.1. b.b.b.9.7.9.b.d.']],
+      b: ['saw', -12, .42, ['0.7.0.7.0.7.0.7. B.5.B.5.B.5.B.5. A.6.A.6.A.6.A.6. 0.7.0.7.C.4.C.4.']],
+      a: ['pl', 12, .2, ['0247424702474724 B0252025B0252502 A1363136A1363613 02474247CA141A14']],
+      d: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.o.x.o.x.o.x.o.' } },
+    cathedral: { bpm: 96, root: 50, sc: MIN, tm: [5.2, .1], dv: .6, // slow organ chords (detuned triangles), D minor, bell lead
+      l: ['bell', 12, .34, ['4---------2---0- 5-------4---3--- 7-------5------- 6---4---2-------', '7---------4---2- 5-------3------- 7---8---7---5--- 6-------4-------']],
+      b: ['tri', -12, .55, ['0-------0------- 5-------5------- 3-------3------- 4-------4-------']],
+      a: ['org', 0, .3, ['0--------------- 5--------------- 3--------------- 4---------------', '0-------2------- 5-------4------- 3-------2------- 4---------------'], 1],
+      d: { k: 'x.......x.......', t: '..............x.' } },
+    bridge: { bpm: 140, root: 52, sc: CHR, fill: 1, // tense chromatic riff, tritone and minor-second crawls
+      l: ['saw', 12, .3, ['0.0.1.0...3.1.0. 0.0.1.0...6.5.3. 7.7.8.7...5.3.1. 6.5.3.1.0-------', '0.0.1.0...3.1.0. 0.0.1.0...b.a.8. 7.7.8.7...5.3.1. 6.5.6.5.3.1.0.1.']],
+      b: ['sq', -12, .38, ['0.0.0.0.0.0.1.0. 0.0.0.0.0.0.3.1. 7.7.7.7.7.7.8.7. 6.6.5.5.3.3.1.1.']],
+      a: ['pl', 24, .16, ['0.0.0.0.0.0.0.0. 0.0.0.0.0.0.0.0. 7.7.7.7.7.7.7.7. 0101010101010101']],
+      d: { k: 'x...x...x...x..x', s: '....x.......x...', h: 'x.x.x.x.x.x.x.xx' } },
+    furnace: { bpm: 128, root: 40, sc: PHR, fill: 1, dv: 1.1, // heavy: low sawtooth gallop, driving kick, E phrygian
+      l: ['sq2', 24, .3, ['0-------3-----1- 0-----3-5------- 1-------0------- 3-----5-6-------', '7-----5-3------- 5-----3-1------- 1-----3-5-----6- 7-------6-5-3---']],
+      b: ['saw', 0, .5, ['0.00.00.0.00.0.1 0.00.00.0.00.0.0 1.11.11.1.11.1.3 0.00.00.0.00.3.1']],
+      d: { k: 'x...x.x.x...x.x.', s: '....x.......x...', t: '..............xx', h: 'x.x.x.x.x.x.x.xx' } },
+    forest: { bpm: 100, root: 50, sc: PENT, dv: .5, // mellow D major pentatonic, soft triangle lead, sparse drums
+      l: ['tri', 12, .4, ['2---3---5---3--- 4---3---2---1--- 2---3---5---6--- 5---3---2-------', '5---3---5---7--- 6---5---3---2--- 3---2---1---0--- 2-------0-------']],
+      b: ['tri', -12, .6, ['0-------3------- 4-------0------- 0-------3------- 3-------0-------']],
+      a: ['tri', 0, .28, ['0...2...3...2... A...0...2...0... 0...2...3...5... 3...5...6...5...']],
+      d: { k: 'x.......x.......', s: '....g.......g...', h: '..x...x...x...x.' } },
+    temple: { bpm: 120, root: 52, sc: SEN, dv: .9, // rhythmic, In-sen pentatonic (phrygian colour), toms and chimes
+      l: ['sq', 12, .3, ['0..0.1.0..3.2.1. 0..0.1.0..4.3.2. 5..5.6.5..4.3.2. 3.2.1.0---------', '0..0.1.0..3.2.1. 0..0.1.0..4.3.2. 5..5.6.5..8.6.5. 4.3.2.1.0...3.4.']],
+      b: ['saw', -12, .4, ['0..0..0.0..0..1. 0..0..0.0..0..1. 2..2..2.2..2..1. 0..0..0.0..0..0.']],
+      a: ['bell', 12, .16, ['0.......3....... 0.......2....... 5.......3....... 2...3...4...3...']],
+      d: { k: 'x.....x.x.......', s: '........x.......', t: '..x...x...x..x..', h: 'x.x.x.x.x.x.x.x.' } },
+    graveyard: { bpm: 88, root: 47, sc: HMIN, tm: [3.2, .4], dv: .5, // eerie B harmonic minor, long ghostly notes, slow tremolo, heartbeat bass
+      l: ['gh', 12, .4, ['4-----------3--- 2-----------0--- 5---------6----- 7---------------', '4-------6------- 7-----------5--- 4-------3------- 0---------------']],
+      b: ['tri', 0, .55, ['0.0............. B.B............. D.D............. C.C.............']],
+      a: ['gh', 0, .26, ['0--------------- 5--------------- 3--------------- 4---------------'], 1],
+      d: { t: 'x...............', h: '..........g.....' } },
+    rooftop: { bpm: 118, root: 48, sc: MAJ, fill: 1, // synthwave C major (I V vi IV), bright 16th arpeggio, detuned saw lead
+      l: ['saw2', 24, .26, ['4--4-2--0---2--- 1--1-4--2---1--- 0--0-2--4---5--- 3--3-5--4---2---', '7--7-5--4---2--- 6--6-4--1---2--- 5--5-4--2---0--- 3--5-7--6-------']],
+      b: ['saw', 0, .42, ['0.00.00.0.00.00. C.CC.CC.C.CC.CC. B.BB.BB.B.BB.BB. D.DD.DD.D.DD.DD.']],
+      a: ['spl', 12, .2, ['0247424702474724 468b868b468b8b68 579c979c579c9c79 357a757a357a7a57']],
+      d: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.o.x.o.x.o.x.o.' } },
+    wasteland: { bpm: 110, root: 52, sc: MPENT, sw: .55, dv: .8, // western: shuffled E minor pentatonic, short sawtooth twang plucks, boom-chuck bass
+      l: ['tw', 12, .34, ['0.0.1.2.3.2.1.0. 0.0.1.2.4.3.2.1. 5.5.4.3.2.3.4.3. 2.3.2.1.0.......', '0.0.1.2.3.2.1.0. 0.0.1.2.4.3.2.1. 5.7.6.5.3.2.1.0. 3.2.1.0...0.1.2.']],
+      b: ['saw', -12, .4, ['0.3.0.3.0.3.0.3. 0.3.0.3.0.3.0.3. 2.5.2.5.2.5.2.5. 3.3.3.3.4.3.2.1.']],
+      a: ['spl', 0, .2, ['....0.......0... ....0.......0... ....2.......2... ....3.......3...'], 1],
+      d: { k: 'x.......x.......', s: '....X.......X...', h: 'x.x.x.x.x.x.x.x.' } },
+    title: { bpm: 132, root: 50, sc: MIN, fill: 1, // energetic arcade fanfare, D minor
+      l: ['sq2', 12, .3, ['0.0.0.2.4------- 5.5.5.4.2------- 6.6.6.5.4.5.6.7. 9---7---4---0---', '0.0.0.2.4.7.9.b. 5.5.5.4.2.4.5.7. 6.6.6.5.4.5.6.8. 7---4---0-------']],
+      b: ['saw', -12, .42, ['0.0.0.0.0.0.0.0. 5.5.5.5.5.5.5.5. 6.6.6.6.6.6.6.6. 0.0.0.0.4.4.4.4.']],
+      a: ['pl', 12, .18, ['0247424702474724 579c979c579c9c79 68ada8ad68adad8a 02474247468b868b']],
+      d: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.x.x.x.x.x.x.xx' } },
+    vs: { bpm: 140, root: 40, sc: PHR, // short rising riff, 2-bar loop
+      l: ['saw2', 24, .28, ['0.0.0.0.1.1.3.3. 4.4.5.5.6.6.7.7.', '0.0.0.0.1.1.3.3. 4.4.5.5.7.7.9.b.']],
+      b: ['saw', 0, .45, ['0.0.0.0.0.0.0.0. 3.3.3.3.4.4.5.5.']],
+      a: ['pl', 12, .18, ['0357035703570357 3579357935793579']],
+      d: { k: 'x...x...x...x...', s: '....x.......x.xx', h: 'x.xxx.xxx.xxx.xx' } },
+    over: { bpm: 112, root: 48, sc: MAJ, lf: 2, qv: .5, // 2-bar victory jingle (C C C C-E-G, high C) then a quiet 4-bar loop
+      l: ['sq2', 12, .32, ['0.0.0.0---2---4- 7--------------- 4-----------2--- 2-----------4--- 3-----------5--- 1-------4-------', '0.0.0.0---2---4- 7--------------- 7-----------4--- 5-----------4--- 3-----------7--- 6-------4-------']],
+      b: ['tri', 0, .5, ['0.0.0.0.0.0.0.0. 0--------------- 0-------0------- B-------B------- D-------D------- C-------C-------']],
+      d: { k: 'x...x...x...x... x...............' + ' x...............'.repeat(4), s: '....x.......x.xx x...............' + ' ................'.repeat(4), h: '................ ................' + ' ..x...x...x...x.'.repeat(4) } },
+  };
+
+  // ---------- helpers ----------
+  const mod = (a, n) => ((a % n) + n) % n, hz = m => 440 * 2 ** ((m - 69) / 12), strip = s => s.replace(/[\s|]/g, '');
+  const pitch = (th, d, off) => th.root + off + th.sc[mod(d, th.sc.length)] + 12 * Math.floor(d / th.sc.length);
+  const xn = s => { const o = []; let cur = null; for (const c of strip(s)) { if (c === '-' && cur) { cur[1]++; o.push(0); } else if (c === '.' || c === '-') { cur = null; o.push(0); } else { cur = [/[A-Z]/.test(c) ? 64 - c.charCodeAt(0) : parseInt(c, 36), 1]; o.push(cur); } } return o; }; // [degree, length in steps] per step
+  function comp(th) { // expand the pattern strings once per theme
+    if (th._c) return th._c;
+    const c = th._c = { d: {} };
+    for (const k of 'lba') c[k] = th[k] ? th[k][3].map(xn) : [];
+    for (const k in th.d || {}) c.d[k] = [...strip(th.d[k])].map(x => x === '.' ? 0 : x);
+    c.len = Math.max(16, ...[...c.l, ...c.b, ...c.a].map(p => p.length), ...Object.values(c.d).map(p => p.length));
+    return c;
+  }
+  let NB = null, NBa = null;
+  const nbuf = A => { if (NBa !== A) { NB = A.createBuffer(1, A.sampleRate, A.sampleRate); const d = NB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; NBa = A; } return NB; };
+
+  // ---------- voices ----------
+  function note(A, dst, name, f, t, dur, v) { // enveloped oscillator stack
+    const I = INS[name]; dur = Math.max(Math.min(dur, I.max || 9), I.a + .02);
+    const g = A.createGain(), e = g.gain; e.setValueAtTime(.0001, t); e.linearRampToValueAtTime(v, t + I.a); e.setTargetAtTime(v * I.s, t + I.a, I.d); e.setTargetAtTime(0, t + dur, I.r); g.connect(dst);
+    for (const w of I.w) {
+      const o = A.createOscillator(); o.type = w[0]; o.detune.value = w[1]; o.frequency.setValueAtTime(f * (I.sl || 1), t); if (I.sl) o.frequency.exponentialRampToValueAtTime(f, t + .04);
+      if (w[2] !== 1) { const og = A.createGain(); og.gain.value = w[2]; o.connect(og); og.connect(g); } else o.connect(g);
+      o.start(t); o.stop(t + dur + I.r * 6);
+    }
+  }
+  function thump(A, dst, t, v, f0, f1, d, type = 'sine') { // pitch-dropping body: kick, tom, snare tone
+    const o = A.createOscillator(), g = A.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + d * .6);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); o.connect(g); g.connect(dst); o.start(t); o.stop(t + d + .02);
+  }
+  function noise(A, dst, t, d, type, f, v) { // filtered noise burst: hats and snare
+    const s = A.createBufferSource(), fl = A.createBiquadFilter(), g = A.createGain(); s.buffer = nbuf(A); fl.type = type; fl.frequency.value = f;
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d); s.connect(fl); fl.connect(g); g.connect(dst); s.start(t, Math.random() * .5); s.stop(t + d + .02);
+  }
+  const snare = (A, dst, t, v) => { noise(A, dst, t, .14, 'highpass', 1500, .45 * v); thump(A, dst, t, .3 * v, 230, 130, .09, 'triangle'); };
+
+  // ---------- scheduler ----------
+  let S = null, off = false, cool = 0;   // S: running theme {name, ac, ch (node chain), t (next step time), n (step), rep (loop count), lv (master level)}
+  const M = window.MUSIC = { tick, stop() { off = true; halt(); }, resume() { off = false; }, now: null, theme: null, err: null };   // now: theme actually sounding, theme: theme the game state asks for
+  function stepAt(th, t, sd) {
+    const c = comp(th), n = S.n, A = S.ac, bus = S.ch.bus, vm = th.lf && S.rep ? th.qv : 1;
+    for (const k of 'lba') {
+      const vs = c[k]; if (!vs.length) continue;
+      const arr = vs[S.rep & 1 ? vs.length - 1 : 0], e = arr[n % arr.length]; if (!e) continue;
+      const [ins, o, vol, , chord] = th[k], dst = k === 'b' ? bus : S.ch.tb, dur = e[1] * sd * .92;
+      if (chord) for (const j of [0, 2, 4]) note(A, dst, ins, hz(pitch(th, e[0] + j, o)), t, dur, vol * vm * .6);   // diatonic triad on the degree
+      else note(A, dst, ins, hz(pitch(th, e[0], o)), t, dur, vol * vm);
+    }
+    const dv = (th.dv || 1) * vm, row = x => { const r = c.d[x]; return r && r[n % r.length]; }, g = x => x === 'X' ? 1.3 : x === 'g' ? .4 : 1;
+    let x;
+    if ((x = row('k'))) thump(A, bus, t, .9 * dv * g(x), 150, 42, .2);
+    if ((x = row('s'))) snare(A, bus, t, dv * g(x));
+    if ((x = row('t'))) thump(A, bus, t, .6 * dv * g(x), 250, 95, .18);
+    if ((x = row('h'))) noise(A, bus, t, x === 'o' ? .14 : .035, 'highpass', 7000, .2 * dv * g(x));
+    if (th.fill && S.rep & 1 && n >= c.len - 4) snare(A, bus, t, dv * (.5 + (n - c.len + 4) * .15));   // roll into the next repeat
+  }
+  function halt() { // fade the running chain out and drop it; notes already scheduled die with it
+    M.now = null; if (!S) return;
+    const { ac: A, ch } = S; S = null;
+    try { ch.m.gain.cancelScheduledValues(A.currentTime); ch.m.gain.setTargetAtTime(0, A.currentTime, .025); } catch (e) { /* ignore */ }
+    setTimeout(() => { try { ch.lfo.stop(); } catch (e) { /* ignore */ } for (const nd of [ch.tb, ch.bus, ch.m]) try { nd.disconnect(); } catch (e) { /* ignore */ } }, 400);
+  }
+  function begin(A, name, lv) { // fresh node chain: tremolo bus (lead / pads) and plain bus (bass / drums) -> compressor -> master -> out
+    halt();
+    const th = T[name], t0 = A.currentTime, ch = { bus: A.createDynamicsCompressor(), m: A.createGain(), tb: A.createGain(), lfo: A.createOscillator(), lg: A.createGain() }, [tr, td] = th.tm || [4, 0], k = ch.bus;
+    k.threshold.value = -16; k.knee.value = 12; k.ratio.value = 8; k.attack.value = .004; k.release.value = .2;
+    ch.m.gain.setValueAtTime(0, t0); ch.m.gain.setTargetAtTime(lv, t0 + .01, .02);
+    ch.tb.gain.value = 1 - td; ch.lg.gain.value = td; ch.lfo.frequency.value = tr; ch.lfo.connect(ch.lg); ch.lg.connect(ch.tb.gain); ch.lfo.start();
+    ch.tb.connect(k); k.connect(ch.m); ch.m.connect(A.destination);
+    S = { name, ac: A, ch, t: t0 + .06, n: 0, rep: 0, lv }; M.now = name;
+  }
+
+  // ---------- reading the game ----------
+  const rd = f => { try { return f(); } catch (e) { return undefined; } };
+  function arenaTheme(g) {
+    const i = Math.floor(+g.arena), id = rd(() => ARENAS[mod(i, ARENAS.length)].id);   // wraps like drawArena; NaN / missing arena falls through to the index
+    return AR.includes(id) ? id : AR[mod(i || 0, AR.length)];
+  }
+  function want(g) {
+    if (!g) return null;
+    const p = g.phase;
+    if (p === 'title' || p === 'select') return 'title';
+    if (p === 'over') return 'over';
+    if (p === 'vs' || (p === 'intro' && !(g.round > 1) && !g.sudden)) return 'vs';   // later rounds keep the arena theme running through the intro banner
+    return ['intro', 'fight', 'pause', 'finish', 'finisher', 'ko', 'outro'].includes(p) ? arenaTheme(g) : null;   // sheet / unknown: silence
+  }
+  function tick() {
+    if (cool > 0) { cool--; return; }
+    try {
+      const g = rd(() => typeof game !== 'undefined' ? game : window.game), w = want(g); M.theme = w;
+      const A = rd(() => typeof AC !== 'undefined' ? AC : window.AC), mu = rd(() => typeof muted !== 'undefined' ? muted : window.muted);
+      if (off || !w || !A || A.state !== 'running' || mu || document.hidden) { halt(); return; }   // nothing is scheduled while muted / suspended / hidden
+      const lv = MASTER * (g.phase === 'pause' ? DUCK : 1);
+      if (!S || S.name !== w || S.ac !== A) begin(A, w, lv);
+      if (S.lv !== lv) { S.ch.m.gain.setTargetAtTime(lv, A.currentTime, .06); S.lv = lv; }
+      const th = T[w], sd = 15 / th.bpm, now = A.currentTime;
+      if (S.t < now) S.t = now + .03;   // fell behind (throttled timer): resync instead of bursting
+      while (S.t < now + LOOK) {
+        stepAt(th, S.t + (S.n % 4 === 2 ? (th.sw || 0) * sd : 0), sd);
+        S.t += sd; if (++S.n >= comp(th).len) { S.n = (th.lf || 0) * 16; S.rep++; }
+      }
+    } catch (e) { M.err = e; cool = 12; try { halt(); } catch (e2) { /* ignore */ } }
+  }
+  setInterval(tick, 80);
+})();
+
+</script>
+<script>
 // ---- moves.js ----
 // moves.js: move sets for Agent Brawl (3 specials, a super and a finisher per fighter).
 // Classic script, loaded after pixelfont/sprites/arenas/hud and before game.js. Everything lives in one IIFE so
@@ -2291,7 +2568,17 @@ const blood = (x, y, dir, p) => { if (typeof FX !== 'undefined' && FX.blood) FX.
 const dust = (x, y) => { if (typeof FX !== 'undefined' && FX.dust) FX.dust(x, y); };
 const jolt = (shake, stop, flash) => { game.shake = Math.max(game.shake || 0, shake || 0); game.hitstop = Math.max(game.hitstop || 0, stop || 0); if (flash) game.flash = Math.max(game.flash || 0, flash); };
 const addFx = o => { const f = Object.assign({ t: 0, life: 30 }, o); game.fx.push(f); return f; };
-const addProj = (self, o) => { const p = Object.assign({ owner: self, x: 0, y: 0, vx: 0, vy: 0, r: 20, life: 90, dmg: 9, kb: 6, stun: 16, t: 0 }, o); game.proj.push(p); return p; };
+const addProj = (self, o) => { const p = Object.assign({ owner: self, x: 0, y: 0, vx: 0, vy: 0, r: 20, life: 90, dmg: 9, kb: 6, stun: 16, t: 0 }, o); if (self.airSp && self.mv && self.mv.dive) divify(p); game.proj.push(p); return p; };
+// air special: special 1 fired from a jump. Lobbed shots just start falling; straight shots gain a steady drop (down-forward line) and burst on the floor.
+function divify(p) {
+  if (p.vy < 0) { p.vy = 1; return; }
+  const u = p.update, dy = Math.max(3.5, Math.abs(p.vx) * 0.55);
+  if (!u) return;
+  p.update = q => {
+    if (q.by !== undefined) q.by += dy; u(q); if (q.by === undefined) q.y += dy;
+    if (q.y > GROUND - 14 && q.life > 0) { q.life = 0; dust(q.x, GROUND); }
+  };
+}
 const foe = self => game.f[1 - self.side];
 
 // a hit that really landed (the engine ignores hits during i-frames and in the wrong phase)
@@ -3138,6 +3425,10 @@ MUSE.fin = (() => {
     } };
 })();
 
+// every fighter's special 1 doubles as the air special (UP + special, or special while jumping): dive flag + its own name
+const AIRSP = { tibo: 'DROP TABLE', poteto: 'AIR FRY', dot: 'DOT RAIN', wang: 'DEEP DIVE', muse: 'PACKET DROP' };
+for (const [id, F] of Object.entries({ tibo: TIBO, poteto: POTETO, dot: DOT, wang: WANG, muse: MUSE })) { F.sp[0].dive = true; F.air = { name: AIRSP[id] }; }
+
 
 // @@END
 return { tibo: TIBO, poteto: POTETO, dot: DOT, wang: WANG, muse: MUSE };
@@ -3147,7 +3438,7 @@ return { tibo: TIBO, poteto: POTETO, dot: DOT, wang: WANG, muse: MUSE };
 <script>
 // ---- game.js ----
 // ===== AGENT BRAWL: parody arcade fighter. Engine, input, AI, phases, menus =====
-// Load order (dev.html): pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), moves.js (MOVES), game.js.
+// Load order (dev.html): pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), music.js (MUSIC), moves.js (MOVES), game.js.
 'use strict';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 // W, H and GROUND are declared in dev.html before every script (moves.js needs GROUND at load).
@@ -3191,8 +3482,9 @@ function say(key, arg) { try { ANNOUNCER.say(key, arg); } catch (e) { /* the ann
 function setGore(v) { FX.gore = v; try { localStorage.setItem('brawl.gore', v ? '1' : '0'); } catch (e) { } }
 
 // ---------- input ----------
-// P1: WASD + J punch, K kick, L special, I super. P2: arrows + numpad 1/2/3/0 (or , . / and right shift).
-// Special: L alone, forward + L, down + L. Super: I, or J + K together. Holding back blocks.
+// P1: WASD + J punch, K kick, L special, I super (1P also: arrows + Z X C V). P2: arrows + numpad 1/2/3/0 (or , . / and right shift).
+// Special: L alone, forward + L, down + L. Super: I, or J + K together. Holding back blocks. Moves beyond that (all with the same keys):
+// P P P chain, FWD + P throw, DOWN + K sweep, DOWN + P low jab, P/K in the air, L in the air, double-tap forward = dash, double-tap back = backdash.
 const keys = {}, pressed = {};
 const MAP = [
   { l: ['KeyA'], r: ['KeyD'], u: ['KeyW'], d: ['KeyS'], p: ['KeyJ'], k: ['KeyK'], s: ['KeyL'], x: ['KeyI'] },
@@ -3200,6 +3492,7 @@ const MAP = [
 ];
 const ALT = { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDown'], p: ['KeyZ'], k: ['KeyX'], s: ['KeyC'], x: ['KeyV'] }; // 1P only: arrows + Z X C V
 const LABEL = [{ p: 'J', k: 'K', s: 'L', x: 'I' }, { p: 'NUM1', k: 'NUM2', s: 'NUM3', x: 'NUM0' }];
+const ALTL = { p: 'Z', k: 'X', s: 'C', x: 'V' };   // the 1P alternate keys, shown next to LABEL[0] in the move lists
 const GAME_KEYS = new Set(['Space', 'Enter', 'Escape', 'KeyP', 'KeyQ', 'KeyE', 'KeyM', 'KeyB', 'KeyT', 'Tab']);
 for (const m of [...MAP, ALT]) for (const a in m) for (const c of m[a]) GAME_KEYS.add(c);
 addEventListener('keydown', e => {
@@ -3282,23 +3575,41 @@ function shareText() {
 }
 const shareUrl = () => 'https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(GAME_URL);
 function share() { try { window.open(shareUrl(), '_blank', 'noopener'); } catch (e) { /* popup blocked: the button still works */ } }
-// move-list rows for the select and pause screens, labelled with that player's keys
+// move-list rows for the select and pause screens (max 10), labelled with that player's keys; 1P also shows the Z X C V alternates.
+// Input syntax (hud.js drawMoveList): '+' joins keys held together, '>' is a sequence of taps, '/' lists alternate keys.
 function moveRows(id, side, cpu) {
-  const M = MOVES[id], L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side];
-  const lbl = inp => inp.replace('L', L.s).replace('FWD+', 'FWD + ').replace('DOWN+', 'DOWN + ');
-  const rows = M.sp.map(m => ({ input: lbl(m.input), name: m.name }));
-  rows.push({ input: L.x + (side === 0 && !cpu ? ' / J+K' : ''), name: M.su.name + ' (FULL METER)' });
-  rows.push({ input: L.x + ' AT FINISH IT', name: M.fin.name });
+  const M = MOVES[id], L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side], dual = side === 0 && !cpu && game.mode === 1;
+  const key = (a, both) => L[a] + (dual && both ? ' / ' + ALTL[a] : '');
+  const lbl = inp => inp.replace('L', key('s', true)).replace('FWD+', 'FWD + ').replace('DOWN+', 'DOWN + ');
+  const rows = [
+    { input: [L.p, L.p, L.p].join('>'), name: 'LAUNCHER' }, { input: [L.p, L.p, L.k].join('>'), name: 'TRIP KICK' },
+    { input: 'FWD + ' + key('p', true), name: 'THROW' }, { input: 'DOWN + ' + key('k', true), name: 'SWEEP' },
+  ];
+  for (const m of M.sp) rows.push({ input: lbl(m.input), name: m.name });
+  rows.push({ input: 'UP + ' + key('s', true), name: M.air.name });
+  rows.push({ input: key('x', true), name: M.su.name, col: '#ffd23f' });
+  rows.push({ input: key('x', true), name: M.fin.name, col: '#ff6b5c' });
   return rows;
 }
 
 // ---------- normal attacks ----------
-// len: total ticks, hit: tick the hitbox fires, frames: ticks spent on each sheet frame (sum = len)
+// row: sheet row shown, st: fighter state while it runs, len: total ticks, hit: tick the hitbox fires, frames: ticks spent on each sheet frame (sum = len),
+// box: [x0, x1, y0, y1] in front of the fighter, chain: attack that follows on contact (p / k), launch / knock: hit effects, tag: popup, air: jump-only
 const ATK = {
-  punch: { len: 14, hit: 6, frames: [3, 3, 3, 3, 2], box: [8, 70, -150, -30], dmg: 5, kb: 4, stun: 14 },
-  kick: { len: 22, hit: 9, frames: [4, 5, 5, 4, 4], box: [10, 84, -120, -5], dmg: 8, kb: 7, stun: 20 },
+  punch: { row: 'punch', st: 'punch', len: 14, hit: 6, frames: [3, 3, 3, 3, 2], box: [8, 70, -150, -30], dmg: 5, kb: 3, stun: 14, chain: { p: 'punch2', k: 'kick' } },
+  punch2: { row: 'punch', st: 'punch', len: 14, hit: 5, frames: [2, 3, 3, 3, 3], box: [8, 74, -145, -35], dmg: 5, kb: 3, stun: 15, chain: { p: 'punch3', k: 'kickf' } },
+  punch3: { row: 'kick', st: 'punch', len: 24, hit: 8, frames: [3, 5, 5, 5, 6], box: [8, 78, -175, -35], dmg: 8, kb: 3.5, stun: 26, kind: 'kick', launch: true, tag: 'LAUNCH' },
+  kickf: { row: 'kick', st: 'kick', len: 26, hit: 9, frames: [4, 5, 6, 6, 5], box: [10, 102, -55, 0], dmg: 8, kb: 5, stun: 20, kind: 'kick', knock: true, tag: 'SWEEP' },
+  kick: { row: 'kick', st: 'kick', len: 22, hit: 9, frames: [4, 5, 5, 4, 4], box: [10, 84, -120, -5], dmg: 8, kb: 7, stun: 20 },
+  low: { row: 'punch', st: 'punch', len: 13, hit: 5, frames: [3, 3, 2, 3, 2], box: [8, 66, -70, 0], dmg: 4, kb: 2, stun: 13, chain: { k: 'sweep' } },
+  sweep: { row: 'kick', st: 'kick', len: 28, hit: 10, frames: [4, 5, 6, 7, 6], box: [10, 100, -50, 0], dmg: 7, kb: 5, stun: 20, kind: 'kick', knock: true, tag: 'SWEEP' },
+  airp: { row: 'punch', st: 'punch', len: 18, hit: 4, frames: [3, 3, 4, 4, 4], box: [8, 68, -140, -10], dmg: 5, kb: 4, stun: 15, air: true },
+  airk: { row: 'kick', st: 'kick', len: 22, hit: 6, frames: [3, 4, 5, 5, 5], box: [6, 82, -110, 28], dmg: 8, kb: 6, stun: 20, air: true },
 };
 function frameFromTimeline(frames, st) { let acc = 0; for (let i = 0; i < frames.length; i++) { acc += frames[i]; if (st < acc) return i; } return frames.length - 1; }
+const BUSY = ['punch', 'kick', 'special', 'super', 'hurt', 'ko', 'win', 'dizzy', 'down', 'grabbed', 'throw'];
+const THROWABLE = ['idle', 'walk', 'block', 'punch', 'kick', 'dash'];
+const DASH_LEN = 14, TAP_WIN = 14, THROW_REACH = 70, THROW_T = 24, DOWN_LIE = 28;
 
 // ---------- fighter ----------
 class Fighter {
@@ -3307,13 +3618,22 @@ class Fighter {
     this.x = this.side ? W * 0.68 : W * 0.32; this.y = GROUND; this.vx = 0; this.vy = 0; this.face = this.side ? -1 : 1;
     this.hp = this.d.hp; this.meter = 0; this.state = 'idle'; this.st = 0; this.t = 0; this.hitDone = false; this.stun = 0; this.cool = 0; this.inv = 0; this.shield = 0; this.land = 0; this.combo = 0;
     this.mv = null; this.back = false; this.hidden = false; this.lastP = -99; this.lastK = -99; this.dmgTaken = 0;
+    this.atk = null; this.air = false; this.airSp = false; this.contact = false; this.bufP = this.bufK = this.bufS = 0;   // current attack key, jump attack flag, hit-confirm, input buffers
+    this.tapT = { l: -99, r: -99 }; this.prevDir = { l: false, r: false }; this.dashCool = 0; this.dashBack = false; this.dashV = 0; this.lie = 0; this.grabber = null; this.thr = null;
     this.ai = { t: 0, act: null, lastX: this.x, stuck: 0, mv: -1, fin: null };
   }
   get onGround() { return this.y >= GROUND; }
-  busy() { return ['punch', 'kick', 'special', 'super', 'hurt', 'ko', 'win', 'dizzy'].includes(this.state); }
-  set(s) { this.state = s; this.st = 0; this.hitDone = false; if (s !== 'special' && s !== 'super') this.mv = null; }
+  busy() { return BUSY.includes(this.state); }
+  curAtk() { return this.state === 'punch' || this.state === 'kick' ? ATK[this.atk || this.state] : null; }
+  // a normal that connected can be cancelled for ~9 ticks: into the next chain step, a special or the super
+  get cancelOpen() { const A = this.curAtk(); return !!A && this.contact && !A.air && this.st >= A.hit && this.st <= A.hit + 9; }
+  set(s) {
+    this.state = s; this.st = 0; this.hitDone = false; this.atk = null; this.air = false; this.contact = false; if (s !== 'special' && s !== 'super') this.mv = null;
+    if (s === 'hurt' || s === 'down' || s === 'grabbed' || s === 'ko' || s === 'dizzy') { this.bufP = this.bufK = this.bufS = 0; this.lie = 0; }
+  }
+  startAtk(key) { const A = ATK[key]; this.set(A.st); this.atk = key; this.air = !!A.air; if (A.st === 'kick') beep(220, 0.06); else beep(300, 0.05); }
   input() { if (this.cpu) return this.aiInput(); const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
-  // ---- CPU brain: picks an intent every few ticks, reacts to threats, never camps in a corner ----
+  // ---- CPU brain: picks an intent every few ticks, reacts to threats, chains after a landed hit, never camps in a corner ----
   aiInput() {
     const o = game.f[1 - this.side], a = this.ai, i = {}, M = MOVES[this.d.id];
     const dx = o.x - this.x, dist = Math.abs(dx), lvl = game.cpuLevel;
@@ -3323,23 +3643,39 @@ class Fighter {
       if (a.fin === 'fin') i.x = true; else if (a.fin === 'hit') { if (dist > 80) i[toward] = true; else if (!this.busy()) i.p = true; }
       return i;
     }
+    if (this.state === 'grabbed') { if (this.st <= 5 && Math.random() < 0.04 + lvl * 0.07) i.p = true; return i; }   // sometimes techs a throw
     const threat = ATTACKS.has(o.state) && dist < 170 && o.st < 10;
     const incoming = game.proj.find(p => p.owner !== this && p.t >= 0 && Math.sign(p.vx) === Math.sign(this.x - p.x) && Math.abs(p.x - this.x) < 230 && Math.abs(p.x - this.x) > 40);
     const atWall = this.x < 70 || this.x > W - 70;
     const inRange = k => { const m = M.sp[k], r = m && (m.ai || { min: 0, max: 999 }); return !!m && dist >= r.min && dist <= r.max; };
     const pick = () => { const ok = [0, 1, 2].filter(inRange); return ok.length && this.cool <= 0 ? ok[Math.floor(Math.random() * ok.length)] : -1; };
+    const A = this.curAtk();
+    if (A && this.contact && this.st === A.hit && !A.air) { // input() runs before st++, so st is still the hit tick; a hit landed: sometimes cancel into a special, sometimes keep the chain going
+      const r = Math.random(), sp = pick();
+      if (sp >= 0 && r < 0.1 + lvl * 0.25) { i.s = true; i.mv = sp; } else if (A.chain && r < 0.65 + lvl * 0.3) { if (A.chain.p && (!A.chain.k || Math.random() < 0.6)) i.p = true; else i.k = true; }
+      return i;
+    }
     a.t--;
     if (Math.abs(this.x - a.lastX) < 0.5 && dist < 130) a.stuck++; else a.stuck = 0; a.lastX = this.x;
     if (a.t <= 0 || (threat && Math.random() < 0.2 + lvl * 0.25) || (incoming && Math.random() < 0.3)) {
       a.t = 8 + Math.random() * (22 - lvl * 6); const r = Math.random(), k = pick(); a.mv = k;
+      const pressed = this.state === 'block' && this.st > 12 && dist < 130 && !atWall && this.dashCool <= 0;   // been guarding a while: hop out
       if (this.meter >= 100 && Math.random() < 0.35 + lvl * 0.3 && dist < 420) a.act = 'super';
       else if (!o.onGround && dist < 220 && this.cool <= 0 && inRange(2) && r < 0.25 + lvl * 0.4) { a.act = 'special'; a.mv = 2; }
-      else if (threat) a.act = r < 0.45 + lvl * 0.15 ? 'block' : r < 0.8 ? 'jump' : 'punch';
+      else if (pressed && r < 0.4 + lvl * 0.2) a.act = 'backdash';
+      else if (threat) a.act = r < 0.4 + lvl * 0.15 ? 'block' : r < 0.55 + lvl * 0.1 && dist < 130 && !atWall && this.dashCool <= 0 ? 'backdash' : r < 0.8 ? 'jump' : 'punch';
       else if (incoming) a.act = r < 0.45 ? 'jump' : 'block';
       else if (a.stuck > 40 || (atWall && dist < 120 && r < 0.5)) a.act = r < 0.5 ? 'jumpover' : 'kick';
-      else if (dist > 340) a.act = r < 0.4 && k >= 0 ? 'special' : r < 0.9 ? 'approach' : 'jumpfwd';
-      else if (dist > 140) a.act = r < 0.25 && k >= 0 ? 'special' : r < 0.78 ? 'approach' : r < 0.9 ? 'jumpfwd' : 'retreat';
-      else a.act = r < 0.32 ? 'punch' : r < 0.56 ? 'kick' : r < 0.68 && k >= 0 ? 'special' : r < 0.8 ? 'block' : r < 0.9 ? 'retreat' : 'wait';
+      else if (dist <= 70 && o.onGround && (o.state === 'block' || r < 0.12) && Math.random() < 0.5 + lvl * 0.2) a.act = 'throw';   // guards get thrown
+      else if (dist > 340) a.act = r < 0.3 && k >= 0 ? 'special' : r < 0.5 ? 'dashin' : r < 0.9 ? 'approach' : 'jumpfwd';
+      else if (dist > 140) a.act = r < 0.25 && k >= 0 ? 'special' : r < 0.38 ? 'dashin' : r < 0.78 ? 'approach' : r < 0.9 ? 'jumpfwd' : 'retreat';
+      else if (r < 0.26) a.act = 'punch';
+      else if (r < 0.42) a.act = 'kick';
+      else if (r < 0.52) a.act = dist > 50 && dist < 110 ? 'sweep' : 'kick';
+      else if (r < 0.58) a.act = dist <= 70 && o.onGround ? 'throw' : 'punch';
+      else if (r < 0.63) a.act = 'low';
+      else if (r < 0.73) a.act = k >= 0 ? 'special' : 'punch';
+      else a.act = r < 0.81 ? 'block' : r < 0.9 ? 'retreat' : 'wait';
     }
     switch (a.act) {
       case 'approach': i[toward] = true; break;
@@ -3347,12 +3683,16 @@ class Fighter {
       case 'block': i.d = true; break;
       case 'jump': i.u = true; a.act = 'wait'; break;
       case 'jumpfwd': i.u = true; i[toward] = true; if (!this.onGround) a.act = 'airfwd'; break;
-      case 'airfwd': i[toward] = true; if (this.onGround) a.act = 'approach'; break;
+      case 'airfwd': i[toward] = true; if (this.onGround) a.act = 'approach'; else if (dist < 120 && o.onGround) { if (Math.random() < 0.18 + lvl * 0.12) i.k = true; } else if (dist > 150 && inRange(0) && this.cool <= 0 && Math.random() < 0.012 + lvl * 0.012) i.s = true; break;
       case 'jumpover': i.u = true; i[toward] = true; if (!this.onGround) a.act = 'airover'; break;
       case 'airover': i[toward] = true; if (this.onGround) { a.act = 'wait'; a.stuck = 0; } break;
-      case 'punch': i.p = true; a.act = Math.random() < 0.4 ? 'punch2' : 'wait'; break;
-      case 'punch2': if (!this.busy()) { i.k = true; a.act = 'wait'; } break;
+      case 'punch': i.p = true; a.act = 'wait'; break;
       case 'kick': i.k = true; a.act = 'wait'; break;
+      case 'sweep': i.d = true; i.k = true; a.act = 'wait'; break;
+      case 'low': i.d = true; i.p = true; a.act = 'wait'; break;
+      case 'throw': i[toward] = true; i.p = true; a.act = 'wait'; break;
+      case 'backdash': i.dash = away === 'r' ? 1 : -1; a.act = 'wait'; break;
+      case 'dashin': i.dash = toward === 'r' ? 1 : -1; a.act = 'approach'; break;
       case 'special': if (this.cool <= 0 && a.mv >= 0) { i.s = true; i.mv = a.mv; } a.act = 'wait'; break;
       case 'super': i.x = true; a.act = 'wait'; break;
     }
@@ -3365,30 +3705,91 @@ class Fighter {
   }
   startMove(mv, kind, o) {
     if (!mv) return;
-    this.set(kind); this.mv = mv;
+    this.set(kind); this.mv = mv; this.airSp = !this.onGround;   // airSp: moves.js bends special 1 into a dive shot
     if (kind === 'super') { this.meter = 0; game.flash = 8; game.hitstop = 10; game.dark = 50; banner(mv.name, { style: 'gold', life: 80, size: 64, y: 150 }); beep(880, 0.4, 'sawtooth', 0.07); }
     else beep(520, 0.06, 'triangle');
     if (mv.start) mv.start(this, o);
   }
+  // on contact a normal cancels into the next chain step or a special; presses were buffered, so mashing works. The super cancel lives in update().
+  tryCancel(o, i, A, fwd) {
+    if (!this.cancelOpen) return false;
+    if (this.bufS > 0 && this.cool <= 0 && this.onGround) {
+      this.bufS = this.bufP = this.bufK = 0; game.hitstop = Math.max(game.hitstop, 3); game.popups.push({ x: this.x, y: this.y - 240, t: 36, txt: 'CANCEL' });
+      this.startMove(MOVES[this.d.id].sp[i.mv ?? (i.d ? 2 : fwd ? 1 : 0)], 'special', o); return true;
+    }
+    const c = A.chain || {}, nx = this.bufP > 0 && c.p ? c.p : this.bufK > 0 && c.k ? c.k : null;
+    if (nx) { this.bufP = this.bufK = 0; this.startAtk(nx); return true; }
+    return false;
+  }
+  canThrow(o) { return this.onGround && o.onGround && !o.hidden && o.inv <= 0 && Math.abs(o.x - this.x) <= THROW_REACH && THROWABLE.includes(o.state); }
+  startThrow(o) {
+    this.set('throw'); this.thr = o; this.vx = 0; o.set('grabbed'); o.grabber = this; o.vx = o.vy = 0; o.face = -this.face; o.y = GROUND;
+    beep(200, 0.1, 'sawtooth', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'THROW' });
+  }
+  runThrow() {
+    const v = this.thr, f = this.face;
+    if (v && (v.state !== 'grabbed' || v.grabber !== this)) { this.thr = null; this.set('idle'); this.cool = Math.max(this.cool, 8); return; }   // teched or broken
+    if (v) {
+      const u = Math.min(1, this.st / THROW_T); v.x = this.x + f * (-9 + 51 * Math.cos(Math.PI * u)); v.y = GROUND - 92 * Math.sin(Math.PI * u);   // lifted over the shoulder
+      if (this.st === THROW_T) { // release: lands behind, knocked down
+        v.grabber = null; v.inv = 0; v.x = Math.max(46, Math.min(W - 46, this.x - f * 62)); v.y = GROUND - 20; this.thr = null; FX.dust(v.x, GROUND);
+        v.takeHit(this, 12 * this.d.pow, 4, 0, 'kick', { knock: true, unblock: true, force: true }); if (v.state === 'grabbed') v.set('idle');
+      }
+    }
+    if (this.st >= THROW_T + 8) { this.set('idle'); this.cool = Math.max(this.cool, 6); }
+  }
+  runGrabbed(i) {
+    const g = this.grabber; this.inv = Math.max(this.inv, 2);
+    if (!g || g.state !== 'throw' || g.thr !== this) { this.set('idle'); return; }
+    if (this.st <= 6 && i.p) { // throw tech: both pushed apart, no damage
+      i.p = false; this.bufP = 0; g.thr = null; g.set('idle'); g.cool = 10; g.vx = -g.face * 6; this.set('idle'); this.grabber = null; this.inv = 0; this.y = GROUND; this.vx = this.face * 6;
+      game.hitstop = Math.max(game.hitstop, 5); FX.sparks((this.x + g.x) / 2, this.y - 100, '#ffffff', 10); beep(700, 0.08, 'square', 0.05); game.popups.push({ x: this.x, y: this.y - 215, t: 40, txt: 'TECH' });
+    }
+  }
+  // pick an action for this tick: air specials and attacks, throw, specials, crouch attacks, normals (buffered presses count)
+  act(o, i, fwd) {
+    if (this.state === 'jump' && this.st <= 3) return;   // jump squat
+    const M = MOVES[this.d.id], P = i.p || this.bufP > 0, K = i.k || this.bufK > 0, S = i.s || this.bufS > 0;
+    if (!this.onGround) {
+      if (S && this.cool <= 0 && this.y < GROUND - 24) { this.bufS = 0; this.startMove(M.sp[0], 'special', o); }
+      else if (K) { this.bufK = this.bufP = 0; this.startAtk('airk'); }
+      else if (P) { this.bufP = this.bufK = 0; this.startAtk('airp'); }
+      return;
+    }
+    if (S && this.cool <= 0) { this.bufS = 0; this.startMove(M.sp[i.mv ?? (i.d ? 2 : fwd ? 1 : 0)], 'special', o); }
+    else if (i.p && fwd && game.phase === 'fight' && this.canThrow(o)) { this.bufP = 0; this.startThrow(o); }
+    else if (P) { this.bufP = 0; this.startAtk(i.d ? 'low' : 'punch'); }
+    else if (K) { this.bufK = 0; this.startAtk(i.d ? 'sweep' : 'kick'); }
+  }
   update(o) {
-    this.t++; if (this.cool > 0) this.cool--; if (this.inv > 0) this.inv--; if (this.shield > 0) this.shield--; if (this.land > 0) this.land--;
+    this.t++; if (this.cool > 0) this.cool--; if (this.inv > 0) this.inv--; if (this.shield > 0) this.shield--; if (this.land > 0) this.land--; if (this.dashCool > 0) this.dashCool--;
     const active = game.phase === 'fight' || (game.phase === 'finish' && this === game.winner);
     const i = active ? this.input() : {};
     this.st++;
     const fwd = this.face > 0 ? i.r : i.l, bk = this.face > 0 ? i.l && !i.r : i.r && !i.l;
     this.back = !!bk;
     if (i.p) this.lastP = this.t; if (i.k) this.lastK = this.t;
-    const wantSuper = i.x || ((i.p || i.k) && Math.abs(this.lastP - this.lastK) <= 4);
-    if (wantSuper && this.onGround && (!this.busy() || ((this.state === 'punch' || this.state === 'kick') && this.st <= 5))) {
+    // input buffer: a press is remembered for 10 ticks (8 for specials) until an action uses it
+    this.bufP = i.p ? 10 : Math.max(0, this.bufP - 1); this.bufK = i.k ? 10 : Math.max(0, this.bufK - 1); this.bufS = i.s ? 8 : Math.max(0, this.bufS - 1);
+    // dash: a second fresh press of the same direction within 14 ticks (the CPU asks for it with i.dash)
+    let dash = i.dash || 0;
+    for (const d of ['l', 'r']) { const now = !!i[d], was = this.prevDir[d]; this.prevDir[d] = now; if (now && !was && !this.cpu) { if (this.t - this.tapT[d] <= TAP_WIN) { dash = d === 'r' ? 1 : -1; this.tapT[d] = -99; } else this.tapT[d] = this.t; } }
+    // P+K together is the super, except mid-chain where a quick K after the second punch is the trip kick
+    const wantSuper = i.x || ((i.p || i.k) && Math.abs(this.lastP - this.lastK) <= 4 && !(this.state === 'punch' && this.atk !== 'punch'));
+    if (wantSuper && this.onGround && (!this.busy() || ((this.state === 'punch' || this.state === 'kick') && (this.st <= 5 || this.cancelOpen)))) {
       if (game.phase === 'finish') { startFinisher(this, o); return; }
-      if (this.meter >= 100) { this.startMove(MOVES[this.d.id].su, 'super', o); i.p = i.k = i.s = false; }
+      if (this.meter >= 100) { this.startMove(MOVES[this.d.id].su, 'super', o); i.p = i.k = i.s = false; this.bufP = this.bufK = this.bufS = 0; }
     }
     if (!this.busy() && this.state !== 'block') this.face = o.x > this.x ? 1 : -1;
+    if (this.state === 'grabbed') { this.runGrabbed(i); if (this.state === 'grabbed') { this.vx = this.vy = 0; return; } }
     if (this.state === 'hurt') { if (this.st > this.stun && (this.onGround || this.st > this.stun + 30)) this.set('idle'); }
     else if (this.state === 'dizzy') { /* stands there until the finisher, a last hit or the window closes */ }
+    else if (this.state === 'down') { this.inv = Math.max(this.inv, 2); if (this.onGround && ++this.lie >= DOWN_LIE && this.st >= 36) { this.set('idle'); this.inv = 14; this.land = 0; } }   // knocked down: untouchable, gets up after ~40 ticks
+    else if (this.state === 'throw') this.runThrow();
     else if (this.busy()) {
-      const A = ATK[this.state], mv = this.mv;
-      if (mv) {
+      const A = this.curAtk(), mv = this.mv;
+      if (A && !mv && this.tryCancel(o, i, A, fwd)) { /* a chain step or special took over this tick */ }
+      else if (mv) {
         if (mv.update) mv.update(this, o, this.st);
         if (this.st === Math.max(1, mv.hit)) mv.fire(this, o);
         if (this.st >= mv.len && this.mv === mv) { this.cool = mv.cool ?? 40; this.set('idle'); }
@@ -3397,8 +3798,13 @@ class Fighter {
     } else {
       let mv = 0; if (i.l) mv -= 1; if (i.r) mv += 1;
       if (this.state === 'jump' && this.st === 3 && this.onGround) { this.vy = JUMP_V; beep(500, 0.08, 'triangle'); }  // jump squat
+      if (dash && this.onGround && this.dashCool <= 0 && (this.state === 'idle' || this.state === 'walk' || this.state === 'block')) { // forward dash runs in, backdash hops out with 6 i-frames
+        this.dashBack = dash !== this.face; this.set('dash'); this.dashV = dash * this.d.spd * (this.dashBack ? 2.3 : 2.5); this.dashCool = this.dashBack ? 26 : 8;
+        if (this.dashBack) this.inv = Math.max(this.inv, 6); FX.dust(this.x, GROUND); beep(this.dashBack ? 180 : 260, 0.07, 'triangle', 0.04);
+      }
       const guard = i.d || (bk && this.threatened(o));
-      if (guard && this.onGround && this.state !== 'jump') { if (this.state !== 'block') this.set('block'); this.vx = 0; }
+      if (this.state === 'dash') { this.vx = this.dashV * (1 - this.st / (DASH_LEN * 1.6)); if (this.st >= DASH_LEN) this.set('idle'); }
+      else if (guard && this.onGround && this.state !== 'jump') { if (this.state !== 'block') this.set('block'); this.vx = 0; }
       else {
         if (this.state === 'block') this.set('idle');
         this.vx = mv * this.d.spd * (this.onGround ? 1 : 0.85) * (bk ? 0.85 : 1);
@@ -3406,48 +3812,56 @@ class Fighter {
         if (this.onGround && this.state !== 'jump') this.state = mv ? 'walk' : 'idle';
         else if (!this.onGround) this.state = 'jump';
       }
-      if (this.state !== 'jump' || this.st > 3) {
-        if (i.s && this.cool <= 0 && this.onGround) this.startMove(MOVES[this.d.id].sp[i.mv ?? (i.d ? 2 : fwd ? 1 : 0)], 'special', o);
-        else if (i.p) { this.set('punch'); beep(300, 0.05); }
-        else if (i.k) { this.set('kick'); beep(220, 0.06); }
-      }
+      if (this.state !== 'dash' || this.st >= 7) this.act(o, i, fwd);   // a dash can be cancelled into an attack after 7 ticks
     }
     // physics
-    if (['punch', 'kick', 'special', 'super', 'ko', 'win', 'block', 'dizzy'].includes(this.state) && this.onGround) this.vx *= this.mv ? (this.mv.friction ?? 0.7) : 0.7;
+    if (['punch', 'kick', 'special', 'super', 'ko', 'win', 'block', 'dizzy', 'down'].includes(this.state) && this.onGround) this.vx *= this.mv ? (this.mv.friction ?? 0.7) : 0.7;
     if (this.state === 'hurt' && this.onGround) this.vx *= 0.86;
+    if (this.airSp && this.state === 'special' && !this.onGround) { this.vy *= 0.5; this.vx *= 0.92; }   // air special: hang for a moment
     this.x += this.vx; this.vy += GRAV; this.y += this.vy;
-    if (this.y > GROUND) { const wasAir = this.vy > 4; this.y = GROUND; this.vy = 0; if (wasAir) { this.land = 4; FX.dust(this.x, GROUND); if (this.state === 'jump') this.state = 'idle'; if (this.state === 'ko') { game.shake = Math.max(game.shake, 6); thud(0.15, 0.12); } } }
+    if (this.y > GROUND) {
+      const wasAir = this.vy > 4; this.y = GROUND; this.vy = 0;
+      if (wasAir) { this.land = 4; FX.dust(this.x, GROUND); if (this.state === 'jump') this.state = 'idle'; if (this.state === 'ko' || this.state === 'down') { game.shake = Math.max(game.shake, this.state === 'ko' ? 6 : 4); thud(0.15, 0.12); } }
+      if (this.air && (this.state === 'punch' || this.state === 'kick')) { this.set('idle'); this.land = 5; }   // landing cancels a jump attack
+    }
     this.x = Math.max(46, Math.min(W - 46, this.x));
     const ov = 56 - Math.abs(this.x - o.x); // push apart
-    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && !this.hidden && !o.hidden) { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
+    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && this.state !== 'grabbed' && o.state !== 'grabbed' && !this.hidden && !o.hidden) { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
   }
   doHit(o, A) {
     this.hitDone = true;
     const [x0, x1, y0, y1] = A.box; const f = this.face;
     const ax0 = this.x + Math.min(x0 * f, x1 * f), ax1 = this.x + Math.max(x0 * f, x1 * f);
     const bx0 = o.x - 26, bx1 = o.x + 26, by0 = o.y - 150, by1 = o.y;
-    if (ax1 > bx0 && ax0 < bx1 && this.y + y1 > by0 && this.y + y0 < by1) o.takeHit(this, A.dmg * this.d.pow, A.kb, A.stun, A === ATK.kick ? 'kick' : 'punch');
+    if (ax1 > bx0 && ax0 < bx1 && this.y + y1 > by0 && this.y + y0 < by1) { this.contact = true; o.takeHit(this, A.dmg * this.d.pow, A.kb, A.stun, A.kind || (A.st === 'kick' ? 'kick' : 'punch'), A); }
     else if (o.state !== 'ko') beep(140, 0.03, 'triangle', 0.02); // whiff
   }
-  takeHit(src, dmg, kb, stun, kind = 'hit') {
+  // opt: launch (pops the target up), knock (knockdown), unblock (throws), force (ignores i-frames), tag (popup text)
+  takeHit(src, dmg, kb, stun, kind = 'hit', opt = {}) {
     if (game.phase === 'finish' && this === game.loser && src !== this) { finishOff(); return; }
-    if (this.state === 'ko' || this.state === 'dizzy' || this.inv > 0 || game.phase !== 'fight') return;
+    if (this.state === 'ko' || this.state === 'dizzy' || game.phase !== 'fight') return;
+    if (!opt.force && (this.inv > 0 || this.state === 'down' || this.state === 'grabbed')) return;
     const facingSrc = (src.x > this.x) === (this.face > 0);
-    const guarding = (this.state === 'block' || (this.back && this.onGround && !this.busy())) && facingSrc;
+    const guarding = !opt.unblock && (this.state === 'block' || (this.back && this.onGround && !this.busy())) && facingSrc;
     let soft = false;
     if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; soft = true; FX.sparks(this.x, this.y - 90, '#7ef0ff', 8); }
     if (guarding) {
       dmg *= kind === 'super' ? 0.25 : 0.15; kb *= 0.5; if (this.state !== 'block') this.set('block');
       FX.sparks(this.x + this.face * 30, this.y - 100, '#9cf', 8); beep(160, 0.05, 'square', 0.04); game.hitstop = Math.max(game.hitstop, 4);
     } else {
-      const dir = this.x < src.x ? -1 : 1;
-      this.set('hurt'); this.stun = stun; thud(); beep(120, 0.1, 'sawtooth', 0.06);
+      // a combo continues only while the victim is still reeling (hurt, airborne or down) from the last hit
+      const reeling = this.state === 'hurt' || this.state === 'hit' || this.state === 'down' || this.state === 'grabbed' || !this.onGround;
+      const dir = this.x < src.x ? -1 : 1, n = src.lastHitT && this.t - src.lastHitT < 70 && reeling ? src.combo : 0;
+      dmg *= Math.max(0.6, 1 - 0.06 * Math.max(0, n - 1));   // long combos scale down a little
+      if (opt.knock) { this.set('down'); this.vy = -5; } else this.set('hurt');
+      this.stun = stun; thud(); beep(120, 0.1, 'sawtooth', 0.06);
       if (!soft) FX.blood(this.x - dir * 8, this.y - 112, dir, Math.min(3, 0.6 + dmg / 8));
       FX.sparks(this.x - dir * 14, this.y - 105, '#fff3b0', kind === 'super' ? 16 : 8);
       game.shake = Math.max(game.shake, kind === 'super' ? 14 : kind === 'kick' ? 8 : 6); game.hitstop = Math.max(game.hitstop, kind === 'super' ? 10 : kind === 'kick' ? 7 : 5);
-      this.inv = 6; src.combo = (src.lastHitT && this.t - src.lastHitT < 50) ? src.combo + 1 : 1; src.lastHitT = this.t;
+      this.inv = 6; src.combo = n ? src.combo + 1 : 1; src.lastHitT = this.t;
       if (src.combo >= 2) game.popups.push({ x: src.x, y: src.y - 215, t: 50, txt: src.combo + ' HIT COMBO' });
-      if (!this.onGround || kb >= 10) this.vy = Math.min(this.vy, -4);
+      if (opt.tag) game.popups.push({ x: this.x, y: this.y - 235, t: 36, txt: opt.tag });
+      if (opt.launch) this.vy = -9.5; else if (!this.onGround || kb >= 10) this.vy = Math.min(this.vy, -4);
     }
     this.hp = Math.max(0, this.hp - dmg); this.dmgTaken += dmg; this.vx = (this.x < src.x ? -1 : 1) * kb;
     src.meter = Math.min(100, src.meter + dmg * 1.5); this.meter = Math.min(100, this.meter + dmg * 0.7);
@@ -3455,12 +3869,16 @@ class Fighter {
   }
   // which sheet row/frame to show right now
   frame() {
-    const s = this.state;
+    const s = this.state, A = this.curAtk();
     if (s === 'idle' || s === 'walk' || s === 'win' || s === 'block') { if (this.land > 0 && s !== 'block') return ['jump', 0]; return [s, loopFrame(s, this.t)]; }
+    if (s === 'dash') return this.dashBack ? ['jump', 0] : ['walk', loopFrame('walk', this.t * 2)];
     if (s === 'dizzy') return ['hit', [0, 1, 0, 2][Math.floor(this.t / 14) % 4]];
     if (s === 'jump') { if (this.st <= 3 && this.onGround) return ['jump', 0]; return ['jump', this.vy < -5 ? 1 : this.vy < 4 ? 2 : 3]; }
     if ((s === 'special' || s === 'super') && this.mv) { const a = this.mv.anim || s; return [a, timedFrame(a, Math.min(0.999, this.st / this.mv.len))]; }
-    if (ATK[s]) return [s, frameFromTimeline(ATK[s].frames, this.st)];
+    if (A) return [A.row, frameFromTimeline(A.frames, this.st)];
+    if (s === 'throw') return this.thr ? ['punch', 2] : ['punch', 3];
+    if (s === 'grabbed') return this.grabber && this.grabber.st > THROW_T * 0.5 ? ['jump', 3] : ['hit', 1];
+    if (s === 'down') { const l = this.lie; return ['ko', !this.onGround ? 1 : l < 3 ? 2 : l < 8 ? 3 : l < 22 ? 4 : l < 26 ? 3 : 2]; }
     if (s === 'special' || s === 'super') return [s, timedFrame(s, Math.min(0.999, this.st / 40))];
     if (s === 'hurt' || s === 'hit') return ['hit', Math.min(2, Math.floor(this.st / Math.max(1, this.stun || 20) * 3))];
     if (s === 'ko') return ['ko', this.st < 6 ? 0 : this.st < 16 ? 1 : !this.onGround ? 1 : this.st < 26 ? 2 : this.st < 40 ? 3 : 4];
@@ -3623,7 +4041,7 @@ function updateProjectiles() {
       p.x += p.vx; p.y += p.vy;
       if (p.grav && p.y > GROUND - 8) { p.life = 0; FX.dust(p.x, GROUND); }
     }
-    if (p.life > 0 && !tgt.hidden && Math.abs(p.x - tgt.x) < p.r + 24 && Math.abs(p.y - (tgt.y - 80)) < p.r + 70 && tgt.state !== 'ko' && (game.phase === 'fight' || game.phase === 'finish')) {
+    if (p.life > 0 && !tgt.hidden && Math.abs(p.x - tgt.x) < p.r + 24 && Math.abs(p.y - (tgt.y - 80)) < p.r + 70 && tgt.state !== 'ko' && tgt.state !== 'down' && tgt.state !== 'grabbed' && (game.phase === 'fight' || game.phase === 'finish')) {
       if (!p.hit) { tgt.takeHit(p.owner, p.dmg, p.kb, p.stun, p.super ? 'super' : 'hit'); if (p.super) p.hit = true; else p.life = 0; }
     }
     if (p.x < -200 || p.x > W + 200 || p.y > H + 120) p.life = 0;
@@ -3666,7 +4084,7 @@ function drawTitle() {
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
   ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
-  uiText(touch.on ? 'TAP TO START' : 'W/S CHOOSE · ENTER START · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
+  uiText(touch.on ? 'TAP TO START' : 'W/S + ENTER · FIGHT WITH WASD + J K L I OR ARROWS + Z X C V · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
 }
 function selectCell(i) {
@@ -3750,15 +4168,16 @@ function drawFight() {
   drawWorld(); drawHUD(ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
   if (game.phase === 'fight' && game.round === 1 && game.clock < 360 && !touch.on && !(a.cpu && b.cpu))
-    uiText('J PUNCH · K KICK · L SPECIAL (ALSO FWD+L, DOWN+L) · I OR J+K SUPER · HOLD BACK TO BLOCK', W / 2, H - 18, 15, '#fff', 'center', Math.min(1, (360 - game.clock) / 60));
+    uiText('J J J COMBO · FWD+J THROW · DOWN+K SWEEP · L SPECIAL · TAP FWD TWICE DASH · I SUPER · HOLD BACK TO BLOCK', W / 2, H - 18, 14, '#fff', 'center', Math.min(1, (360 - game.clock) / 60));
   if (game.phase === 'finish') uiText((game.winner.cpu ? 'CPU' : LABEL[game.winner.side].x) + ' FOR THE FINISHER · ANY HIT ENDS IT', W / 2, H - 20, 16, '#ff6b5c', 'center', t % 30 < 20 ? 1 : 0.5);
   if (muted) uiText('MUTED', W - 14, H - 14, 12, '#99a', 'right');
   if (game.phase === 'pause') {
     shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
     for (let s = 0; s < 2; s++) { const f = game.f[s]; drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
-    uiText('P1  WASD MOVE · J PUNCH · K KICK · L SPECIAL · I SUPER · HOLD BACK TO BLOCK', W / 2, 360, 16, '#ddd');
-    uiText('P2  ARROWS · NUM1 PUNCH · NUM2 KICK · NUM3 SPECIAL · NUM0 SUPER  (OR , . / RIGHT SHIFT)', W / 2, 388, 16, '#ddd');
-    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 416, 16, '#ddd');
+    uiText(game.mode === 1 ? 'WASD OR ARROWS · J/Z PUNCH · K/X KICK · L/C SPECIAL · I/V SUPER · HOLD BACK TO BLOCK' : 'P1  WASD · J PUNCH · K KICK · L SPECIAL · I SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
+    uiText('P2  ARROWS · NUM1 PUNCH · NUM2 KICK · NUM3 SPECIAL · NUM0 SUPER  (OR , . / RIGHT SHIFT)', W / 2, 372, 16, '#ddd');
+    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
+    uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
     uiText('P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 470, 18, '#c9a24a');
   }
 }
@@ -3796,7 +4215,6 @@ function frame(now) {
 }
 // debug / test hooks: #select, #demo=i,j[&ff=N][&arena=K][&stop] (CPU vs CPU), #sheet=id; window.step(n) advances the simulation
 window.step = n => { for (let i = 0; i < n; i++) update(); };
-window.hold = on => { running = !on; };   // tests freeze the real-time loop so only step() advances the game
 window.hold = on => { running = !on; };   // tests freeze the real-time loop so only step() advances the game
 (function () {
   const h = location.hash;

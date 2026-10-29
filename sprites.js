@@ -129,92 +129,122 @@ function ik(ox, oy, tx, ty, L1, L2, sg) {
 // ---------- the five characters ----------
 const GOLD = R('#ffd86a', '#8a4a2a');
 const LOOK = {
-  tibo:   { kind: 'human', skin: '#f2c8a8', hair: '#4d3126', top: '#3b3d58', pants: '#2b3252', shoe: '#e8eef8', wrap: '#7cc7ff', belt: '#7cc7ff', acc: '#7cc7ff', long: false },
-  poteto: { kind: 'human', skin: '#fbd9c4', hair: '#4e3029', top: '#3c3744', pants: '#3b3046', shoe: '#f6e3a0', wrap: '#f6c544', belt: '#f6c544', acc: '#f6a23a', long: true },
-  dot:    { kind: 'blob',  body: '#f6f3ec', tint: '#6f6aa8', acc: '#f8f6f1' },
-  wang:   { kind: 'human', skin: '#e9bc92', hair: '#2a2833', top: '#8d92a3', pants: '#3a3b4f', shoe: '#e8e8f0', wrap: '#b98cff', belt: '#b98cff', acc: '#b98cff', long: false },
-  muse:   { kind: 'plush', fur: '#f5c6cb', face: '#fde8da', acc: '#7ef0ff' },
+  tibo:   { kind: 'human', skin: '#f2c8a8', hair: '#4a2f24', top: '#33406c', hood: true, pants: '#2b3252', shoe: '#e8eef8', wrap: '#7cc7ff', belt: '#7cc7ff', acc: '#7cc7ff', long: false }, // swept quiff, navy hoodie, blue wraps
+  poteto: { kind: 'human', skin: '#fbd9c4', hair: '#472a22', top: '#3c3744', pants: '#3b3046', shoe: '#f6e3a0', wrap: '#f6c544', belt: '#f6c544', acc: '#f6a23a', long: true }, // anime avatar: long straight hair, full fringe, round gold glasses, ^ ^ eyes
+  dot:    { kind: 'blob',  body: '#f6d14a', tint: '#c67a1e', acc: '#ffe27a' },
+  wang:   { kind: 'human', skin: '#ebc29c', hair: '#23212c', top: '#8d92a3', pants: '#3a3b4f', shoe: '#e8e8f0', wrap: '#b98cff', belt: '#b98cff', acc: '#b98cff', long: false }, // neat short black hair, calm narrow eyes, grey top
+  muse:   { kind: 'plush', fur: '#f3dcd3', face: '#fbeadf', acc: '#7ef0ff' }, // cream-pink hooded plush: bead eyes, peach face oval, blush
 };
 
 // face features per character (head-local units: origin = face centre, face is 34 wide)
 const FACE = {
-  tibo:   { ex: 8, ey: 3.5, rx: 3.3, ry: 4.6, dark: '#1d1520', sh: 2, my: 10.5, mouth: 'grin', blush: '#ee9488', brow: '#33201a', bt: 1.9 },
-  poteto: { ex: 8, ey: 4, rx: 3.9, ry: 5, dark: '#2a1510', iris: '#a05c2c', sh: 2, my: 11.5, mouth: 'smile', blush: '#ff8f9c', brow: '#3a2420', bt: 1.4, glasses: true },
-  wang:   { ex: 8, ey: 3.5, rx: 2.8, ry: 3.9, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 2.1 },
-  muse:   { ex: 7.8, ey: 1, rx: 3.5, ry: 5, dark: '#120d14', sh: 1, my: 9.5, mouth: 'tiny', blush: '#ff8fa6', brow: null, bt: 1.4, glossy: true },
-  dot:    { ex: 9.5, ey: 0, rx: 3.5, ry: 4.4, dark: '#16121a', sh: 3, my: 7.5, mouth: 'tiny', blush: '#ffb0ba', brow: null, bt: 1.4, glossy: true },
+  tibo:   { ex: 8, ey: 3.5, rx: 3.3, ry: 4.6, dark: '#1d1520', sh: 2, my: 10.5, mouth: 'grin', blush: '#ee9488', brow: '#3a2418', bt: 1.9 }, // warm open grin, dark brown brows
+  poteto: { ex: 8, ey: 4, rx: 3.9, ry: 5, dark: '#2a1510', iris: '#a05c2c', sh: 2, my: 11, mouth: 'open', blush: '#ff8f9c', bl: [11.6, 10.4, 3.7, 2.1], brow: '#3a2420', bt: 1.4, glasses: true, happyEyes: true }, // ^ ^ eyes when calm, big open smile, pink blush, gold round glasses
+  wang:   { ex: 8, ey: 3.5, rx: 2.6, ry: 3.2, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 1.2, bup: 1.5, pip: 1 }, // narrow calm eyes, thin straight brows set high
+  muse:   { ex: 6.6, ey: -1.2, rx: 2, ry: 2.2, dark: '#120d14', sh: 1, my: 5.8, mouth: 'tiny', ms: 0.9, blush: '#f5b3bd', bl: [7.4, 3.5, 2.7, 1.9], brow: null, bt: 1.2, pip: 1, abrow: '#8a5560' }, // small bead eyes with one glint, no brows unless angry
+  dot:    { ex: 7.4, ey: 0, rx: 1.9, ry: 2.1, dark: '#17111d', sh: 1.5, my: 8.8, mouth: 'tiny', ms: 0.8, blush: '#f6b08a', bl: [11.6, 8.8, 2.6, 1.3], brow: null, bt: 1.2, pip: 1, specs: 6.3, lens: '#fde58a', abrow: '#17111d' },
 };
 const W_ = flat('#ffffff'), MOUTH = flat('#3b1620'), TONGUE = flat('#e5607a');
 function face(H, F, ex, skin) {
   const sx = F.sh, my = F.my, bx = F.ex, dark = flat(F.dark), eyes = [-bx + sx, bx + sx];
-  if (F.blush) for (const s of [-1, 1]) H.e(s * (bx + 3.4) + sx * 0.7, F.ey + 5.8, 3.4, 1.9, flat(F.blush), { ol: false });
+  if (F.blush) { const [bd, by, brx, bry] = F.bl || [bx + 3.4, F.ey + 5.8, 3.4, 1.9]; for (const s of [-1, 1]) H.e(s * bd + sx * 0.7, by, brx, bry, flat(F.blush), { ol: false }); }
   if (skin && F.mouth !== 'tiny') H.e(sx + 1.2, F.ey + 4.8, 1.3, 0.9, skin, { ol: false, flat: true }); // nose smudge uses a ramp's md; recoloured below
   const angry = ex === 'a' || ex === 'o' || ex === 'g', pain = ex === 'p';
+  if (F.specs) for (const x of eyes) H.e(x, F.ey, F.specs - 0.5, F.specs - 0.5, flat(F.lens), { ol: false, flat: true }); // glass tint behind the eyes
   eyes.forEach((x, i) => {
     const sd = i ? 1 : -1, y = F.ey;
     if (ex === 'k') { H.l(x - 3, y - 3, x + 3, y + 3, F.dark, 1.7); H.l(x + 3, y - 3, x - 3, y + 3, F.dark, 1.7); return; }
+    if (F.happyEyes && (ex === 'n' || ex === 'w')) { const pts = [[-4, 2.2], [-2.8, 0], [-1.2, -1.5], [1.2, -1.5], [2.8, 0], [4, 2.2]]; for (let j = 1; j < pts.length; j++) H.l(x + pts[j - 1][0], y + pts[j - 1][1] + 0.6, x + pts[j][0], y + pts[j][1] + 0.6, F.dark, 1.9); return; } // happy closed-eye arcs
     if (ex === 'w') { H.l(x - 3.6, y + 1.5, x - 1.4, y - 1.2, F.dark, 1.8); H.l(x - 1.4, y - 1.2, x + 1.4, y - 1.2, F.dark, 1.8); H.l(x + 1.4, y - 1.2, x + 3.6, y + 1.5, F.dark, 1.8); return; }
     if (pain) { H.l(x - sd * 3.2, y - 3, x + sd * 2.2, y, F.dark, 1.8); H.l(x + sd * 2.2, y, x - sd * 3.2, y + 3, F.dark, 1.8); return; }
     if (ex === 'g') { H.l(x - 3.6, y - sd * 0.0 - 0.2, x + 3.6, y + 0.6, F.dark, 2.2); return; }
     const ry = angry ? F.ry * 0.78 : F.ry, cy = angry ? y + 0.9 : y;
     H.e(x, cy, F.rx, ry, dark, { ol: false, flat: true });
     if (F.iris) { H.e(x, cy + ry * 0.38, F.rx * 0.82, ry * 0.58, flat(F.iris), { ol: false, flat: true }); H.e(x, cy + ry * 0.52, F.rx * 0.45, ry * 0.3, flat('#2a1008'), { ol: false, flat: true }); }
+    if (F.pip) { H.d(x - F.rx * 0.6, cy - ry * 0.6, 0.8, 0.8, '#ffffff'); return; } // dot eyes: a single pixel of shine
     H.d(x - F.rx * 0.62, cy - ry * 0.62, 2, 2, '#ffffff');
     H.d(x + F.rx * 0.34, cy + ry * 0.38, 1, 1, '#ffffff');
     if (F.glossy) H.d(x - F.rx * 0.62 + 2.1, cy - ry * 0.62 + 2.1, 1, 1, '#ffffff');
   });
+  if (F.abrow && !F.specs && (ex === 'a' || ex === 'o')) eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 3.4, F.ey - F.ry - 1.9, x - sd * 3, F.ey - F.ry + 0.7, F.abrow, 1.2); }); // brow-less fighters grow a short slanted lid when angry
   if (F.glasses) {
     const gold = R('#e8b84a', '#7a3a2a');
     for (const x of eyes) { H.ring(x, F.ey, 7.2, 5.9, gold, { ol: false }); H.l(x - 4.6, F.ey - 3.4, x - 2.2, F.ey - 5.2, '#ffffff', 1); H.d(x - 4.8, F.ey - 1.6, 1, 1, '#ffffff'); }
     H.l(eyes[0] + 7, F.ey - 1, eyes[1] - 7, F.ey - 1, '#e8b84a', 1.1); H.l(eyes[0] - 7, F.ey - 1, eyes[0] - 11, F.ey - 2, '#e8b84a', 1.1);
   }
+  if (F.specs) { // thin round dark rims joined by a short bridge, a glint in each lens, angled lids when angry
+    const S = F.specs, D = flat(F.dark);
+    for (const x of eyes) { H.ring(x, F.ey, S, S - 1.3, D, { ol: false, flat: true }); H.l(x - 4.3, F.ey - 2.4, x - 3.3, F.ey - 3.8, '#ffffff', 0.9); }
+    H.l(eyes[0] + S - 0.8, F.ey - 0.8, eyes[1] - S + 0.8, F.ey - 0.8, F.dark, 1.3);
+    if (ex === 'a' || ex === 'o') eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 5.6, F.ey - 4.6, x - sd * 4.4, F.ey - 2, F.abrow, 1.5); });
+  }
   if (F.brow) {
-    const t = angry ? 2.4 : pain ? -2.4 : ex === 'w' ? -1.2 : (ex === 'n' && F.mouth === 'grin' ? -0.4 : 0), by = F.ey - F.ry - (ex === 'w' ? 4 : 2.8) - (F.glasses ? 1 : 0) + (angry ? 1 : 0);
+    const t = angry ? 2.4 : pain ? -2.4 : ex === 'w' ? -1.2 : (ex === 'n' && F.mouth === 'grin' ? -0.4 : 0), by = F.ey - F.ry - (ex === 'w' ? 4 : 2.8) - (F.glasses ? 1 : 0) - (F.bup || 0) + (angry ? 1 : 0);
     if (ex !== 'k') eyes.forEach((x, i) => { const sd = i ? 1 : -1; H.l(x + sd * 4.4, by - (t > 0 ? 0.6 : 0), x - sd * 3.6, by + t, F.brow, F.bt); });
   }
   // mouth
   const m = F.mouth;
-  if (ex === 'a' || ex === 'o') { const s = ex === 'o' ? 1.25 : 1; H.e(sx, my + 1, 4.2 * s, 3.2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 2.6 * s, 1.3 * s, TONGUE, { ol: false, flat: true }); H.l(sx - 3 * s, my - 1.6 * s, sx + 3 * s, my - 1.6 * s, '#ffffff', 1.2); }
+  if (F.ms) tinyMouth(H, ex, sx, my, F.ms);
+  else if (ex === 'a' || ex === 'o') { const s = ex === 'o' ? 1.25 : 1; H.e(sx, my + 1, 4.2 * s, 3.2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 2.6 * s, 1.3 * s, TONGUE, { ol: false, flat: true }); H.l(sx - 3 * s, my - 1.6 * s, sx + 3 * s, my - 1.6 * s, '#ffffff', 1.2); }
   else if (ex === 'p') { H.e(sx, my + 1.4, 3.4, 2.6, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.6, 2, 1, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'k') { H.e(sx, my + 1.6, 3, 3.2, MOUTH, { ol: false, flat: true }); H.e(sx, my + 3.2, 2, 1.5, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'w') { H.p([[sx - 6.5, my - 2], [sx + 6.5, my - 2], [sx + 5, my + 2], [sx + 2.4, my + 4.6], [sx - 2.4, my + 4.6], [sx - 5, my + 2]], MOUTH, { ol: false, flat: true }); H.p([[sx - 5.6, my - 1.6], [sx + 5.6, my - 1.6], [sx + 4.6, my + 0.2], [sx - 4.6, my + 0.2]], W_, { ol: false, flat: true }); H.e(sx, my + 3.6, 2.4, 1.1, TONGUE, { ol: false, flat: true }); }
   else if (ex === 'g') { H.d(sx - 5, my - 2, 10, 5, '#2a1018'); H.d(sx - 4, my - 1, 8, 3, '#ffffff'); H.d(sx - 1, my - 1, 1, 3, '#b8a8b8'); H.d(sx + 2, my - 1, 1, 3, '#b8a8b8'); }
   else if (m === 'grin') { H.p([[sx - 6.5, my - 1.5], [sx + 6.5, my - 1.5], [sx + 5, my + 2], [sx + 2.5, my + 4], [sx - 2.5, my + 4], [sx - 5, my + 2]], MOUTH, { ol: false, flat: true }); H.p([[sx - 5.6, my - 1.2], [sx + 5.6, my - 1.2], [sx + 4.6, my + 0.6], [sx - 4.6, my + 0.6]], W_, { ol: false, flat: true }); H.e(sx, my + 3, 2.4, 1, TONGUE, { ol: false, flat: true }); }
+  else if (m === 'open') { H.p([[sx - 5.6, my - 1.4], [sx + 5.6, my - 1.4], [sx + 4.8, my + 1.8], [sx + 2.8, my + 3.8], [sx - 2.8, my + 3.8], [sx - 4.8, my + 1.8]], MOUTH, { ol: false, flat: true }); H.e(sx, my + 3, 3, 1.1, TONGUE, { ol: false, flat: true }); H.l(sx - 4.2, my - 0.8, sx + 4.2, my - 0.8, '#ffffff', 0.9); } // wide D-shaped smile with a tongue
   else if (m === 'smile') { H.l(sx - 3.6, my - 0.6, sx - 2, my + 1.2, '#8a3a3e', 1.4); H.l(sx - 2, my + 1.2, sx + 2, my + 1.2, '#8a3a3e', 1.4); H.l(sx + 2, my + 1.2, sx + 3.6, my - 0.6, '#8a3a3e', 1.4); }
   else if (m === 'flat') { H.l(sx - 3, my + 0.6, sx + 3, my + 0.6, '#8a4540', 1); H.d(sx + 3, my - 0.4, 1, 1, '#8a4540'); }
   else { H.l(sx - 2.4, my - 0.4, sx - 1.2, my + 1.1, '#5a2a30', 1.3); H.l(sx - 1.2, my + 1.1, sx + 1.2, my + 1.1, '#5a2a30', 1.3); H.l(sx + 1.2, my + 1.1, sx + 2.4, my - 0.4, '#5a2a30', 1.3); }
 }
 
-// hair: back layer (behind the face) and front layer (fringe, clumps)
+// very small mouth for the dots-style blob (s scales the open shapes)
+function tinyMouth(H, ex, sx, my, s) {
+  const C = '#4a2218';
+  if (ex === 'a' || ex === 'o') { const z = (ex === 'o' ? 1.3 : 1) * s; H.e(sx, my + 0.8, 2.6 * z, 2.2 * z, MOUTH, { ol: false, flat: true }); H.e(sx, my + 1.9 * z, 1.4 * z, 0.8 * z, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'p') { H.e(sx, my + 1, 2.4 * s, 2 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 1.8, 1.2 * s, 0.7 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'k') { H.e(sx, my + 1.2, 2 * s, 2.4 * s, MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.2, 1.2 * s, 0.9 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'w') { H.p([[sx - 4 * s, my - 1], [sx + 4 * s, my - 1], [sx + 2.6 * s, my + 2.2 * s], [sx, my + 3.4 * s], [sx - 2.6 * s, my + 2.2 * s]], MOUTH, { ol: false, flat: true }); H.e(sx, my + 2.4 * s, 1.5 * s, 0.9 * s, TONGUE, { ol: false, flat: true }); }
+  else if (ex === 'g') { H.d(sx - 3.2, my - 0.8, 6.4, 3, '#2a1018'); H.d(sx - 2.5, my - 0.1, 5, 1.4, '#ffffff'); }
+  else { H.l(sx - 2.5, my - 0.4, sx - 1.2, my + 1, C, 1.1); H.l(sx - 1.2, my + 1, sx + 1.2, my + 1, C, 1.1); H.l(sx + 1.2, my + 1, sx + 2.5, my - 0.4, C, 1.1); }
+}
+
+// hair: back layer (behind the face) and front layer (fringe, clumps). hairMass fills ONE shaded blob (union of head-local ellipses) cut below a hairline curve, so the forehead stays open.
+const edgeFn = pts => x => { if (x <= pts[0][0]) return pts[0][1]; for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const [a, b] = pts[i - 1], [c, d] = pts[i]; return b + (d - b) * (x - a) / (c - a); } return pts[pts.length - 1][1]; };
+function hairMass(H, hr, parts, edge, o) {
+  const k = H.k, S = sUnion(parts.map(([a, b, c, d]) => sEll(H.x + a * k, H.y + b * k, c * k, d * k)), (x, y) => LV((x - H.x) / (21 * k), (y - H.y + 9 * k) / (16 * k)));
+  H.P.fill(sAnd(S, (x, y) => (y - H.y) / k <= edge((x - H.x) / k)), hr, o);
+}
 const HAIR = {
-  tibo: {
-    back(H, hr) { H.e(0, -4, 19.5, 17, hr); },
+  tibo: { // short sides, a rounded swept fringe with a small quiff at the front
+    back(H, hr) { H.e(0, -4, 19, 16.5, hr); },
     front(H, hr) {
-      H.p([[-19, -6], [-13.5, -9], [-14.5, 2], [-19, 3]], hr); H.p([[19, -6], [13.5, -9], [14.5, 2], [19, 3]], hr);
-      H.p([[-16, -9], [-19, -20], [-6, -14]], hr); H.p([[-11, -13], [-8, -26], [3, -15]], hr); H.p([[-1, -14], [9, -28], [12, -13]], hr); H.p([[7, -13], [20, -22], [17, -8]], hr);
-      H.e(0, -11.5, 18.4, 8.4, hr);
-      const so = { ol: hr.sh }; H.p([[-16.5, -9], [-5, -10], [-10, -4.5]], hr, so); H.p([[-6, -10], [6, -10], [-1, -5.5]], hr, so); H.p([[3, -10], [17, -8], [12, -3.5]], hr, so);
-      H.l(-9, -16, -3, -19.5, R('#4d3126').hi, 1.4); H.l(2, -17.5, 6, -22, R('#4d3126').hi, 1.2);
+      H.p([[-18.4, -6], [-14, -9.5], [-14.6, 0.5], [-17.6, 0.8]], hr); H.p([[18.4, -6], [14, -9.5], [14.6, 0.5], [17.6, 0.8]], hr); // short tapered sideburns
+      hairMass(H, hr, [[-1, -10.5, 18, 9.8], [-1.5, -15.5, 14.5, 7.6], [9, -19, 9.5, 5.6]], edgeFn([[-20, -3], [-16, -7], [-10, -10], [-4, -8.8], [2, -6.6], [8, -5.4], [13, -6.2], [17, -9], [20, -5]]));
+      const hi = hr.hi, sh = hr.sh; // strands sweep from the crown down and to the front
+      H.l(-9.5, -17.5, -3.5, -10.5, sh, 1); H.l(-2, -20, 4.5, -11, sh, 1); H.l(5, -21, 11, -11.5, sh, 1);
+      H.l(-13, -16, -7.5, -20.5, hi, 1.3); H.l(-5, -20.5, 2, -23, hi, 1.2); H.l(5, -23, 9.5, -24, hi, 1);
     },
   },
-  poteto: {
-    back(H, hr, bust) { H.e(0, bust ? 8 : 0, bust ? 22 : 20, bust ? 28 : 19, hr); },
+  poteto: { // long straight hair: full blunt fringe with soft points, long side locks past the shoulders
+    back(H, hr, bust) { if (bust) H.r(0, 10, 21.5, 26, 8, hr); else H.e(0, -1, 19.8, 18.2, hr); },
     front(H, hr) {
-      H.e(0, -10.5, 19.5, 10.5, hr);
-      for (const [x, y, rx, ry] of [[-14, -6.5, 5.6, 5.4], [-6.5, -6.5, 5.2, 5.4], [1, -6.5, 5.4, 5.4], [8, -6.5, 5.2, 5.4], [14.5, -6.5, 5.2, 5.4]]) H.e(x, y, rx, ry, hr);
-      H.c(-17.5, -5, -18.5, 20, 4.2, 3.4, hr); H.c(17.5, -5, 18.5, 20, 4.2, 3.4, hr);
-      H.e(-18, 22, 3.6, 2.8, hr); H.e(18.4, 22, 3.6, 2.8, hr);
-      const hi = R('#3a2420').hi; H.p([[-12, -15.5], [-3, -18.5], [7, -17.5], [12.5, -13], [5, -14.5], [-4, -14], [-10, -12.5]], flat(hi), { ol: false, flat: true });
+      hairMass(H, hr, [[0, -9.5, 19.8, 10.5], [0, -14, 18.2, 7.6]], edgeFn([[-20, -7], [-17.5, -3.6], [-14, -1.3], [-9.5, -4.1], [-5.2, -1.2], [-1, -4.1], [3.2, -1.2], [7.4, -4.1], [11.4, -1.2], [15.4, -3.6], [17.6, -3.6], [20, -7]]));
+      H.c(-17.4, -6, -18.4, 22, 3.9, 2.9, hr); H.c(17.4, -6, 18.4, 22, 3.9, 2.9, hr); // side locks framing the face
+      H.p([[-21.2, 22], [-15.6, 22], [-18.4, 29.6]], hr); H.p([[21.2, 22], [15.6, 22], [18.4, 29.6]], hr); // straight cut tips
+      const hi = R('#3a2420').hi, sh = hr.sh;
+      for (const x of [-12.5, -4.5, 3.5, 11.5]) H.l(x, -12, x + 0.4, -3, sh, 1); // blunt strands down the fringe
+      H.l(-18, 2, -18.3, 20, sh, 1); H.l(18, 2, 18.2, 20, sh, 1);
+      H.p([[-12, -15.5], [-3, -18.5], [7, -17.5], [12.5, -13], [5, -14.5], [-4, -14], [-10, -12.5]], flat(hi), { ol: false, flat: true });
     },
   },
-  wang: {
-    back(H, hr) { H.e(0, -4.5, 18.6, 16, hr); },
+  wang: { // neat short black hair, a short fringe brushed slightly up and to the side
+    back(H, hr) { H.e(0, -4.5, 18.4, 15.6, hr); },
     front(H, hr) {
-      H.p([[-18, -6], [-13.5, -9], [-14, 0], [-18, 1]], hr); H.p([[18, -6], [13.5, -9], [14, 0], [18, 1]], hr);
-      H.p([[-9, -14], [-4, -26], [6, -15]], hr); H.p([[0, -14], [10, -24], [15, -10]], hr); H.p([[-15, -11], [-14, -20], [-4, -14]], hr);
-      H.e(0, -11.5, 17.8, 8.2, hr);
-      const so = { ol: hr.sh }; H.p([[-17, -8], [-5, -11], [-9, -4.5]], hr, so); H.p([[-6, -11], [6, -11], [0, -6]], hr, so); H.p([[3, -11], [17, -8], [10, -4.5]], hr, so);
-      H.l(-8, -16, -2, -20, R('#2a2833').hi, 1.3); H.l(3, -15.5, 8.5, -19.5, R('#2a2833').hi, 1.2);
+      H.p([[-17.6, -6], [-13.5, -9.5], [-14.2, -1], [-17, -0.4]], hr); H.p([[17.6, -6], [13.5, -9.5], [14.2, -1], [17, -0.4]], hr);
+      hairMass(H, hr, [[0, -12, 17.8, 8.8], [4, -17.2, 12.6, 6.2]], edgeFn([[-19, -2], [-15, -6.5], [-10, -9.5], [-6, -8], [-2, -10.4], [3, -8.4], [8, -10.4], [13, -8.4], [16, -9.5], [19, -3]]));
+      const hi = hr.hi, sh = hr.sh;
+      H.l(-8, -10, -4.5, -18, sh, 1); H.l(0, -10.5, 4.5, -19, sh, 1); H.l(7, -10.5, 11, -17.5, sh, 1);
+      H.l(-12, -14, -6.5, -19.5, hi, 1.2); H.l(1, -20.5, 8, -22, hi, 1);
     },
   },
 };
@@ -249,15 +279,19 @@ function drawHuman(P, L, q, id) {
     P.fill(sEll(r.t[0] + 2.6, r.t[1] + 2.4, 6.8, 3.7), Sh);
     P.rect(r.t[0] - 2, r.t[1] + 5, 11, 1, back ? dim(sho).dp : sho.dp);
   };
-  if (L.long) { // long wavy hair behind the whole body
-    P.fill(sCap(dx - 1, dy + 4, hx - 3, hy - 4, 19, 13), hr);
-    for (const [a, b, r] of [[-12, 0, 6], [-3, 2, 6.5], [6, 0, 6.3], [-7.5, 4, 4]]) P.fill(sEll(hx - 3 + a, hy - 1 + b, r, r * 0.9), hr);
+  if (L.long) { // long straight hair falling behind the whole body, tips cut in soft points
+    P.fill(sCap(dx - 1, dy + 4, hx - 3, hy - 6, 19, 14.5), hr);
+    P.fill(sPoly([[hx - 17.5, hy - 14], [hx + 11, hy - 14], [hx + 10, hy - 3], [hx + 6, hy - 0.5], [hx + 2, hy - 3.5], [hx - 2, hy - 0.5], [hx - 6, hy - 3.5], [hx - 10, hy - 0.5], [hx - 14, hy - 3], [hx - 17.5, hy - 4]]), hr);
   }
   if (!q.armsFront) arm(sx - 10, sy + 3, q.bh, true);
   leg(hx - 5, hy, q.bf, true); leg(hx + 5, hy, q.ff, false);
   P.fill(sCap(sx, sy + 1, hx, hy - 8, 11.6, 10.6), tp);
   P.fill(sCap(hx - 9.5, hy - 3.2, hx + 9.5, hy - 3.2, 2.5, 2.5), wr);
   P.fill(sRR(hx + 2.5, hy - 3.2, 2.6, 2.6, 0.8), GOLD);
+  if (L.hood) { // hoodie: a bulky collar under the chin and two drawstrings with tips
+    P.fill(sEll(sx + 0.5, sy - 3.5, 10.8, 5, 0, 0), tp, { val: (x, y) => 0.4 });
+    for (const o of [1.5, 5.5]) { P.fill(sCap(sx + o, sy + 1, sx + o - 0.4, sy + 8.5, 0.6, 0.6), flat('#dfe6f5'), { ol: false, flat: true }); P.px(sx + o - 0.5, sy + 9.2, wr.md); }
+  }
   drawHead(P, id, L, dx, dy + 1, 1, q.ex, false);
   if (q.armsFront) arm(sx - 10, sy + 3, q.bh, false);
   const fa = arm(sx + 10.5, sy + 3, q.fh, false);
@@ -265,57 +299,91 @@ function drawHuman(P, L, q, id) {
 }
 
 function eggShape(a, b, val) { return sUnion([a, b], val); }
+// muse: a tall, very fluffy cream-pink hooded plush. Head and body are one soft blob under a tall dome; a smooth peach face oval sits low inside the hood.
+function plushInk(L) { const fur = { ...R(L.fur, '#b06a70') }; fur.ol = mix(fur.sh, INK, 0.5); return { fur, crm: R(L.face, '#d08a84') }; } // warm rose shadows, softer outline than the ink
+function sFurCap(ax, ay, bx, by, r0, r1, jag = 0.06, fr = 10) { // capsule with a rippling, fuzzy edge for plush limbs
+  const S = sCap(ax, ay, bx, by, r0 * (1 + jag), r1 * (1 + jag)), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+  S.test = (x, y) => { let t = ((x - ax) * dx + (y - ay) * dy) / L2; t = t < 0 ? 0 : t > 1 ? 1 : t; const qx = ax + dx * t, qy = ay + dy * t, r = r0 + (r1 - r0) * t, l = 1 + jag * Math.sin(Math.atan2(y - qy, x - qx) * fr + t * 3); return (x - qx) * (x - qx) + (y - qy) * (y - qy) <= r * r * l * l; };
+  return S;
+}
+const furTick = (P, x, y, c) => { P.px(x, y, c); P.px(x - 1, y - 1, c); P.px(x + 1, y - 1, c); }; // tiny v-shaped fluff mark
+function plushHood(P, fur, crm, fx, fy, k) { // hood opening: shaded fur rim around a smooth peach oval
+  P.fill(sEll(fx, fy, 16.4 * k, 14.2 * k, 0.035, 18), fur, { val: (x, y) => y < fy - 2 * k ? -0.45 : 0.05, ol: mix(fur.sh, INK, 0.12) });
+  const S = sEll(fx, fy + 0.4 * k, 13.8 * k, 11.8 * k);
+  P.fill(S, crm, { ol: false, val: (x, y) => Math.min(0.5, Math.max(-0.1, S.val(x, y) * 0.8)) });
+}
+function plushTufts(P, fur, cx, cy, rx, ry, xs, val) { for (const a of xs) { const e = cy - ry * Math.sqrt(1 - (a / rx) ** 2); P.fill(sEll(cx + a, e + 1, 4.2, 3.6, 0.12, 7), fur, { val, soft: true }); } } // round fur puffs poking over the dome
 function drawPlush(P, L, q, id) {
-  const fur = R(L.fur, '#a0508c'), crm = R(L.face, '#c0607a'), pad = R('#fbe3dc', '#c0607a');
+  const { fur, crm } = plushInk(L);
   const [hx, hy] = q.hip, [sx, sy] = q.sh, [dx, dy] = q.hd;
-  const bcx = (dx * 0.7 + hx * 0.3), top = dy - 20, bot = hy + 9, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 23;
-  const egg = eggShape(sEll(dx + 0.5, dy + 1, 23, 22.5, 0.045, 14), sEll(hx * 0.6 + dx * 0.4, hy - 5, 19, 14.5, 0.05, 12), (x, y) => LV((x - bcx) / rx, (y - cy) / ry));
-  const arm = (shx, shy, hand, back) => {
-    const F = back ? dim(fur) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 7, 7, 1);
-    P.fill(sCap(shx, shy, r.e[0], r.e[1], 5.4, 4.8), F);
-    P.fill(sCap(r.e[0], r.e[1], r.t[0], r.t[1], 4.8, 4.5), F);
-    P.fill(sEll(r.t[0], r.t[1], 4.9, 4.7, 0.06, 9), back ? dim(fur) : fur);
-    P.fill(sEll(r.t[0] + 0.6, r.t[1] + 0.6, 2.6, 2.4), back ? dim(pad) : pad, { ol: false });
+  const bcx = dx * 0.65 + hx * 0.35, top = dy - 25, bot = hy + 11, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 24, val = (x, y) => LV((x - bcx) / rx, (y - cy) / ry) + 0.42;
+  const egg = eggShape(sEll(dx + 0.5, dy - 0.5, 23, 24.5, 0.06, 15), sEll(bcx, hy - 8, 22.5, 19, 0.06, 13), val);
+  const arm = (shx, shy, hand, back) => { // stubby mitten: one fuzzy capsule ending in a round paw, no fingers
+    const F = back ? dim(fur, 0.14) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 6, 6, 1);
+    const cap = sFurCap(shx, shy, r.t[0], r.t[1], 5.4, 5.2, 0.06, 10);
+    P.fill(sUnion([cap, sEll(r.t[0], r.t[1], 5.9, 5.6, 0.07, 9)], cap.val), F);
     return r;
   };
-  const leg = (ox, oy, foot, back) => {
-    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.62, L = up ? 11 : 6, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(fur) : fur;
-    P.fill(sCap(ox, oy, r.t[0], r.t[1], 5.6, 4.8), F);
-    P.fill(sEll(r.t[0] + 2.2, r.t[1] + 1.6, 6.2, 3.4), back ? dim(pad) : pad);
+  const leg = (ox, oy, foot, back, late) => { // very short stubby leg + round foot, fur-coloured; raised legs (kicks) are drawn over the belly
+    const up = foot[1] < oy + 5; if (up !== !!late) return;
+    const F = back ? dim(fur, 0.14) : fur; let tx = ox + (foot[0] - ox) * (up ? 0.9 : 0.62), ty = up ? oy + (foot[1] - oy) * 0.9 + 1 : foot[1] + 2.4;
+    const d = Math.hypot(tx - ox, ty - oy), m = up ? 24 : 21; if (d > m) { tx = ox + (tx - ox) * m / d; ty = oy + (ty - oy) * m / d; }
+    P.fill(sFurCap(ox, oy, tx, ty - (up ? 0 : 2.6), 5.6, 4.9, 0.06, 9), F);
+    P.fill(sEll(tx + 2, ty, 6.2, 3.4, 0.05, 11), F);
   };
   if (!q.armsFront) arm(bcx - 19.5, sy + 8, q.bh, true);
-  leg(hx - 6, hy + 1, q.bf, true); leg(hx + 6, hy + 1, q.ff, false);
+  leg(hx - 6, hy + 3, q.bf, true); leg(hx + 6, hy + 3, q.ff, false);
   P.fill(egg, fur);
-  // hood opening, cream face
-  const fx = dx + 3, fy = dy + 4;
-  P.fill(sEll(fx, fy, 17, 15.5), fur, { val: () => -0.5, ol: R(L.fur, '#a0508c').sh });
-  P.fill(sEll(fx, fy + 0.5, 15.4, 14), crm, { ol: false });
-  for (const [a, b] of [[-3, -17], [4, -19], [12, -15], [-11, -14], [0, -20]]) P.fill(sPoly([[dx + a - 2, dy + b + 3], [dx + a + 0.5, dy + b - 2], [dx + a + 2.5, dy + b + 3]]), fur, { ol: false, soft: true });
-  face(H_(P, fx, fy - 1, 1), FACE.muse, q.ex, null);
-  for (const [a, b] of [[-10, 22], [-4, 24], [6, 23], [12, 20], [-14, 12], [14, 10]]) { P.px(bcx + a, hy + b - 20, fur.sh); P.px(bcx + a + 1, hy + b - 19, fur.sh); P.px(bcx + a - 1, hy + b - 19, fur.sh); }
+  plushTufts(P, fur, dx + 0.5, dy - 0.5, 23, 24.5, [-9, 1, 10], val);
+  for (const [a, b] of [[-13, -15], [-6, -20], [-19, -6]]) furTick(P, dx + a, dy + b, fur.hi); // lit fluff on the dome
+  for (const [a, b] of [[17, -12], [12, -16]]) furTick(P, dx + a, dy + b, fur.sh);
+  for (const [a, b] of [[-8, 6], [4, 8], [12, 3], [-14, -3], [-1, -3]]) furTick(P, bcx + a, hy + b, fur.sh); // shaded fluff on the belly
+  const fx = dx + 3, fy = dy + 5;
+  plushHood(P, fur, crm, fx, fy, 1);
+  face(H_(P, fx, fy, 1), FACE.muse, q.ex, null);
+  leg(hx - 6, hy + 3, q.bf, true, true); leg(hx + 6, hy + 3, q.ff, false, true);
   if (q.armsFront) arm(bcx - 19.5, sy + 8, q.bh, false);
   arm(bcx + 19.5, sy + 8, q.fh, false);
 }
 
+// dots-style companion: a fuzzy round yellow pom-pom with round specs and a bow tie. Tufted edge = a sine ripple whose tips are |sin| cusps.
+function furBall(P, Rm, cx, cy, rx, ry, n) {
+  const S = sEll(cx, cy, rx, ry, 0.07), m = Math.round(rx * 0.78);
+  S.test = (x, y) => { const u = (x - cx) / rx, v = (y - cy) / ry, a = Math.atan2(v, u), t = Math.abs(Math.sin(a * m + 1.6 * Math.sin(a * 5 + 0.7))), l = 1 + 0.075 * (0.5 - t) + 0.012 * Math.sin(a * 3); return u * u + v * v <= l * l; };
+  const val = (x, y) => LV((x - cx) / rx, (y - cy) / ry) + 0.28;
+  P.fill(S, Rm, { val });
+  let sd = 20241; const rnd = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296, tones = [Rm.dp, Rm.sh, Rm.md, Rm.lt, Rm.hi];
+  for (let i = 0; i < n; i++) { // fluff flecks: radial 2px strokes one tone off the local cel band
+    const a = rnd() * Math.PI * 2, d = 0.25 + Math.sqrt(rnd()) * 0.68, x = Math.floor(cx + Math.cos(a) * d * rx), y = Math.floor(cy + Math.sin(a) * d * ry), v = val(x + 0.5, y + 0.5);
+    const k = v > 0.6 ? 4 : v > 0.3 ? 3 : v > -0.12 ? 2 : v > -0.78 ? 1 : 0, c = tones[Math.max(0, Math.min(4, k + (rnd() < (v > 0 ? 0.7 : 0.4) ? 1 : -1)))];
+    if (k > 0 || c !== Rm.dp) { P.px(x, y, c); P.px(x + Math.round(Math.cos(a)), y + Math.round(Math.sin(a)), c); }
+  }
+}
+function dotBow(H, x, y) { // tiny black bow tie: two triangles meeting at a knot
+  const D = flat('#17111d'), o = { ol: false, flat: true };
+  H.p([[x - 0.4, y], [x - 6.8, y - 3.5], [x - 6.8, y + 3.5]], D, o); H.p([[x + 0.4, y], [x + 6.8, y - 3.5], [x + 6.8, y + 3.5]], D, o);
+  H.r(x, y, 1.7, 2.3, 0.7, flat('#2c2336'), o); H.d(x - 5.4, y - 1.6, 0.8, 0.8, '#4d4058');
+}
 function drawBlob(P, L, q, id) {
-  const body = R(L.body, L.tint), pad = R('#ffd0d6', '#b05a7a');
+  const body = { ...R(L.body, L.tint) }; body.ol = mix(body.sh, INK, 0.6); // warm brown outline instead of near-black ink
   const [hx, hy] = q.hip, [sx, sy] = q.sh, [dx, dy] = q.hd;
-  const bcx = dx * 0.65 + hx * 0.35, top = dy - 13, bot = hy + 10, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 27.5 + Math.max(0, 31 - ry) * 0.5;
+  const bcx = dx * 0.65 + hx * 0.35, top = dy - 13, bot = hy + 10, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 30 + Math.max(0, 31 - ry) * 0.5;
   const arm = (shx, shy, hand, back) => {
-    const F = back ? dim(body) : body, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72, ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
+    const F = back ? dim(body, 0.18) : body, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72, ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
     P.fill(sCap(shx, shy, r.t[0], r.t[1], 4.6, 4.2), F);
-    P.fill(sEll(r.t[0], r.t[1], 4.6, 4.4), F);
+    P.fill(sEll(r.t[0], r.t[1], 4.6, 4.4, 0.08, 9), F);
     return r;
   };
   const leg = (ox, oy, foot, back) => {
-    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.6, L = up ? 10.5 : 6.5, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(body) : body;
+    const up = foot[1] < oy + 8, sc = up ? 0.8 : 0.6, L = up ? 10.5 : 6.5, tx = ox + (foot[0] - ox) * sc, ty = oy + (foot[1] - oy) * sc + 1, r = ik(ox, oy, tx, ty, L, L, -1), F = back ? dim(body, 0.18) : body;
     P.fill(sCap(ox, oy, r.t[0], r.t[1], 5, 4.4), F);
-    P.fill(sEll(r.t[0] + 2, r.t[1] + 1.8, 5.8, 3.4), F);
+    P.fill(sEll(r.t[0] + 2, r.t[1] + 1.8, 5.8, 3.4, 0.07, 11), F);
   };
   if (!q.armsFront) arm(bcx - 22, cy + 3, q.bh, true);
   leg(bcx - 7, bot - 3, q.bf, true); leg(bcx + 7, bot - 3, q.ff, false);
-  P.fill(sEll(bcx, cy, rx, ry), body, { val: (x, y) => LV((x - bcx) / rx, (y - cy) / ry) + 0.28 });
-  face(H_(P, bcx, cy - 5 - (ry - 31) * 0.3, 1.2), FACE.dot, q.ex, null);
+  furBall(P, body, bcx, cy, rx, ry, 70);
+  const Hf = H_(P, bcx, cy - 9 - (ry - 31) * 0.3, 1.2);
+  face(Hf, FACE.dot, q.ex, null); dotBow(Hf, FACE.dot.sh, FACE.dot.my + 6.6);
   if (q.armsFront) arm(bcx - 22, cy + 3, q.bh, false);
   arm(bcx + 22, cy + 3, q.fh, false);
 }
@@ -460,7 +528,7 @@ function renderFrame(id, anim, i) {
   if (ps.lying) {
     const tmp = new Pix(FW, FH), qq = { ...q, fx: null }; drawChar(tmp, id, qq);
     const rot = new Pix(112, 112); rot.rotCCW(tmp, 0, 0);
-    const b = rot.bounds(), dx = Math.round(48 - (b.x0 + b.x1) / 2) - 2, dy = FEET - (ps.lift || 0) - b.y1;
+    const b = rot.bounds(), dx = Math.max(1 - b.x0, Math.min(94 - b.x1, Math.round(48 - (b.x0 + b.x1) / 2) - 2)), dy = FEET - (ps.lift || 0) - b.y1;
     for (let y = 0; y < rot.h; y++) for (let x = 0; x < rot.w; x++) { const c = rot.c[y * rot.w + x]; if (c) g.px(x + dx, y + dy, c); }
     if (ps.fx) { const hx = q.hd[1] + dx, hy = (FW - 1 - q.hd[0]) + dy; fxFront(g, L, { fx: ps.fx, hd: [hx, hy + 6], fh: [0, 0], bh: [0, 0] }); }
   } else drawChar(g, id, q);
@@ -472,21 +540,24 @@ function drawBust(id) {
   const L = LOOK[id], P = new Pix(80, 80), k = 1.36, cx = 40, cy = 40;
   if (L.kind === 'human') {
     const tp = R(L.top, '#2a2a7a'), sk = R(L.skin, '#b04a5e');
-    if (L.long) P.fill(sEll(cx, 58, 31, 36), R(L.hair, '#3a2a78'));
+    if (L.long) P.fill(sRR(cx, 58, 30, 35, 12), R(L.hair, '#3a2a78'));
     P.fill(sEll(cx, 90, 34, 27), tp);
     P.fill(sRR(cx, 68, 8, 5, 3), sk);
     P.fill(sPoly([[cx - 8, 64], [cx + 8, 64], [cx, 72]]), flat(L.belt), { ol: false, flat: true });
     drawHead(P, id, L, cx, cy, k, 'n', true);
-  } else if (L.kind === 'plush') {
-    const fur = R(L.fur, '#a0508c'), crm = R(L.face, '#c0607a');
-    P.fill(sEll(cx, 50, 33, 38, 0.04, 16), fur);
-    P.fill(sEll(cx + 2, 40, 26, 25), fur, { val: () => -0.5, ol: fur.sh });
-    P.fill(sEll(cx + 2, 40.5, 23.6, 23), crm, { ol: false });
-    face(H_(P, cx + 2, 39, 1.4), FACE.muse, 'n', null);
+  } else if (L.kind === 'plush') { // hooded dome with the face oval low inside it, shoulders fading out at the bottom
+    const { fur, crm } = plushInk(L), k2 = 1.4, dome = sEll(cx, 38, 31, 34, 0.055, 15), val = (x, y) => LV((x - cx) / 36, (y - 46) / 48) + 0.42;
+    P.fill(sEll(cx, 90, 37, 28, 0.05, 14), fur);
+    P.fill(sUnion([dome, sEll(cx, 66, 33, 20, 0.05, 13)], val), fur);
+    plushTufts(P, fur, cx, 38, 31, 34, [-12, 0, 12], val);
+    for (const [a, b] of [[-19, -10], [-9, -23], [-25, 3]]) { furTick(P, cx + a, 38 + b, fur.hi); furTick(P, cx + a + 1, 38 + b + 1, fur.hi); }
+    for (const [a, b] of [[22, -10], [16, -22], [-14, 61 - 38], [10, 66 - 38]]) furTick(P, cx + a, 38 + b, fur.sh);
+    plushHood(P, fur, crm, cx + 2, 46, k2);
+    face(H_(P, cx + 2, 46, k2), FACE.muse, 'n', null);
   } else {
-    const body = R(L.body, L.tint);
-    P.fill(sEll(cx, 44, 34, 33), body, { val: (x, y) => LV((x - cx) / 34, (y - 44) / 33) + 0.28 });
-    face(H_(P, cx, 40, 1.5), FACE.dot, 'n', null);
+    const body = { ...R(L.body, L.tint) }; body.ol = mix(body.sh, INK, 0.6);
+    furBall(P, body, cx, 42, 34, 33, 110);
+    const Hf = H_(P, cx, 36, 1.5); face(Hf, FACE.dot, 'n', null); dotBow(Hf, FACE.dot.sh, FACE.dot.my + 6.6);
   }
   return P;
 }

@@ -1,3 +1,4 @@
 .DS_Store
 tools/.shot-*.png
 node_modules/
+.claude/

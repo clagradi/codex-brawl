@@ -11,9 +11,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INFO = {
   tibo: 'Codex engineer in a hoodie who grins through every outage and ships anyway.',
   poteto: 'React Compiler alum who throws hot sweet potatoes at flaky builds.',
-  dot: 'Soft, round, two-dot blob. Surprisingly fast, slightly fragile.',
+  dot: 'Fuzzy yellow ball in round glasses and a bow tie. Surprisingly fast, slightly fragile.',
   wang: 'Calm superintelligence lead who blows iridescent bubbles while the lab runs.',
-  muse: 'Fluffy pink personal agent that runs on its own VM.',
+  muse: 'Fluffy cream-pink hooded plush with bead eyes that runs on its own VM.',
 };
 
 const atlas = await withPage(async p => {

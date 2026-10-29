@@ -20,7 +20,17 @@ const blood = (x, y, dir, p) => { if (typeof FX !== 'undefined' && FX.blood) FX.
 const dust = (x, y) => { if (typeof FX !== 'undefined' && FX.dust) FX.dust(x, y); };
 const jolt = (shake, stop, flash) => { game.shake = Math.max(game.shake || 0, shake || 0); game.hitstop = Math.max(game.hitstop || 0, stop || 0); if (flash) game.flash = Math.max(game.flash || 0, flash); };
 const addFx = o => { const f = Object.assign({ t: 0, life: 30 }, o); game.fx.push(f); return f; };
-const addProj = (self, o) => { const p = Object.assign({ owner: self, x: 0, y: 0, vx: 0, vy: 0, r: 20, life: 90, dmg: 9, kb: 6, stun: 16, t: 0 }, o); game.proj.push(p); return p; };
+const addProj = (self, o) => { const p = Object.assign({ owner: self, x: 0, y: 0, vx: 0, vy: 0, r: 20, life: 90, dmg: 9, kb: 6, stun: 16, t: 0 }, o); if (self.airSp && self.mv && self.mv.dive) divify(p); game.proj.push(p); return p; };
+// air special: special 1 fired from a jump. Lobbed shots just start falling; straight shots gain a steady drop (down-forward line) and burst on the floor.
+function divify(p) {
+  if (p.vy < 0) { p.vy = 1; return; }
+  const u = p.update, dy = Math.max(3.5, Math.abs(p.vx) * 0.55);
+  if (!u) return;
+  p.update = q => {
+    if (q.by !== undefined) q.by += dy; u(q); if (q.by === undefined) q.y += dy;
+    if (q.y > GROUND - 14 && q.life > 0) { q.life = 0; dust(q.x, GROUND); }
+  };
+}
 const foe = self => game.f[1 - self.side];
 
 // a hit that really landed (the engine ignores hits during i-frames and in the wrong phase)
@@ -866,6 +876,10 @@ MUSE.fin = (() => {
       });
     } };
 })();
+
+// every fighter's special 1 doubles as the air special (UP + special, or special while jumping): dive flag + its own name
+const AIRSP = { tibo: 'DROP TABLE', poteto: 'AIR FRY', dot: 'DOT RAIN', wang: 'DEEP DIVE', muse: 'PACKET DROP' };
+for (const [id, F] of Object.entries({ tibo: TIBO, poteto: POTETO, dot: DOT, wang: WANG, muse: MUSE })) { F.sp[0].dive = true; F.air = { name: AIRSP[id] }; }
 
 
 // @@END

@@ -542,34 +542,50 @@
       const lg = c.createLinearGradient(x, 0, x + w, 0); lg.addColorStop(0, 'rgba(255,214,90,0)'); lg.addColorStop(0.5, 'rgba(255,214,90,0.8)'); lg.addColorStop(1, 'rgba(255,214,90,0)'); c.fillStyle = lg; c.fillRect(x + 14, y + titleH, w - 28, 1.5);
     }
     if (rows.length) {
-      const top = y + titleH + 8, avail = h - titleH - 16, rowH = Math.min(36, avail / rows.length), chipH = Math.min(24, rowH - 6);
+      // more than 7 rows: two columns, filled top to bottom. Input syntax: '+' keys held together, '>' tap sequence, '/' alternate keys (one chip, "J/Z")
+      const two = rows.length > 7, cols = two ? 2 : 1, per = Math.ceil(rows.length / cols);
+      const top = y + titleH + 8, avail = h - titleH - 16, rowH = Math.min(36, avail / per), chipH = Math.min(two ? 18 : 24, rowH - (two ? 5 : 6));
+      const gx = 8, gap = 6, colW = (w - gx * 2 - gap * (cols - 1)) / cols, pd = two ? 6 : pad, sepW = two ? 9 : 11, tpad = two ? 8 : 14, fs = Math.round(chipH * 0.5);
       c.textBaseline = 'middle';
-      const toks = rows.map(r => String(r.input == null ? '' : r.input).toUpperCase().split('+').map(s => s.trim()).filter(Boolean));
-      const tokW = tk => ARROWS[tk] !== undefined ? chipH : (c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT, Math.max(chipH, c.measureText(tk).width + 14));
-      const rowChipW = toks.map(ts => ts.reduce((s, tk) => s + tokW(tk), 0) + Math.max(0, ts.length - 1) * 11);
-      const nameX = x + pad + Math.max(0, ...rowChipW) + 16;
+      const toks = rows.map(r => String(r.input == null ? '' : r.input).toUpperCase().split('+').map(g => g.split('>').map(s => s.replace(/\s*\/\s*/g, '/').trim()).filter(Boolean)).filter(g => g.length));
+      const tokW = tk => ARROWS[tk] !== undefined ? chipH : (c.font = 'bold ' + fs + 'px ' + UIFONT, Math.max(chipH, c.measureText(tk).width + tpad));
+      const grpW = g => g.reduce((s, tk) => s + tokW(tk), 0) + (g.length - 1) * 3;
+      const rowChipW = toks.map(gs => gs.reduce((s, g) => s + grpW(g), 0) + Math.max(0, gs.length - 1) * sepW);
+      const alignX = pd + Math.max(0, ...rowChipW) + 16;
+      // one name size per column (the smallest that fits any of its rows) so the list does not jitter row to row
+      const nmOf = r => String(r.name == null ? '' : r.name).toUpperCase(), colSz = [];
       rows.forEach((r, i) => {
-        const ry = top + i * rowH, cy = ry + rowH / 2;
-        if (i % 2 === 0) { c.fillStyle = 'rgba(255,255,255,0.045)'; c.fillRect(x + 8, ry, w - 16, rowH); }
-        let cx = x + pad;
-        toks[i].forEach((tk, j) => {
-          if (j) { c.fillStyle = '#7d8aa3'; c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT; c.textAlign = 'center'; c.fillText('+', cx + 5.5, cy + 1); cx += 11; }
-          const tw = tokW(tk);
-          c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(cx, cy - chipH / 2 + 2, tw, chipH);
-          g = c.createLinearGradient(0, cy - chipH / 2, 0, cy + chipH / 2); g.addColorStop(0, '#3b445a'); g.addColorStop(0.5, '#1b2132'); g.addColorStop(1, '#0d111c'); c.fillStyle = g; c.fillRect(cx, cy - chipH / 2, tw, chipH);
-          c.strokeStyle = '#8a96ac'; c.lineWidth = 1; c.strokeRect(cx + 0.5, cy - chipH / 2 + 0.5, tw - 1, chipH - 1);
-          c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(cx + 1, cy - chipH / 2 + 1, tw - 2, chipH * 0.35);
-          if (ARROWS[tk] !== undefined) chipArrow(c, cx + tw / 2, cy, chipH * 0.5, ARROWS[tk]);
-          else { c.font = 'bold ' + Math.round(chipH * 0.5) + 'px ' + UIFONT; c.textAlign = 'center'; c.fillStyle = '#000'; c.fillText(tk, cx + tw / 2 + 1, cy + 2); c.fillStyle = '#ffe27a'; c.fillText(tk, cx + tw / 2, cy + 1); }
-          cx += tw;
+        const col = Math.floor(i / per), colX = x + gx + col * (colW + gap), note = r.note ? String(r.note).toUpperCase() : '';
+        c.font = '11px ' + UIFONT; const nw = note ? c.measureText(note).width + 6 : 0;
+        const nameX = two ? colX + pd + rowChipW[i] + 8 : x + alignX, maxW = colX + colW - pd - nameX - nw;
+        let fsz = Math.round(Math.min(17, rowH * 0.5)); c.font = fsz + 'px ' + UIFONT; const nm = nmOf(r);
+        while (fsz > 8 && c.measureText(nm).width > maxW) { fsz--; c.font = fsz + 'px ' + UIFONT; }
+        colSz[col] = Math.min(colSz[col] ?? 99, fsz);
+      });
+      rows.forEach((r, i) => {
+        const col = Math.floor(i / per), ri = i % per, colX = x + gx + col * (colW + gap), ry = top + ri * rowH, cy = ry + rowH / 2;
+        if (ri % 2 === 0) { c.fillStyle = 'rgba(255,255,255,0.045)'; c.fillRect(colX, ry, colW, rowH); }
+        let cx = colX + pd;
+        toks[i].forEach((grp, j) => {
+          if (j) { c.fillStyle = '#7d8aa3'; c.font = 'bold ' + fs + 'px ' + UIFONT; c.textAlign = 'center'; c.fillText('+', cx + sepW / 2, cy + 1); cx += sepW; }
+          grp.forEach((tk, k) => {
+            if (k) cx += 3;
+            const tw = tokW(tk);
+            c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(cx, cy - chipH / 2 + 2, tw, chipH);
+            g = c.createLinearGradient(0, cy - chipH / 2, 0, cy + chipH / 2); g.addColorStop(0, '#3b445a'); g.addColorStop(0.5, '#1b2132'); g.addColorStop(1, '#0d111c'); c.fillStyle = g; c.fillRect(cx, cy - chipH / 2, tw, chipH);
+            c.strokeStyle = '#8a96ac'; c.lineWidth = 1; c.strokeRect(cx + 0.5, cy - chipH / 2 + 0.5, tw - 1, chipH - 1);
+            c.fillStyle = 'rgba(255,255,255,0.12)'; c.fillRect(cx + 1, cy - chipH / 2 + 1, tw - 2, chipH * 0.35);
+            if (ARROWS[tk] !== undefined) chipArrow(c, cx + tw / 2, cy, chipH * 0.5, ARROWS[tk]);
+            else { c.font = 'bold ' + fs + 'px ' + UIFONT; c.textAlign = 'center'; c.fillStyle = '#000'; c.fillText(tk, cx + tw / 2 + 1, cy + 2); c.fillStyle = '#ffe27a'; c.fillText(tk, cx + tw / 2, cy + 1); }
+            cx += tw;
+          });
         });
         const note = r.note ? String(r.note).toUpperCase() : '';
         c.font = '11px ' + UIFONT; const nw = note ? c.measureText(note).width + 6 : 0;
-        let fsz = Math.round(Math.min(17, rowH * 0.5)); const maxNameW = x + w - pad - nameX - nw;
-        c.font = fsz + 'px ' + UIFONT; const nm = String(r.name == null ? '' : r.name).toUpperCase();
-        while (fsz > 8 && c.measureText(nm).width > maxNameW) { fsz--; c.font = fsz + 'px ' + UIFONT; }
-        c.textAlign = 'left'; c.fillStyle = '#000'; c.fillText(nm, nameX + 1, cy + 2); c.fillStyle = r.col || '#f2f5fb'; c.fillText(nm, nameX, cy + 1);
-        if (note) { c.font = '11px ' + UIFONT; c.textAlign = 'right'; c.fillStyle = '#8f9bb3'; c.fillText(note, x + w - pad, cy + 1); }
+        const nameX = two ? cx + 8 : x + alignX, maxNameW = colX + colW - pd - nameX - nw;
+        c.font = colSz[Math.floor(i / per)] + 'px ' + UIFONT; const nm = nmOf(r);
+        c.textAlign = 'left'; c.fillStyle = '#000'; c.fillText(nm, nameX + 1, cy + 2, maxNameW); c.fillStyle = r.col || '#f2f5fb'; c.fillText(nm, nameX, cy + 1, maxNameW);
+        if (note) { c.font = '11px ' + UIFONT; c.textAlign = 'right'; c.fillStyle = '#8f9bb3'; c.fillText(note, colX + colW - pd, cy + 1); }
       });
     }
     c.restore();

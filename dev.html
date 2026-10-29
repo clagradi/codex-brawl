@@ -31,12 +31,13 @@
 <body>
 <canvas id="c" width="960" height="540"></canvas>
 <a id="share" hidden target="_blank" rel="noopener" href="https://x.com/intent/post">SHARE ON X</a>
-<!-- build.mjs inlines these scripts into index.html -->
+<!-- build.mjs inlines these scripts into index.html. Load order: pixelfont, sprites, arenas, hud, music (procedural chiptune, no audio files), moves, game. -->
 <script>const W = 960, H = 540, GROUND = 468; // canvas size and feet line, shared by every script below</script>
 <script src="pixelfont.js"></script>
 <script src="sprites.js"></script>
 <script src="arenas.js"></script>
 <script src="hud.js"></script>
+<script src="music.js"></script>
 <script src="moves.js"></script>
 <script src="game.js"></script>
 </body>
