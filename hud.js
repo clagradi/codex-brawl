@@ -292,7 +292,7 @@
       if (ready) { c.fillStyle = 'rgba(255,255,255,' + (0.35 * pulse) + ')'; c.fillRect(X0 - 8, Y, fw + 8, Hh); }
       else { c.fillStyle = 'rgba(255,255,255,0.85)'; c.fillRect(X0 + L * m - 1.5, Y, 1.5, Hh); }
     }
-    c.fillStyle = 'rgba(0,0,0,0.5)'; for (let k = 1; k < 4; k++) c.fillRect(X0 + L * k / 4 - 1, Y, 2, Hh);
+    c.fillStyle = 'rgba(0,0,0,0.5)'; for (let k = 1; k < 3; k++) c.fillRect(X0 + L * k / 3 - 1, Y, 2, Hh);
     c.restore(); c.restore();
     // label
     const lx = i ? SW - X0 : X0, al = i ? 'right' : 'left', ly = Y - 13;
