@@ -1,0 +1,17 @@
+{
+  "name": "AGENT BRAWL",
+  "short_name": "AGENT BRAWL",
+  "description": "A dark arcade parody fighter starring AI agents. Free in your browser, no install needed.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#050304",
+  "theme_color": "#050304",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

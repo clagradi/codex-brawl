@@ -58,7 +58,7 @@ export async function run(t) {
     SETTINGS.set('muted', true); out.muted = muted; setMuted(false); out.mutedBack = [muted, SETTINGS.get('muted')];
     out.events = evs; SETTINGS.reset(); out.after = SETTINGS.all(); return out;
   })()`);
-  check(JSON.stringify(s.defaults) === JSON.stringify({ difficulty: 'normal', rounds: 2, time: 99, musicVol: 1, sfxVol: 1, voiceVol: 1, gore: true, muted: false, binds: null }), 'SETTINGS defaults match the shipped game: ' + JSON.stringify(s.defaults));
+  check(JSON.stringify(Object.fromEntries(['difficulty', 'rounds', 'time', 'musicVol', 'sfxVol', 'voiceVol', 'gore', 'muted', 'binds'].map(k => [k, s.defaults[k]]))) === JSON.stringify({ difficulty: 'normal', rounds: 2, time: 99, musicVol: 1, sfxVol: 1, voiceVol: 1, gore: true, muted: false, binds: null }), 'SETTINGS defaults match the shipped game: ' + JSON.stringify(s.defaults));
   check(JSON.stringify(s.clamp) === '[4,1,30,0.1]' && s.badEnum === 'normal' && s.enum === 'hard' && s.unknown === undefined, 'SETTINGS clamps numbers, steps them and rejects bad enum values: ' + JSON.stringify(s.clamp));
   check(s.stored && s.stored.rounds === 1 && s.stored.difficulty === 'hard', "SETTINGS persists to localStorage 'brawl.settings'");
   check(s.toggle === false && s.fxGore === false && s.fxBack === true && s.muted === true && s.mutedBack[0] === false && s.mutedBack[1] === false, "SETTINGS 'gore' and 'muted' stay in step with FX.gore and the muted flag");
@@ -76,7 +76,7 @@ export async function run(t) {
 
   // ---- MODES and the title menu ----
   await clean();
-  const m0 = await ev("({ ids: MODES.list().map(m => m.id), labels: titleItems().map(i => i.label), slot: titleSlot(1, 2), five: [0, 1, 2, 3, 4].map(i => titleSlot(i, 5)), modeId: game.modeId, mode: game.mode })");
+  const m0 = await ev("({ ids: MODES.list().map(m => m.id), labels: titleItems().filter(i => i.id !== 'options').map(i => i.label), slot: titleSlot(1, 2), five: [0, 1, 2, 3, 4].map(i => titleSlot(i, 5)), modeId: game.modeId, mode: game.mode })");
   check(JSON.stringify(m0.ids) === '["versus","versus2"]' && JSON.stringify(m0.labels) === '["1 PLAYER VS CPU","2 PLAYERS"]' && m0.modeId === 'versus' && m0.mode === 1, 'the title menu is built from MODES and starts as the shipped two entries');
   check(m0.slot.y === 476 && m0.slot.on === 28 && m0.slot.off === 22 && m0.five.every(q => q.x > 0 && q.x < 960 && q.y > 400 && q.y < 500), 'two title entries keep their classic place; five fit on screen');
   await tap('KeyS'); await tap('Enter'); await t.wait(50);
@@ -86,11 +86,11 @@ export async function run(t) {
   await t.open();
   await ev(`window.__ran = 0; window.__picked = null; HOOKS.add('titleItems', () => [{ id: 'x1', label: 'ZED ITEM', order: 5, run: () => { window.__ran++; } }, { id: 'x2', label: 'LAST ONE', order: 200 }]);
     MODES.register({ id: 'tmode', label: 'TEST MODE', order: 15, players: 2, onPick: g => { window.__picked = g.modeId; return false; } }); render();`);
-  check(await ev("JSON.stringify(titleItems().map(i => i.id)) === '[\"x1\",\"versus\",\"tmode\",\"versus2\",\"x2\"]'"), 'extra title items and registered modes sort by order');
+  check(await ev("JSON.stringify(titleItems().filter(i => i.id !== 'options').map(i => i.id)) === '[\"x1\",\"versus\",\"tmode\",\"versus2\",\"x2\"]'"), 'extra title items and registered modes sort by order');
   await tap('Enter'); await tap('KeyS'); await tap('KeyS'); await tap('Enter'); await t.wait(50);
   check(await ev("window.__ran === 1 && window.__picked === 'tmode' && game.mode === 2 && game.phase === 'title' && game.titleSel === 2"), 'a title item runs, a mode with onPick returning false stays on the title');
   await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await t.wait(30);
-  check(await ev("game.titleSel === 1 && (render(), true)"), 'the title menu wraps around and draws five entries');
+  check(await ev("(() => { const n = titleItems().length; return game.titleSel === ((2 - 6) % n + n) % n && (render(), true); })()"), 'the title menu wraps around and draws all its entries');
 
   // ---- engine events through a whole CPU match (one round to win keeps it short) ----
   await t.open('#select');

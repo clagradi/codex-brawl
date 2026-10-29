@@ -118,7 +118,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 
 | Key | Type and default | Range | Read by |
 |-----|------------------|-------|---------|
-| `difficulty` | enum, `'normal'` | `'easy'`, `'normal'`, `'hard'` | `game.js` `DIFFICULTY`: the CPU level at the start of a match (0.2, 0.45, 0.7) and how much it rises after each round (0.15, 0.2, 0.25) |
+| `difficulty` | enum, `'normal'` | `'easy'`, `'normal'`, `'hard'`, `'nightmare'` | `game.js` `DIFFICULTY`: the CPU level at the start of a match (0.2, 0.45, 0.7) and how much it rises after each round (0.15, 0.2, 0.25). `options.js` adds `'nightmare'` (0.9, 0.3) |
 | `rounds` | num, `2` | 1 to 4 | `roundsToWin()`; sudden death is round `2 * rounds` |
 | `time` | num, `99` | 30 to 99 | seconds per round (sudden death stays 30) |
 | `musicVol` | num, `1` | 0 to 1, step 0.05 | `music.js` level; 1 is the mix the tests measure |
@@ -127,6 +127,12 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `gore` | bool, `true` | | `FX.gore` in `hud.js` mirrors it; migrated from the old `brawl.gore` key |
 | `muted` | bool, `false` | | the `muted` flag in `game.js` mirrors it (use `setMuted(v)`); migrated from the old `brawl.muted` key |
 | `binds` | any, `null` | `null` or `{ p1?, p2?, alt? }` | `game.js` `applyBinds()`: for each player, an object of action letter to an array of `KeyboardEvent.code`; it replaces only the actions it names. Actions are `l r u d p k s x` |
+| `infTime` | bool, `false` | | `options.js`: the round clock never runs out and the HUD shows `--` (the `time` value stays as the finite choice) |
+| `shake` | enum, `'full'` | `'off'`, `'low'`, `'full'` | `options.js` scales `game.shake` while the world is drawn |
+| `reduceFlash` | bool, `false` | | `options.js` caps the white screen flash passed to `drawPost` |
+| `crt` | bool, `false` | | `options.js` asks `drawPost` for scanlines |
+| `announcer` | bool, `true` | | `options.js`: `false` silences `ANNOUNCER.say` (the stingers follow `voiceVol`) |
+| `trackToast` | bool, `true` | | `options.js` hides the note with the arena track name at the start of a round |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
