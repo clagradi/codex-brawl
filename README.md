@@ -6,6 +6,8 @@ Or open `index.html` in any modern browser. It is one self-contained file (under
 
 Five fighters, 1 player vs CPU or 2 players on one keyboard (or two gamepads), best of 3 rounds, chain combos, throws, sweeps, air attacks, dashes, three specials plus an air special, a super and a finisher each, 21 arenas (pick one or leave it on RANDOM, with a reveal before round 1), each with its own chiptune theme generated in code.
 
+RANKED (`p-ranked.js`) is a title menu entry: a PERFORMANCE REVIEW against the CPU. Every match is rated like Elo, the rating climbs the ranks INTERN, JUNIOR, SENIOR, STAFF, PRINCIPAL and DISTINGUISHED, the end screen shows a rank card with the rating change, and the CPU level follows your rating. The rating and the record are saved in the settings. Details: `docs/features/p-ranked.md`.
+
 Source: https://github.com/clagradi/codex-brawl
 
 ## Controls

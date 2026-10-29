@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-ranked.js` | RANKED: the PERFORMANCE REVIEW rating against the CPU (last script in `dev.html`, after `vfx.js`) | p-ranked agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-ranked.js`, `tools/tests/x-p-ranked.mjs` | p-ranked agent | uses `match:start`, `round:start`, `match:end`, `phase`, the `update` and `drawTop` hooks, `MODES.register` and two `SETTINGS` keys; wraps `SETTINGS.get('difficulty')` while a rated match is on screen |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -87,6 +89,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
+| `ranked:result` | `{ won, forfeit, before, after, delta, ... }` | `p-ranked.js` (not the engine): a rated RANKED match was settled, at `match:end` or when a live match is left; the payload is the same object as `RANKED.last()` |
 
 ### HOOKS points
 
@@ -142,6 +145,8 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `ranked.rating` | num, `1000` | 0 to 5000 | `p-ranked.js`: the RANKED rating (INTERN below 1100, then JUNIOR, SENIOR, STAFF, PRINCIPAL, DISTINGUISHED from 1700) |
+| `ranked.record` | any, an empty record | `{ games, wins, losses, streak, best, peak, forfeits, hist }` | `p-ranked.js`: the RANKED record; sanitised on every read, `hist` keeps the last 12 ratings |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
