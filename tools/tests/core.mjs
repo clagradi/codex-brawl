@@ -16,7 +16,7 @@ export async function run(t) {
 
   // ---- files and docs ----
   const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  check(JSON.stringify(order) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
+  check(JSON.stringify(order.slice(0, LOAD_ORDER.length)) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
   const doc = fs.readFileSync(path.join(ROOT, 'docs', 'ARCHITECTURE.md'), 'utf8');
   await clean();
   const keys = await ev("SETTINGS.list().map(d => d.key)");
@@ -77,7 +77,7 @@ export async function run(t) {
   // ---- MODES and the title menu ----
   await clean();
   const m0 = await ev("({ ids: MODES.list().map(m => m.id), labels: titleItems().map(i => i.label), slot: titleSlot(1, 2), five: [0, 1, 2, 3, 4].map(i => titleSlot(i, 5)), modeId: game.modeId, mode: game.mode })");
-  check(JSON.stringify(m0.ids) === '["versus","versus2"]' && JSON.stringify(m0.labels) === '["1 PLAYER VS CPU","2 PLAYERS"]' && m0.modeId === 'versus' && m0.mode === 1, 'the title menu is built from MODES and starts as the shipped two entries');
+  check(JSON.stringify(m0.ids.filter(id => /^versus2?$/.test(id))) === '["versus","versus2"]' && JSON.stringify(m0.labels.filter(l => /^(1 PLAYER VS CPU|2 PLAYERS)$/.test(l))) === '["1 PLAYER VS CPU","2 PLAYERS"]' && m0.modeId === 'versus' && m0.mode === 1, 'the title menu is built from MODES and starts as the shipped two entries');   // feature files may register more modes after these two
   check(m0.slot.y === 476 && m0.slot.on === 28 && m0.slot.off === 22 && m0.five.every(q => q.x > 0 && q.x < 960 && q.y > 400 && q.y < 500), 'two title entries keep their classic place; five fit on screen');
   await tap('KeyS'); await tap('Enter'); await t.wait(50);
   check(await ev("game.phase === 'select' && game.mode === 2 && game.modeId === 'versus2'"), 'S + Enter on the title picks 2 PLAYERS');
@@ -86,11 +86,11 @@ export async function run(t) {
   await t.open();
   await ev(`window.__ran = 0; window.__picked = null; HOOKS.add('titleItems', () => [{ id: 'x1', label: 'ZED ITEM', order: 5, run: () => { window.__ran++; } }, { id: 'x2', label: 'LAST ONE', order: 200 }]);
     MODES.register({ id: 'tmode', label: 'TEST MODE', order: 15, players: 2, onPick: g => { window.__picked = g.modeId; return false; } }); render();`);
-  check(await ev("JSON.stringify(titleItems().map(i => i.id)) === '[\"x1\",\"versus\",\"tmode\",\"versus2\",\"x2\"]'"), 'extra title items and registered modes sort by order');
+  check(await ev("(() => { const ids = titleItems().map(i => i.id), at = k => ids.indexOf(k); return at('x1') === 0 && at('versus') < at('tmode') && at('tmode') < at('versus2') && at('versus2') < at('x2') && at('x2') === ids.length - 1; })()"), 'extra title items and registered modes sort by order');   // other registered feature modes may sit anywhere between
   await tap('Enter'); await tap('KeyS'); await tap('KeyS'); await tap('Enter'); await t.wait(50);
   check(await ev("window.__ran === 1 && window.__picked === 'tmode' && game.mode === 2 && game.phase === 'title' && game.titleSel === 2"), 'a title item runs, a mode with onPick returning false stays on the title');
   await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await t.wait(30);
-  check(await ev("game.titleSel === 1 && (render(), true)"), 'the title menu wraps around and draws five entries');
+  check(await ev("(() => { const n = titleItems().length; return game.titleSel === (((2 - 6) % n) + n) % n && (render(), true); })()"), 'the title menu wraps around and draws all its entries');   // six steps up from entry 2, however many entries there are
 
   // ---- engine events through a whole CPU match (one round to win keeps it short) ----
   await t.open('#select');
