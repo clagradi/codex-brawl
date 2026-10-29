@@ -1,7 +1,7 @@
 {
   "id": "brawl-dot",
   "displayName": "Dot",
-  "description": "Fuzzy yellow ball in round glasses and a bow tie. Surprisingly fast, slightly fragile.",
+  "description": "Fuzzy yellow pom-pom in round glasses and a bow tie, a parody of OpenAI's dots. Fast but fragile.",
   "spriteVersionNumber": 2,
   "spritesheetPath": "spritesheet.png"
 }

@@ -1,6 +1,6 @@
 // Tiny headless-Chrome driver over the DevTools protocol (no npm dependencies).
 // Usage:
-//   node tools/headless.mjs <url> [--shot out.png] [--eval "js"] [--wait ms] [--keys "KeyF,KeyG"]
+//   node tools/headless.mjs <url> [--shot out.png] [--eval "js"] [--wait ms] [--keys "KeyF,KeyG"] [--device phone|phone-landscape|tablet|WxH[@dpr]]
 //   node tools/headless.mjs --test        (runs the full automated match test in tools/test-match.js)
 // Prints every console error / uncaught exception and exits non-zero if any happened.
 import { spawn } from 'node:child_process';
@@ -17,7 +17,17 @@ const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
 const flag = name => args.includes(name);
 
-export async function withPage(fn) {
+// --device: emulate a touch phone (device metrics + touch events) so the mobile layout and the on-screen controls can be driven.
+export const DEVICES = { phone: [390, 844, 3], 'phone-landscape': [844, 390, 3], tablet: [820, 1180, 2] };
+export function parseDevice(spec) {
+  if (!spec) return null;
+  if (DEVICES[spec]) { const [width, height, dpr] = DEVICES[spec]; return { width, height, dpr }; }
+  const m = /^(\d+)x(\d+)(?:@(\d+(?:\.\d+)?))?$/.exec(spec);
+  if (!m) throw new Error('bad --device ' + spec + ' (phone, phone-landscape, tablet or WxH[@dpr])');
+  return { width: +m[1], height: +m[2], dpr: +(m[3] || 2) };
+}
+
+export async function withPage(fn, opts = {}) {
   const port = 9300 + Math.floor(Math.random() * 500);
   const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'brawl-chrome-'));
   const ch = spawn(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--mute-audio', '--autoplay-policy=no-user-gesture-required',
@@ -35,6 +45,11 @@ export async function withPage(fn) {
     const on = l => listeners.push(l);
     const errors = [];
     await send('Runtime.enable'); await send('Page.enable'); await send('Log.enable');
+    if (opts.device) {
+      const d = opts.device;
+      await send('Emulation.setDeviceMetricsOverride', { width: d.width, height: d.height, deviceScaleFactor: d.dpr, mobile: true });
+      await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+    }
     on(m => {
       if (m.method === 'Runtime.consoleAPICalled' && (m.params.type === 'error' || m.params.type === 'warning')) errors.push('console.' + m.params.type + ': ' + m.params.args.map(a => a.value ?? a.description).join(' '));
       if (m.method === 'Runtime.exceptionThrown') errors.push('exception: ' + (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text));
@@ -54,6 +69,9 @@ export async function withPage(fn) {
       },
       async key(code, down = true) { await send('Input.dispatchKeyEvent', { type: down ? 'keyDown' : 'keyUp', code, key: code.replace('Key', ''), windowsVirtualKeyCode: code.length === 4 ? code.charCodeAt(3) : 0 }); },
       async tap(code) { await api.key(code, true); await api.key(code, false); },
+      // touch input (needs --device / opts.device): points are [{id, x, y}] in CSS pixels, type is touchStart | touchMove | touchEnd
+      async touch(type, points = []) { await send('Input.dispatchTouchEvent', { type, touchPoints: points.map(q => ({ x: q.x, y: q.y, id: q.id ?? 0 })) }); },
+      async tapAt(x, y, hold = 60) { await api.touch('touchStart', [{ x, y }]); await api.wait(hold); await api.touch('touchEnd', []); },
       wait: ms => new Promise(r => setTimeout(r, ms)),
     };
     return await fn(api);
@@ -62,8 +80,10 @@ export async function withPage(fn) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (flag('--test')) {
-    const { runTests } = await import('./test-match.mjs');
-    const ok = await withPage(runTests);
+    const { runTests, runPhoneTests } = await import('./test-match.mjs');
+    let ok = await withPage(runTests);
+    // the touch / mobile checks run on their own emulated phone page
+    if (runPhoneTests) ok = (await withPage(runPhoneTests, { device: parseDevice('phone') })) && ok;
     process.exit(ok ? 0 : 1);
   }
   const url = args.find(a => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'));
@@ -75,6 +95,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (opt('--shot')) { await p.wait(100); await p.shot(opt('--shot')); }
     if (p.errors.length) { console.error(p.errors.join('\n')); return false; }
     return true;
-  });
+  }, { device: parseDevice(opt('--device')) });
   process.exit(ok ? 0 : 1);
 }

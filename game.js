@@ -9,13 +9,27 @@ const VS_LEN = 200, VS_LAND = 110, INTRO_LEN = 100, FINISH_LEN = 300;
 const ATTACKS = new Set(['punch', 'kick', 'special', 'super']);
 
 // ---------- scaling / resize ----------
+// Desktop: quarter-pixel steps keep the pixels even. Touch + portrait: the canvas fills the width and the controls get their own block underneath.
+// Touch + landscape: the canvas fits the screen with a column kept free at the right edge for the menu buttons, and the d-pad and buttons float over the playfield, clear of the HUD (touch.layout, in the touch section).
 const shareEl = document.getElementById('share');
+const touch = { on: false, coarse: false, ready: false, tip: '' };   // tip: fight text for under the game in the portrait layout (set by drawFight)
+try { touch.coarse = touch.on = matchMedia('(pointer: coarse)').matches; } catch (e) { /* no matchMedia: the first touch turns the pad on */ }
+const lay = { s: 1, x: 0, y: 0, stacked: false };   // canvas scale and top-left corner in CSS pixels, and whether the controls sit in a block below it
 function fit() {
-  const s = Math.max(0.25, Math.floor(Math.min(innerWidth / W, innerHeight / H) * 4) / 4); // quarter-pixel steps keep pixels even
-  cv.style.width = Math.round(W * s) + 'px'; cv.style.height = Math.round(H * s) + 'px';
-  if (shareEl) { shareEl.style.top = Math.round((innerHeight - H * s) / 2 + 150 * s) + 'px'; shareEl.style.fontSize = Math.max(12, Math.round(18 * s)) + 'px'; }
+  const vw = innerWidth, vh = innerHeight, fill = Math.min(vw / W, vh / H);
+  lay.stacked = touch.on && vw < vh && vh - H * (vw / W) >= 170;
+  const gut = touch.on && !lay.stacked ? Math.max(72, Math.min(110, Math.round(vw * 0.08))) : 0;   // touch + landscape: a column at the right edge is kept free for the menu buttons
+  lay.s = lay.stacked ? vw / W : touch.on ? Math.min(fill, (vw - gut) / W) : Math.max(0.25, Math.floor(fill * 4) / 4);
+  lay.x = Math.round((vw - W * lay.s) / 2); lay.y = lay.stacked ? 0 : Math.round((vh - H * lay.s) / 2);
+  if (gut) lay.x = Math.max(0, Math.min(lay.x, Math.floor(vw - Math.round(W * lay.s) - gut)));   // a 16:9 or 4:3 screen has no room beside the centred game: slide it left
+  cv.style.width = Math.round(W * lay.s) + 'px'; cv.style.height = Math.round(H * lay.s) + 'px'; cv.style.left = lay.x + 'px'; cv.style.top = lay.y + 'px';
+  if (shareEl) {
+    shareEl.classList.toggle('tp', touch.on);   // touch: the button joins the menu buttons (placed by touch.layout); desktop: it floats over the end screen
+    if (!touch.on) { shareEl.style.top = Math.round(lay.y + 150 * lay.s) + 'px'; shareEl.style.fontSize = Math.max(12, Math.round(18 * lay.s)) + 'px'; shareEl.style.left = shareEl.style.width = ''; shareEl.classList.remove('ovl'); shareEl.textContent = 'SHARE ON X'; }
+  }
+  if (touch.ready) touch.layout();
 }
-addEventListener('resize', fit); fit();
+addEventListener('resize', fit); addEventListener('orientationchange', fit); if (window.visualViewport) visualViewport.addEventListener('resize', fit); fit();
 
 // ---------- audio (tiny synth, unlocked on first interaction) ----------
 let AC = null, muted = false;
@@ -106,59 +120,186 @@ function pollPads() {
   for (let side = pads.length; side < 2; side++) { for (const c in padPrev[side]) if (padPrev[side][c] && c !== 'Start' && c !== 'Back') keys[c] = false; padPrev[side] = {}; }
 }
 
-// ---------- touch controls (appear after the first touch) ----------
-const touch = { on: false, ptr: new Map() };
-const TBTN = [
-  { code: 'KeyA', x: 70, y: 455, r: 34, lbl: '<' }, { code: 'KeyD', x: 160, y: 455, r: 34, lbl: '>' },
-  { code: 'KeyW', x: 115, y: 385, r: 30, lbl: 'JUMP' }, { code: 'KeyS', x: 115, y: 505, r: 26, lbl: 'DOWN' },
-  { code: 'KeyJ', x: 800, y: 475, r: 32, lbl: 'P', col: '#ffd23f' }, { code: 'KeyK', x: 870, y: 445, r: 32, lbl: 'K', col: '#ff7a5c' },
-  { code: 'KeyL', x: 790, y: 400, r: 30, lbl: 'SP', col: '#7cc7ff' }, { code: 'KeyI', x: 900, y: 370, r: 30, lbl: 'SU', col: '#ff4d6d' },
-  { code: 'KeyP', x: 480, y: 116, r: 18, lbl: 'II', col: '#aaa' },
-];
-function canvasPos(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
-function hitBtn(x, y) { return TBTN.find(b => (x - b.x) ** 2 + (y - b.y) ** 2 < (b.r + 8) ** 2); }
-cv.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse' && !touch.on) return;
-  touch.on = true; e.preventDefault(); const [x, y] = canvasPos(e); const b = hitBtn(x, y);
-  if (b) { touch.ptr.set(e.pointerId, b.code); if (!keys[b.code]) pressed[b.code] = true; keys[b.code] = true; }
-  else if (['title', 'over', 'vs'].includes(game.phase)) pressed.Enter = true;   // tap anywhere = confirm on menu screens
-});
-cv.addEventListener('pointermove', e => {
-  if (!touch.ptr.has(e.pointerId)) return; const [x, y] = canvasPos(e); const b = hitBtn(x, y); const cur = touch.ptr.get(e.pointerId);
-  if (b && b.code !== cur && ['KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(b.code) && ['KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(cur)) { keys[cur] = false; touch.ptr.set(e.pointerId, b.code); if (!keys[b.code]) pressed[b.code] = true; keys[b.code] = true; }
-});
-const touchUp = e => { const c = touch.ptr.get(e.pointerId); if (c) { keys[c] = false; touch.ptr.delete(e.pointerId); } };
-cv.addEventListener('pointerup', touchUp); cv.addEventListener('pointercancel', touchUp); cv.addEventListener('pointerleave', touchUp);
-cv.addEventListener('contextmenu', e => e.preventDefault());
+// ---------- touch controls ----------
+// A DOM layer for touch devices (it also appears after the first touch anywhere): an 8-way d-pad, P / K / SP / SU buttons and a few menu buttons.
+// It drives the same keys{} / pressed{} as the keyboard, so every move works unchanged: a diagonal jumps forward or back, tapping a direction twice
+// dashes, DOWN + K sweeps and FWD + P throws (left thumb on the d-pad, right thumb on the buttons). Taps on the canvas pick title rows, fighters and arenas.
+// Browsers only count pointerup / touchend / click (never pointerdown) as the gesture that may start audio, so those unlock it too.
+for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, audioInit, { passive: true });
+(function () {
+  const FIGHT = new Set(['intro', 'fight', 'finish', 'finisher', 'ko', 'outro']);
+  const BTN = [{ code: 'KeyL', lbl: 'SP', col: '#7cc7ff' }, { code: 'KeyI', lbl: 'SU', col: '#ff4d6d' }, { code: 'KeyJ', lbl: 'P', col: '#ffd23f' }, { code: 'KeyK', lbl: 'K', col: '#ff7a5c' }];
+  const DIR = { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS' };
+  const mk = (tag, cls, parent, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; parent.appendChild(e); return e; };
+  const TURN = 'TURN YOUR PHONE SIDEWAYS FOR A BIGGER SCREEN';
+  const pad = mk('div', '', document.body), dpad = mk('div', '', pad), pills = mk('div', '', pad), hint = mk('div', 'hint', pad, TURN);
+  pad.id = 'pad'; pad.hidden = true; dpad.id = 'dpad'; pills.id = 'pills';
+  const arrows = {}; for (const k of ['u', 'd', 'l', 'r']) arrows[k] = mk('i', k, dpad);
+  const btns = BTN.map(b => { const e = mk('div', 'tb', pad, b.lbl); e.style.setProperty('--c', b.col); return e; });
+
+  // ----- keys held by the pad. A tap shorter than 40 ms still stays down for a couple of ticks so the 60 Hz input poll cannot miss it -----
+  const down = {};
+  const isDown = c => down[c] && !down[c].up;
+  function press(code) { down[code] = { t: performance.now(), up: false }; pressed[code] = true; keys[code] = true; }
+  function release(code) {
+    const tok = down[code]; if (!tok || tok.up) return; tok.up = true;
+    const go = () => { if (down[code] === tok) { keys[code] = false; delete down[code]; } }, rest = 40 - (performance.now() - tok.t);
+    if (rest > 0) setTimeout(go, rest); else go();
+  }
+  function reset() { for (const c in down) { keys[c] = false; delete down[c]; } dpadPtr = -1; for (const k in arrows) arrows[k].classList.remove('on'); btns.forEach(b => b.classList.remove('on')); }
+  addEventListener('blur', reset); document.addEventListener('visibilitychange', () => { if (document.hidden) reset(); });
+
+  // ----- d-pad: eight sectors around the centre, so a diagonal holds two directions at once -----
+  let dpadPtr = -1;
+  function dirsAt(e) {
+    const r = dpad.getBoundingClientRect(), R = r.width / 2, dx = (e.clientX - r.left - R) / R, dy = (e.clientY - r.top - R) / R;
+    if (Math.hypot(dx, dy) < 0.2) return {};
+    const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));   // 0 right, 2 down, 4 / -4 left, -2 up
+    return { r: Math.abs(a) <= 1, l: Math.abs(a) >= 3, d: a >= 1 && a <= 3, u: a <= -1 && a >= -3 };
+  }
+  function setDirs(dirs) {
+    for (const k in DIR) { const want = !!dirs[k], c = DIR[k]; if (want && !isDown(c)) press(c); else if (!want && isDown(c)) release(c); arrows[k].classList.toggle('on', want); }
+  }
+  dpad.addEventListener('pointerdown', e => {
+    e.preventDefault(); if (dpadPtr >= 0) return; dpadPtr = e.pointerId;
+    try { dpad.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer: no capture */ }
+    setDirs(dirsAt(e));
+  });
+  dpad.addEventListener('pointermove', e => { if (e.pointerId === dpadPtr) setDirs(dirsAt(e)); });
+  const dpadUp = e => { if (e.pointerId === dpadPtr) { dpadPtr = -1; setDirs({}); } };
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) dpad.addEventListener(ev, dpadUp);
+
+  // ----- action buttons -----
+  btns.forEach((b, i) => {
+    const code = BTN[i].code; let ptr = -1;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); ptr = e.pointerId; try { b.setPointerCapture(e.pointerId); } catch (err) { } press(code); b.classList.add('on'); });
+    const up = e => { if (e.pointerId !== ptr) return; ptr = -1; release(code); b.classList.remove('on'); };
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, up);
+  });
+
+  // ----- menu buttons ("pills"): what is useful on the current screen, as large targets. Each one presses the key the keyboard would. -----
+  const key = c => { pressed[c] = true; };
+  const sound = () => ({ t: muted ? 'SOUND OFF' : 'SOUND ON', f: () => setMuted(!muted) });
+  const chooser = () => game.ready[0] ? 1 : 0;   // select: whose fighter the next tap sets (1P: you, then the CPU)
+  const selectOk = () => key(game.mode === 2 ? MAP[chooser()].p[0] : 'Enter');
+  const selectBack = () => key(game.mode === 2 && (game.ready[0] || game.ready[1]) ? MAP[game.ready[1] ? 1 : 0].k[0] : 'Escape');
+  function pillList() {
+    const p = game.phase;
+    if (p === 'title') return [{ t: '1 PLAYER', f: () => { game.titleSel = 0; key('Enter'); } }, { t: '2 PLAYERS', f: () => { game.titleSel = 1; key('Enter'); } }, sound()];
+    if (p === 'select') return [{ t: 'OK', f: selectOk }, { t: 'BACK', f: selectBack }, { t: '< ARENA', f: () => key('KeyQ') }, { t: 'ARENA >', f: () => key('KeyE') }];
+    if (p === 'vs') return [{ t: 'SKIP', f: () => key('Enter') }];
+    if (p === 'pause') return [{ t: 'RESUME', f: () => key('KeyP') }, sound(), { t: 'QUIT', f: () => key('KeyQ') }];
+    if (p === 'over') return [{ t: 'SELECT', f: () => key('Enter') }, { t: 'REMATCH', f: () => key('KeyR') }, { t: 'TITLE', f: () => key('Escape') }];
+    return FIGHT.has(p) ? [{ t: 'PAUSE', f: () => key('KeyP') }] : [];
+  }
+  pills.addEventListener('pointerdown', e => {
+    const b = e.target.closest && e.target.closest('.mb'); if (!b || !b._f) return;
+    e.preventDefault(); b._f(); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 140);
+  });
+
+  // ----- taps on the canvas (canvas units): title rows, fighter cells, the arena box, skip the versus screen -----
+  const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+  function menuTap(x, y) {
+    const p = game.phase;
+    if (p === 'title') { if (y > 425 && y < 459) game.titleSel = 0; else if (y >= 459 && y < 493) game.titleSel = 1; key('Enter'); }
+    else if (p === 'vs') key('Enter');
+    else if (p === 'select') {
+      const i = ROSTER.findIndex((r, n) => { const c = selectCell(n); return x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 6 && y <= c.y + c.h + 26; });
+      if (i >= 0) { const s = chooser(); if (game.sel[s] === i) selectOk(); else { game.sel[s] = i; beep(500 - s * 100, 0.04); } }
+      else if (x > 376 && x < 584 && y > 372 && y < 512) key('KeyE');   // the arena picture and its name line
+    }
+  }
+  cv.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); menuTap(...canvasPos(e)); });
+  cv.addEventListener('contextmenu', e => e.preventDefault()); pad.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });   // the page never scrolls or zooms
+  document.addEventListener('gesturestart', e => e.preventDefault());                     // iOS pinch
+  // the first touch turns the pad on (a mouse never does); using the keyboard on a screen without a coarse pointer turns it off again
+  addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse' && !touch.on) { touch.on = true; fit(); } }, true);
+  addEventListener('keydown', () => { if (touch.on && !touch.coarse) { touch.on = false; reset(); fit(); } }, true);
+
+  // a label must never spill out of its button: the gutter beside a phone in landscape is only about 68 px wide, and a device without Impact
+  // (Android) falls back to a wider font. Start from the size in the CSS and shrink the text until it fits.
+  function fitText(e) {
+    if (!e.clientWidth) return;   // hidden: nothing to measure yet
+    e.style.fontSize = '';
+    const cs = getComputedStyle(e), room = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 1, r = document.createRange();
+    r.selectNodeContents(e);
+    for (let f = parseFloat(cs.fontSize); f > 9 && r.getBoundingClientRect().width > room; ) { f -= 0.5; e.style.fontSize = f + 'px'; }
+  }
+  // ----- layout. Portrait: game on top, the menu buttons right under it, the d-pad and buttons in the thumb zone at the bottom.
+  // Landscape: the d-pad (left) and buttons (right) float over the playfield between the HUD bands; the menu buttons stack down the right edge. -----
+  function layout() {
+    const vw = innerWidth, vh = innerHeight, s = lay.s, st = lay.stacked, px = n => Math.round(n) + 'px';
+    pad.hidden = !touch.on || game.phase === 'sheet';
+    pad.classList.toggle('stk', st); pad.classList.toggle('ovl', !st);
+    const place = (e, x, y, w, h) => { e.style.left = px(x); e.style.top = px(y); if (w) e.style.width = px(w); if (h) e.style.height = px(h); };
+    const bottom = lay.y + H * s, hudTop = lay.y + 100 * s, hudBot = bottom - 62 * s;   // the HUD occupies canvas y < 100 and y >= 485 at the corners, and the fight tip runs from y 479
+    let D, top, pl, pt, pw;
+    if (st) { D = Math.max(110, Math.min(200, Math.round(vw * 0.44), vh - bottom - 130)); top = vh - 18 - D; pl = 12; pt = bottom + 12; pw = vw - 24; }
+    else {
+      D = Math.max(100, Math.min(190, Math.round(vh * 0.46), Math.round(hudBot - hudTop - 12))); top = hudBot - 4 - D;
+      const gutter = vw - (lay.x + Math.round(W * s)); pw = Math.max(64, Math.min(110, Math.floor(gutter) - 8)); pl = vw - pw - 6; pt = gutter >= pw + 8 ? 8 : hudTop + 6;
+    }
+    const left = st ? 12 : 10, right = vw - (st ? 12 : 10) - D, half = D / 2;
+    place(dpad, left, top, D, D);
+    btns.forEach((b, i) => place(b, right + (i % 2) * half + 3, top + Math.floor(i / 2) * half + 3, half - 6, half - 6));   // SP SU over P K
+    place(pills, pl, pt, pw); const pb = pills.getBoundingClientRect().bottom;
+    if (shareEl && touch.on) {
+      shareEl.classList.toggle('ovl', !st); shareEl.textContent = !st && pw < 100 ? 'SHARE X' : 'SHARE ON X';   // the short label for the narrow gutter beside a phone in landscape
+      place(shareEl, st ? (vw - Math.min(vw - 24, 260)) / 2 : pl, pb + 8, st ? Math.min(vw - 24, 260) : pw);
+    }
+    for (const e of pills.children) fitText(e);
+    if (shareEl && touch.on) fitText(shareEl);
+    hint.textContent = touch.tip || TURN; hint.classList.toggle('tip', !!touch.tip);   // portrait: the fight tips (controls, sudden-death rules) are real text here
+    place(hint, 12, pb + (game.phase === 'over' ? 66 : 12)); hint.hidden = !st || pb + (touch.tip ? 100 : 90) > top;
+  }
+  let sig = '';
+  function sync() {   // every frame: rebuild the buttons only when the screen changed
+    const p = game.phase, vis = touch.on && p !== 'sheet', fighting = vis && FIGHT.has(p), list = vis ? pillList() : [];
+    const now = vis + '|' + (fighting ? 'f' : p) + '|' + lay.stacked + '|' + list.map(q => q.t).join(',') + '|' + touch.tip;
+    if (now === sig) return; sig = now;
+    if (!fighting) reset();
+    dpad.hidden = !fighting; btns.forEach(b => { b.hidden = !fighting; });
+    pills.textContent = ''; for (const q of list) mk('div', 'mb', pills, q.t)._f = q.f;
+    layout();
+  }
+  touch.layout = layout; touch.sync = sync; touch.ready = true;
+})();
 
 // ---------- roster (move sets live in moves.js) ----------
 // handle: X account (without @) tagged in the end-screen share post; left empty until the owner fills it in.
+// tag: the one-line affiliation shown on the select and versus screens. It names only the real organisation a character is a parody of
+// (Tibo: Codex at OpenAI, Dot: OpenAI's dots, Alexandr Wang: Meta, Muse: Meta's agent); Poteto gets a gag title, never a claim about anyone.
+// bio: one line about the look and the moves (kept in step with INFO in tools/export-pets.mjs).
 const ROSTER = [
-  { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, handle: '', bio: 'SHIPS CODEX. GRINS THROUGH EVERY OUTAGE.' },
-  { id: 'poteto', name: 'POTETO', tag: 'GROK BOT', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, handle: '', bio: 'REACT COMPILER ALUM. THROWS HOT SWEET POTATOES.' },
-  { id: 'dot', name: 'DOT', tag: 'TWO-DOT BLOB', col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, handle: '', bio: 'SOFT, ROUND AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
-  { id: 'wang', name: 'ALEXANDR WANG', tag: 'META SUPERINTELLIGENCE', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, handle: '', bio: 'CALM. IRIDESCENT BUBBLES. SUMMONS THE LAB.' },
-  { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, handle: '', bio: 'FLUFFY PERSONAL AGENT. RUNS ON ITS OWN VM.' },
+  { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, handle: '', bio: 'HOODIE, COMMITS AND REVERTS. SHIPS FAST.' },
+  { id: 'poteto', name: 'POTETO', tag: 'SPUD SLINGER', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, handle: '', bio: 'LONG HAIR, ROUND GLASSES. THROWS HOT SWEET POTATOES.' },
+  { id: 'dot', name: 'DOT', tag: "OPENAI'S DOTS", col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, handle: '', bio: 'SOFT, ROUND AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
+  { id: 'wang', name: 'ALEXANDR WANG', tag: 'AI @ META', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, handle: '', bio: 'CALM. IRIDESCENT BUBBLES. SUMMONS THE LAB.' },
+  { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, handle: '', bio: 'FLUFFY AND QUICK. PINGS, UNDOES AND SWARMS.' },
 ];
 const SHORT = r => r.id === 'wang' ? 'WANG' : r.name;
 
 // ---------- share on X (end screen): T key or the button over the canvas ----------
+// The post text is the match result and nothing else; the game link goes in the separate url= parameter, so the link is never part of the text.
+// Both the button (an anchor with target=_blank) and the T key (window.open) land on https://x.com/intent/post in a new tab.
 const GAME_URL = 'https://clagradi.github.io/codex-brawl/';
 const named = r => SHORT(r) + (r.handle ? ' (@' + r.handle.replace(/^@/, '') + ')' : '');
 function shareText() {
   const [a, b] = game.f; if (!a) return 'Agent Brawl: a parody fighter starring AI agents.';
   const w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
   const fin = game.fin ? ', finished with ' + game.fin.name : '';
-  if (game.mode === 1 && w.cpu) return named(w.d) + ' destroyed my ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl. Rematch incoming.';
+  if (game.mode === 1 && w.cpu) return named(w.d) + ' destroyed my ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl.';
   if (game.mode === 1) return 'I beat ' + named(l.d) + ' with ' + named(w.d) + ' ' + score + fin + ' in Agent Brawl.';
   return named(w.d) + ' beat ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl.';
 }
 const shareUrl = () => 'https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(GAME_URL);
 function share() { try { window.open(shareUrl(), '_blank', 'noopener'); } catch (e) { /* popup blocked: the button still works */ } }
 // move-list rows for the select and pause screens (max 10), labelled with that player's keys; 1P also shows the Z X C V alternates.
+// The CPU, and P1 on a touch screen, show the on-screen button names (P K SP SU) instead of keys.
 // Input syntax (hud.js drawMoveList): '+' joins keys held together, '>' is a sequence of taps, '/' lists alternate keys.
 function moveRows(id, side, cpu) {
-  const M = MOVES[id], L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side], dual = side === 0 && !cpu && game.mode === 1;
+  const btn = cpu || (touch.on && side === 0), M = MOVES[id], L = btn ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side], dual = side === 0 && !btn && game.mode === 1;
   const key = (a, both) => L[a] + (dual && both ? ' / ' + ALTL[a] : '');
   const lbl = inp => inp.replace('L', key('s', true)).replace('FWD+', 'FWD + ').replace('DOWN+', 'DOWN + ');
   const rows = [
@@ -673,7 +814,9 @@ function drawTitle() {
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
   ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
-  uiText(touch.on ? 'TAP TO START' : 'W/S + ENTER · FIGHT WITH WASD + J K L I OR ARROWS + Z X C V · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
+  const keysHint = game.titleSel ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
+  uiText(touch.on ? 'TAP 1 PLAYER TO FIGHT · 2 PLAYERS NEEDS A KEYBOARD OR TWO GAMEPADS'
+    : 'W/S + ENTER · ' + keysHint + ' · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
   if (!muted && !audioFail && !(AC && AC.state === 'running')) {   // browsers keep a page silent until the first key press / tap
     const s = (touch.on ? 'TAP' : 'PRESS ANY KEY OR TAP') + ' FOR SOUND';
@@ -685,7 +828,7 @@ function drawTitle() {
 function selectCell(i) {
   const COLS = 3, cw = 96, ch = 112, gap = 12, row = Math.floor(i / COLS), col = i % COLS, rowCount = Math.min(COLS, ROSTER.length - row * COLS);
   const gx = W / 2 - (COLS * cw + (COLS - 1) * gap) / 2 + (COLS - rowCount) * (cw + gap) / 2;
-  return { x: gx + col * (cw + gap), y: 78 + row * (ch + 30), w: cw, h: ch };
+  return { x: gx + col * (cw + gap), y: 78 + row * (ch + 38), w: cw, h: ch };   // 38 px between the rows: the name sits clear of the P1 and P2 cursor boxes
 }
 function drawSelect() {
   const t = game.tick;
@@ -696,7 +839,7 @@ function drawSelect() {
     const c = selectCell(i);
     ctx.fillStyle = '#0d0b10'; ctx.fillRect(c.x, c.y, c.w, c.h); drawPortrait(ctx, r.id, c.x, c.y, c.w, c.h);
     ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 2; ctx.strokeRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2);
-    uiText(SHORT(r), c.x + c.w / 2, c.y + c.h + 12, 15, '#e8e0cc');
+    uiText(SHORT(r), c.x + c.w / 2, c.y + c.h + 19, 15, '#e8e0cc');
     for (let s = 0; s < 2; s++) if (game.sel[s] === i) {
       const col = s ? '#ff4d4d' : '#4dc3ff', on = game.ready[s] || Math.floor(t / 8) % 2, o = s * 5;
       ctx.strokeStyle = col; ctx.lineWidth = on ? 5 : 3; ctx.strokeRect(c.x - 4 - o, c.y - 4 - o, c.w + 8 + o * 2, c.h + 8 + o * 2);
@@ -714,15 +857,18 @@ function drawSelect() {
     drawMoveList(ctx, game.ready[s] ? 'READY' : 'MOVES', moveRows(r.id, s, cpu), px + 6, 352, pw - 12, 174);
   }
   // arena picker
-  const ax = W / 2 - 96, ay = 384, aw = 192, ah = 108, pick = game.arenaPick;
-  uiText('ARENA', W / 2, 370, 16, '#c9a24a');
+  const ax = W / 2 - 96, ay = 380, aw = 192, ah = 108, pick = game.arenaPick;   // (the touch hit area for the box is in the touch section: keep them in step)
   ctx.fillStyle = '#000'; ctx.fillRect(ax - 3, ay - 3, aw + 6, ah + 6);
   if (pick >= 0) drawArenaThumb(ctx, pick, ax, ay, aw, ah, t);
   else { drawArenaThumb(ctx, Math.floor(t / 20) % ARENAS.length, ax, ay, aw, ah, t); shade(0); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(ax, ay, aw, ah); drawTitleText(ctx, '?', W / 2, ay + ah / 2, 54, { align: 'center', style: 'gold' }); }
+  ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(ax, ay, aw, 18); uiText('ARENA', W / 2, ay + 9, 13, '#c9a24a');   // the title rides on a strip over the top of the picture, so it never crowds the fighter names above
   ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 2; ctx.strokeRect(ax - 1, ay - 1, aw + 2, ah + 2);
-  uiText((pick >= 0 ? ARENAS[pick].name : 'RANDOM') + '   ‹ Q / E ›', W / 2, ay + ah + 14, 15, '#fff');
-  const hint = touch.on ? 'D-PAD MOVE · P CONFIRM · K BACK · SU ARENA' : game.mode === 1 ? (game.ready[0] ? 'NOW PICK THE CPU · J CONFIRM · K BACK' : 'WASD MOVE · J CONFIRM · ESC TITLE') : 'P1 WASD + J · P2 ARROWS + NUM1';
-  uiText(hint + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 530, 13, '#9a9384');
+  uiText((pick >= 0 ? ARENAS[pick].name : 'RANDOM') + (touch.on ? '   TAP TO CHANGE' : '   ‹ Q / E ›'), W / 2, ay + ah + 14, 15, '#fff');
+  // the line at the foot says what to press for the mode on screen (the 1P keyboard flow also takes Enter and the Z X C V keys)
+  const hint = touch.on ? (game.ready[0] ? 'NOW TAP THE CPU FIGHTER · TAP AGAIN OR OK TO PICK · BACK UNDOES YOURS' : 'TAP A FIGHTER · TAP AGAIN OR OK TO PICK · BACK GOES TO THE TITLE')
+    : game.mode === 1 ? (game.ready[0] ? 'NOW PICK THE CPU · J OR ENTER PICKS · K OR ESC UNDOES YOURS · Q / E ARENA' : 'WASD OR ARROWS MOVE · J OR ENTER PICKS · ESC TITLE · Q / E ARENA')
+    : 'P1 WASD + J PICKS, K UNDOES · P2 ARROWS + NUM1 PICKS, NUM2 UNDOES · Q / E ARENA · ESC TITLE';
+  uiText(hint + (touch.on ? '' : ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF')), W / 2, 530, 13, '#9a9384');
 }
 function drawVs() {
   const t = game.phaseT, [a, b] = game.f, landed = t >= VS_LAND;
@@ -735,10 +881,6 @@ function drawProj(p) {
   if (p.t < 0) return;
   if (p.draw) { p.draw(ctx, p); return; }
   if (p.map) drawFxMap(ctx, p.map, p.x, p.y, p.scale || PX, p.spin ? Math.floor(p.t / 5) % 4 * Math.PI / 2 : 0, p.vx < 0);
-}
-function drawTouch() {
-  if (!touch.on) return;
-  for (const b of TBTN) { const on = keys[b.code]; ctx.globalAlpha = on ? 0.65 : 0.3; ctx.fillStyle = b.col || '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); ctx.globalAlpha = 1; uiText(b.lbl, b.x, b.y, b.lbl.length > 2 ? 12 : 18, '#111'); }
 }
 function drawWorld() {
   const t = game.tick, c = game.cam, AY = GROUND - 60;
@@ -758,25 +900,46 @@ function drawWorld() {
   for (const p of game.popups) drawTitleText(ctx, p.txt, p.x, p.y, 20, { align: 'center', style: 'steel', alpha: Math.min(1, p.t / 15) });
   ctx.restore();
 }
+// The line at the foot of the playfield, kept clear of the super meters: the finisher prompt, the sudden-death rules, or the controls in round 1.
+// On a portrait phone the canvas is too small to read it, so it goes to the text under the game instead (touch.tip, shown by the touch layer).
+function fightTip() {
+  const [a, b] = game.f, ph = game.phase, early = ph === 'fight' && game.clock < 360, fade = Math.min(1, (360 - game.clock) / 60);
+  if (ph === 'finish') {
+    const w = game.winner, key = w.cpu ? 'CPU' : touch.on && w.side === 0 ? 'SU' : LABEL[w.side].x;
+    return { txt: key + ' FOR THE FINISHER · ANY HIT ENDS IT', y: H - 20, size: 16, col: '#ff6b5c', a: game.tick % 30 < 20 ? 1 : 0.5 };
+  }
+  if (game.sudden && (ph === 'intro' || early))
+    return { txt: 'SUDDEN DEATH · 30 SECONDS · EVERYONE STARTS AT 25% HEALTH · TIME OUT: MORE HEALTH WINS, THEN THE FULLER SUPER METER', y: 486, size: 14, col: '#ffb4a8', a: ph === 'intro' ? 1 : fade };
+  if (early && game.round === 1 && !(a.cpu && b.cpu)) {
+    const txt = touch.on ? 'P P P COMBO · FWD + P THROW · DOWN + K SWEEP · TAP A DIRECTION TWICE TO DASH · SP SPECIAL · SU SUPER · HOLD BACK TO BLOCK'
+      : game.mode === 1 ? 'J J J COMBO · FWD + J THROW · DOWN + K SWEEP · L SPECIAL · TAP FWD TWICE DASH · I SUPER · HOLD BACK TO BLOCK'
+      : 'P1 J K L I · P2 NUM1 NUM2 NUM3 NUM0 (PUNCH KICK SPECIAL SUPER) · FWD + PUNCH THROW · DOWN + KICK SWEEP · TAP FWD TWICE DASH';
+    return { txt, y: 486, size: 14, col: '#fff', a: fade };
+  }
+  return null;
+}
+function drawPause() {
+  shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
+  for (let s = 0; s < 2; s++) { const f = game.f[s]; drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
+  const L = [];   // [text, size, colour]: only what applies (the P2 keys in 2P, button names on a touch screen)
+  if (touch.on) L.push(['D-PAD MOVES · P PUNCH · K KICK · SP SPECIAL · SU SUPER · HOLD BACK TO BLOCK', 16, '#ddd']);
+  else if (game.mode === 1) L.push(['WASD OR ARROWS · J/Z PUNCH · K/X KICK · L/C SPECIAL · I/V SUPER · HOLD BACK TO BLOCK', 16, '#ddd']);
+  else L.push(['P1  WASD · J PUNCH · K KICK · L SPECIAL · I SUPER · HOLD BACK TO BLOCK', 16, '#ddd'], ['P2  ARROWS · NUM1 PUNCH · NUM2 KICK · NUM3 SPECIAL · NUM0 SUPER  (OR , . / RIGHT SHIFT)', 16, '#ddd']);
+  if (!touch.on) L.push(['GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y OR RB SUPER · START PAUSE', 16, '#ddd']);
+  L.push([(touch.on ? 'TAP A DIRECTION TWICE TO DASH' : 'TAP FWD TWICE DASH · TAP BACK TWICE BACKDASH') + ' · JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · PUNCH TECHS A THROW', 14, '#aab']);
+  L.push(['NO MATCH WINNER AFTER ROUND 3? SUDDEN DEATH: 30 SECONDS · 25% HEALTH · A TIE GOES TO THE FULLER SUPER METER', 14, '#ffb4a8']);
+  let y = 346; for (const [txt, size, col] of L) { uiText(txt, W / 2, y, size, col); y += size + 10; }
+  uiText(touch.on ? 'RESUME TO FIGHT ON · QUIT GOES TO THE TITLE' : 'P / ESC / ENTER RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, Math.max(470, y + 14), 18, '#c9a24a');
+}
 function drawFight() {
-  const t = game.tick, [a, b] = game.f;
   drawWorld(); drawHUD(ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
   if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
     uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
-  if (game.phase === 'fight' && game.round === 1 && game.clock < 360 && !touch.on && !(a.cpu && b.cpu))
-    uiText('J J J COMBO · FWD+J THROW · DOWN+K SWEEP · L SPECIAL · TAP FWD TWICE DASH · I SUPER · HOLD BACK TO BLOCK', W / 2, H - 18, 14, '#fff', 'center', Math.min(1, (360 - game.clock) / 60));
-  if (game.phase === 'finish') uiText((game.winner.cpu ? 'CPU' : LABEL[game.winner.side].x) + ' FOR THE FINISHER · ANY HIT ENDS IT', W / 2, H - 20, 16, '#ff6b5c', 'center', t % 30 < 20 ? 1 : 0.5);
+  const tip = fightTip();
+  if (touch.on && lay.stacked) touch.tip = tip ? tip.txt : ''; else if (tip) uiText(tip.txt, W / 2, tip.y, tip.size, tip.col, 'center', tip.a);
   if (muted) uiText('MUTED', W - 14, H - 14, 12, '#99a', 'right');
-  if (game.phase === 'pause') {
-    shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
-    for (let s = 0; s < 2; s++) { const f = game.f[s]; drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
-    uiText(game.mode === 1 ? 'WASD OR ARROWS · J/Z PUNCH · K/X KICK · L/C SPECIAL · I/V SUPER · HOLD BACK TO BLOCK' : 'P1  WASD · J PUNCH · K KICK · L SPECIAL · I SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
-    uiText('P2  ARROWS · NUM1 PUNCH · NUM2 KICK · NUM3 SPECIAL · NUM0 SUPER  (OR , . / RIGHT SHIFT)', W / 2, 372, 16, '#ddd');
-    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
-    uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
-    uiText('P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 470, 18, '#c9a24a');
-  }
+  if (game.phase === 'pause') drawPause();
 }
 function drawOver() {
   const t = game.tick, [a, b] = game.f, w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a;
@@ -785,7 +948,7 @@ function drawOver() {
   drawSprite(ctx, w.d.id, 'win', loopFrame('win', t), W / 2 - 40, GROUND, 1, 3);
   drawTitleText(ctx, SHORT(w.d) + ' WINS', W / 2, 64, 56, { align: 'center', style: 'gold', glow: true });
   uiText((w.cpu ? 'CPU' : 'P' + (w.side + 1)) + ' TAKES IT ' + game.wins[w.side] + '-' + game.wins[l.side] + (game.fin ? ' · ' + game.fin.name : ''), W / 2, 110, 20, '#fff');
-  uiText(touch.on ? 'TAP: SELECT · SU: REMATCH' : 'ENTER CHARACTER SELECT · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
+  uiText(touch.on ? 'TAP SELECT, REMATCH OR TITLE · SHARE ON X POSTS THE RESULT' : 'ENTER CHARACTER SELECT · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
 }
 function drawSheet() { // debug: #sheet=tibo
   ctx.fillStyle = '#3a4370'; ctx.fillRect(0, 0, W, H);
@@ -795,11 +958,11 @@ function drawSheet() { // debug: #sheet=tibo
 }
 function render() {
   ctx.imageSmoothingEnabled = false;
-  const p = game.phase;
+  const p = game.phase; touch.tip = '';   // drawFight may set the text for under the game (portrait touch layout)
   if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
   if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
-  drawTouch();
-  if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }
+  if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }   // shown before the touch layer is laid out, so it is sized with the other buttons
+  touch.sync();   // the touch layer follows the screen: buttons per phase, hidden on the debug sheet
 }
 
 // ---------- main loop: fixed 60 Hz simulation, render once per animation frame ----------

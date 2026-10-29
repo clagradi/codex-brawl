@@ -1,7 +1,7 @@
 {
   "id": "brawl-muse",
   "displayName": "Muse",
-  "description": "Fluffy cream-pink hooded plush with bead eyes that runs on its own VM.",
+  "description": "Fluffy cream-pink hooded plush, a parody of Meta's agent. Pings, undoes and swarms.",
   "spriteVersionNumber": 2,
   "spritesheetPath": "spritesheet.png"
 }

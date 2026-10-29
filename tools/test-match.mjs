@@ -1,6 +1,8 @@
 // Automated smoke test: loads the built index.html in headless Chrome, drives the menus with key
 // events, then plays several full CPU-vs-CPU matches via window.step() and checks that every match
-// reaches the 'over' phase without console errors or exceptions. Run: node tools/headless.mjs --test
+// reaches the 'over' phase without console errors or exceptions. It also checks the README and the
+// in-game text against the code, the match rules, share on X and the menu keys (uxDesktopChecks), and
+// runPhoneTests repeats the menus and controls on an emulated touch phone. Run: node tools/headless.mjs --test
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +21,13 @@ export async function runTests(p) {
   check(!/<script[^>]+src=|<link[^>]+rel="?stylesheet|<img[^>]+src=|\bfetch\(/i.test(html), 'index.html loads no external scripts, styles or images');
   check(/property="og:image" content="https:\/\/clagradi\.github\.io\/codex-brawl\/og\.png"/.test(html) && /twitter:card" content="summary_large_image/.test(html), 'Open Graph and X card meta present');
   check(fs.existsSync(path.join(ROOT, 'og.png')), 'og.png share image exists');
-  const banned = html.match(/mortal kombat|fatality|finish him|flawless victory|get over here|toasty|scorpion|sub-zero|raiden/gi);
-  check(!banned, 'no third-party game trademarks' + (banned ? ': ' + [...new Set(banned)].join(', ') : ''));
+  const hits = bannedHits();
+  check(!hits.length, 'no third-party game trademarks or catchphrases in any text file' + more(hits));
+  for (const f of ['index.html', 'dev.html']) {
+    const h = read(f), meta = (attr, name) => (h.match(new RegExp('<meta[^>]*' + attr + '="' + name + '"[^>]*content="([^"]*)"', 'i')) || [])[1] || '';
+    check(/<title>Agent Brawl<\/title>/.test(h) && meta('name', 'description').length > 40 && meta('name', 'viewport').includes('width=device-width'), f + ' has the title, description and viewport meta');
+    check(meta('property', 'og:image') === 'https://clagradi.github.io/codex-brawl/og.png' && meta('name', 'twitter:image') === 'https://clagradi.github.io/codex-brawl/og.png', f + ' points og:image and twitter:image at the absolute og.png URL');
+  }
 
   // 1. menus: title -> select -> pick -> arena reveal -> intro -> fight
   await p.goto(URL_BASE); await p.wait(400);
@@ -127,6 +134,9 @@ export async function runTests(p) {
   check(rows.length === 0, 'move lists stay within 10 rows and every fighter has an air special name' + (rows.length ? ': ' + rows.join(' ') : ''));
   await p.eval(`(() => { game.phase = 'pause'; })()`); await p.wait(80); await p.shot(path.join(ROOT, 'tools', '.shot-pause2.png'));
 
+  // 1d. README facts against the code, the rules, share on X, menu keys and text fit (see uxDesktopChecks below)
+  await uxDesktopChecks(p, check, tap);
+
   // 2. full CPU vs CPU matches, fast-forwarded; each must end with a finisher window
   const N = await p.eval('ROSTER.length');
   const pairs = []; for (let i = 0; i < N; i++) pairs.push([i, (i + 3) % N]); pairs.push([N - 1, N - 1], [0, 2]);
@@ -144,6 +154,7 @@ export async function runTests(p) {
   }
   check(use.punch2 > 0 && ['sweep', 'airk', 'throw'].every(k => use[k] > 0), 'CPUs use chains, sweeps, air kicks and throws: ' + JSON.stringify(use));
   check(sawFinish > 0, `FINISH IT window reached in ${sawFinish}/${pairs.length} matches (finisher performed in ${sawFinisher})`);
+  check(sawFinisher > 0, 'the CPU goes for its finisher (README: "usually")');
   await p.shot(path.join(ROOT, 'tools', '.shot-over.png'));
 
   // 3. every special, super and finisher of every fighter runs without throwing
@@ -416,5 +427,652 @@ export async function runTests(p) {
   check(flat.length === 4 && flat.every(([, v]) => v && v.ang === 0), "Wang's bubble and Poteto's lob keep their upright art: " + JSON.stringify(flat));
 
   if (p.errors.length) { console.log('console errors:\n' + p.errors.join('\n')); ok = false; } else console.log('ok    no console errors');
+  return ok;
+}
+
+// ---------- helpers for the UX checks below (README facts, in-game text, share on X, menu keys, touch layout) ----------
+const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const more = a => a.length ? ': ' + a.slice(0, 5).join('; ') + (a.length > 5 ? ' (+' + (a.length - 5) + ' more)' : '') : '';
+const IDS = ['tibo', 'poteto', 'dot', 'wang', 'muse'];
+
+// Names the game must never use. They are assembled from fragments so that this file does not contain them itself.
+const BANNED = [['mortal', ' kombat'], ['fatal', 'ity'], ['finish', ' him'], ['flawless', ' victory'], ['get over', ' here'], ['toast', 'y'], ['scorp', 'ion'], ['sub', '-zero'], ['rai', 'den']].map(a => a.join(''));
+function allFiles(dir = ROOT, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+    const f = path.join(dir, e.name);
+    if (e.isDirectory()) allFiles(f, out); else out.push(f);
+  }
+  return out;
+}
+function bannedHits() { // file names and the text of every source, doc and data file
+  const hits = [];
+  for (const f of allFiles()) {
+    const rel = path.relative(ROOT, f);
+    if (BANNED.some(b => rel.toLowerCase().includes(b))) hits.push(rel + ' (file name)');
+    if (!/\.(js|mjs|html|json|md|txt|css|svg)$/i.test(f)) continue;
+    const txt = fs.readFileSync(f, 'utf8').toLowerCase();
+    if (BANNED.some(b => txt.includes(b))) hits.push(rel);
+  }
+  return hits;
+}
+
+// Real organisations a fighter's text may name: the four affiliations of the README roster table (Poteto has none).
+const ORG_WORDS = /\b(openai|codex|meta|xai|grok|google|deepmind|anthropic|claude|microsoft|amazon|apple|nvidia|tesla|spacex|twitter|facebook|instagram|mistral|perplexity|scale ai)\b/gi;
+const ORG_OK = { tibo: ['openai', 'codex'], poteto: [], dot: ['openai'], wang: ['meta'], muse: ['meta'] };
+const orgsIn = s => [...new Set((String(s).match(ORG_WORDS) || []).map(x => x.toLowerCase()))];
+const orgProblems = (id, s, where) => orgsIn(s).filter(o => !ORG_OK[id].includes(o)).map(o => where + ' names ' + o);
+function petInfo() { // the INFO table at the top of tools/export-pets.mjs
+  const info = {};
+  for (const m of read('tools/export-pets.mjs').matchAll(/^\s+(tibo|poteto|dot|wang|muse): (['"])(.*)\2,?\s*$/gm)) info[m[1]] = m[3];
+  return info;
+}
+
+// In-page helpers. __key sends a key press and advances the game, window.open is stubbed (calls land in __opens) and the real-time loop is frozen.
+// __fight / __over put the game straight into a round or the end screen (cpu: P2 is the CPU in 1P mode, as in a real match).
+const INIT = `(() => {
+  window.__opens = []; window.open = (...a) => { __opens.push(a); return null; };
+  window.__key = (code, n = 1) => { dispatchEvent(new KeyboardEvent('keydown', { code })); dispatchEvent(new KeyboardEvent('keyup', { code })); step(n); };
+  window.__fight = (sel = [0, 2], mode = 1, round = 1, cpu = false) => {
+    game.mode = mode; game.sel = sel; startMatch(); game.round = round; game.sudden = round >= 4; startRound(); game.phase = 'fight'; game.phaseT = 0; game.banner = null;
+    const [f, o] = game.f; f.cpu = false; o.cpu = cpu && mode === 1;
+    for (const q of [f, o]) { q.set('idle'); q.y = GROUND; q.vx = q.vy = 0; q.cool = q.inv = q.dashCool = 0; q.combo = 0; q.meter = 0; q.lie = 0; q.land = 0; }
+    f.x = 300; o.x = 700; f.face = 1; o.face = -1; game.hitstop = 0; game.slow = 0; return [f, o];
+  };
+  window.__over = (mode, sel, winSide, fin) => {
+    __fight(sel, mode, 1, true); game.wins = winSide ? [1, 2] : [2, 1]; game.fin = fin ? MOVES[game.f[winSide].d.id].fin : null; game.phase = 'over'; game.phaseT = 0; return shareText();
+  };
+  hold(true);
+})()`;
+
+// In-page text capture: every fillText on the game canvas becomes a box in canvas pixels, so a test can look for text that leaves the
+// screen or overlaps other text. (Text that the HUD draws through its offscreen canvases is not seen here.)
+const CAPTURE = `(() => {
+  const cap = window.__cap = { on: false, list: [] }, orig = CanvasRenderingContext2D.prototype.fillText, shadeOrig = window.shade;
+  CanvasRenderingContext2D.prototype.fillText = function (s, x, y, mw) {
+    if (cap.on && this === ctx) {
+      const m = this.measureText(String(s)), t = this.getTransform(), k = mw && m.width > mw ? mw / m.width : 1;
+      const pt = q => [t.a * q[0] + t.c * q[1] + t.e, t.b * q[0] + t.d * q[1] + t.f];
+      const A = pt([x - m.actualBoundingBoxLeft * k, y - m.actualBoundingBoxAscent]), B = pt([x + m.actualBoundingBoxRight * k, y + m.actualBoundingBoxDescent]);
+      cap.list.push({ s: String(s), x0: Math.min(A[0], B[0]), x1: Math.max(A[0], B[0]), y0: Math.min(A[1], B[1]), y1: Math.max(A[1], B[1]) });
+    }
+    return orig.apply(this, arguments);
+  };
+  window.shade = function (a) { if (cap.on && a >= 0.5) cap.list.length = 0; return shadeOrig.apply(this, arguments); };   // a dark veil hides what was drawn before it
+  window.__draw = () => { cap.list = []; cap.on = true; try { render(); } finally { cap.on = false; } return cap.list; };
+})()`;
+
+function layoutProblems(list) { // text boxes (canvas pixels) that leave the 960x540 canvas or overlap another line of text
+  const seen = [];
+  for (const b of list) if (b.s.trim() && !seen.some(q => q.s === b.s && Math.abs(q.x0 - b.x0) < 8 && Math.abs(q.y0 - b.y0) < 8)) seen.push(b);   // outline and shadow copies count once
+  const out = [];
+  for (const b of seen) if (b.x0 < -0.5 || b.x1 > 960.5 || b.y0 < -0.5 || b.y1 > 540.5) out.push('"' + b.s + '" leaves the canvas');
+  for (let i = 0; i < seen.length; i++) for (let j = i + 1; j < seen.length; j++) {
+    const a = seen[i], b = seen[j];
+    if (Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 1 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 1) out.push('"' + a.s + '" overlaps "' + b.s + '"');
+  }
+  return out;
+}
+
+// In-page geometry of the touch layer (CSS pixels): what is visible, where it is, whether a label fits and whether a tap would reach it.
+const GEOM = `(() => {
+  const vis = e => !!e && !e.hidden && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+  const textFits = e => { if (!e.clientWidth) return true; const cs = getComputedStyle(e), rg = document.createRange(); rg.selectNodeContents(e); return rg.getBoundingClientRect().width <= e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.5; };
+  const reach = e => { const r = e.getBoundingClientRect(), t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!t && e.contains(t); };
+  window.__geom = () => {
+    const items = [], add = (name, e, type) => { if (!vis(e)) return; const r = e.getBoundingClientRect(); items.push({ name, type, x0: r.left, y0: r.top, x1: r.right, y1: r.bottom, fits: type === 'dpad' || type === 'hint' || textFits(e), reach: type === 'hint' || reach(e) }); };
+    add('d-pad', document.getElementById('dpad'), 'dpad');
+    document.querySelectorAll('#pad .tb').forEach(e => add('button ' + e.textContent, e, 'btn'));
+    document.querySelectorAll('#pills .mb').forEach(e => add('menu button ' + e.textContent, e, 'menu'));
+    add('share button', document.getElementById('share'), 'menu');
+    add('hint', document.querySelector('#pad .hint'), 'hint');
+    const c = cv.getBoundingClientRect(), de = document.documentElement;
+    return { vw: innerWidth, vh: innerHeight, scrollW: Math.max(de.scrollWidth, document.body.scrollWidth), scrollH: Math.max(de.scrollHeight, document.body.scrollHeight),
+      canvas: { x0: c.left, y0: c.top, x1: c.right, y1: c.bottom }, lay: { s: lay.s, x: lay.x, y: lay.y, stacked: lay.stacked }, items };
+  };
+})()`;
+
+function geomProblems(g, texts = []) { // layout rules for the touch layer on one screen size and one game screen
+  const { vw, vh, canvas: c, items, lay } = g, s = lay.s, out = [];
+  if (g.scrollW > vw + 1 || g.scrollH > vh + 1) out.push('the page scrolls (' + g.scrollW + 'x' + g.scrollH + ' in ' + vw + 'x' + vh + ')');
+  if (c.x0 < -1 || c.y0 < -1 || c.x1 > vw + 1 || c.y1 > vh + 1) out.push('the canvas leaves the screen');
+  if (Math.abs((c.x1 - c.x0) / (c.y1 - c.y0) - 16 / 9) > 0.02) out.push('the canvas is not 16:9');
+  for (const it of items) {
+    const w = it.x1 - it.x0, h = it.y1 - it.y0;
+    if (it.x0 < -0.5 || it.y0 < -0.5 || it.x1 > vw + 0.5 || it.y1 > vh + 0.5) out.push(it.name + ' leaves the screen');
+    if ((it.type === 'btn' || it.type === 'menu') && Math.min(w, h) < 40) out.push(it.name + ' is only ' + Math.round(Math.min(w, h)) + ' px');
+    if (it.type === 'dpad' && Math.min(w, h) < 100) out.push('the d-pad is only ' + Math.round(w) + ' px');
+    if (!it.fits) out.push(it.name + ' label is clipped');
+    if (!it.reach) out.push(it.name + ' is covered by something else');
+    if (lay.stacked && it.y0 < c.y1 - 0.5) out.push(it.name + ' overlaps the game');
+    if (!lay.stacked && it.type === 'menu' && it.x0 < c.x1 - 0.5) out.push(it.name + ' sits over the playfield');
+    if (!lay.stacked && (it.type === 'dpad' || it.type === 'btn') && (it.y0 < c.y0 + 100 * s - 1 || it.y1 > c.y1 - 55 * s + 1)) out.push(it.name + ' reaches into the HUD');
+  }
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+    const a = items[i], b = items[j];
+    if (Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.5 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.5) out.push(a.name + ' overlaps ' + b.name);
+  }
+  if (!lay.stacked) for (const t of texts) for (const it of items) { // controls floating over the canvas must not hide its text
+    if (it.type === 'hint') continue;
+    const x0 = lay.x + t.x0 * s, x1 = lay.x + t.x1 * s, y0 = lay.y + t.y0 * s, y1 = lay.y + t.y1 * s;
+    if (Math.min(x1, it.x1) - Math.max(x0, it.x0) > 2 && Math.min(y1, it.y1) - Math.max(y0, it.y0) > 2) out.push('"' + t.s + '" is covered by the ' + it.name);
+  }
+  return out;
+}
+
+const groupOf = check => async (name, fn) => { try { await fn(); } catch (e) { check(false, name + ' threw: ' + String((e && e.message) || e).split('\n')[0]); } };
+const verbose = (what, bad) => { if (process.env.UX_VERBOSE) for (const b of bad) console.log('       ' + what + ': ' + b); };
+
+// ---------- README, in-game text, rules, share on X, menus and keys (desktop page) ----------
+export async function uxDesktopChecks(p, check, tap) {
+  const readme = read('README.md'), group = groupOf(check);
+  const fresh = async (hash = '') => { await p.goto(URL_BASE + hash); await p.wait(300); await p.eval(INIT); await p.eval(CAPTURE); };
+  const section = title => { const i = readme.indexOf('\n## ' + title); if (i < 0) return ''; const j = readme.indexOf('\n## ', i + 4); return readme.slice(i, j < 0 ? undefined : j); };
+  const word = n => ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'][n];
+  const cells = line => line.split('|').slice(1, -1).map(c => c.trim());
+
+  await group('roster facts', async () => {
+    await fresh();
+    const ro = await p.eval(`ROSTER.map(r => ({ id: r.id, name: r.name, tag: r.tag, bio: r.bio, handle: r.handle, mv: [...MOVES[r.id].sp.map(m => m.name), MOVES[r.id].air.name, MOVES[r.id].su.name, MOVES[r.id].fin.name] }))`);
+    check(ro.map(r => r.id).join() === IDS.join(), 'the roster is exactly Tibo, Poteto, Dot, Wang and Muse');
+    check(ro.every(r => r.handle === ''), 'fighter X handles stay empty');
+    const NEED = { tibo: ['OPENAI'], poteto: [], dot: ['OPENAI'], wang: ['META'], muse: ['META'] };   // what the in-game tag has to say
+    const bad = ro.flatMap(r => [r.name, r.tag, r.bio, ...r.mv].flatMap(s => orgProblems(r.id, s, r.id + ' "' + s + '"')));
+    for (const r of ro) for (const w of NEED[r.id]) if (!r.tag.includes(w)) bad.push(r.id + ' tag "' + r.tag + '" does not say ' + w);
+    check(!bad.length, 'in-game fighter text carries only the allowed affiliations (Tibo: Codex at OpenAI, Dot: OpenAI, Wang: Meta, Muse: Meta, Poteto: none)' + more(bad));
+    const info = petInfo(), petBad = [];
+    for (const r of ro) {
+      let pet = {}; try { pet = JSON.parse(read('pets/' + r.id + '/pet.json')); } catch (e) { petBad.push(r.id + ': pet.json unreadable'); }
+      const dn = r.id === 'wang' ? 'Alexandr Wang' : r.id[0].toUpperCase() + r.id.slice(1);
+      if (!info[r.id]) petBad.push(r.id + ': no INFO line');
+      if (pet.description !== info[r.id]) petBad.push(r.id + ': pet.json description differs from INFO');
+      if (pet.id !== 'brawl-' + r.id || pet.displayName !== dn) petBad.push(r.id + ': id or displayName');
+      petBad.push(...orgProblems(r.id, (info[r.id] || '') + ' ' + (pet.description || ''), r.id + ' pet text'));
+      for (const w of { tibo: ['OpenAI', 'Codex'], poteto: [], dot: ["OpenAI's dots"], wang: ['Meta'], muse: ["Meta's agent"] }[r.id]) if (!(info[r.id] || '').includes(w)) petBad.push(r.id + ': INFO does not say ' + w);
+    }
+    check(!petBad.length, 'the INFO strings in tools/export-pets.mjs match pets/*/pet.json and name only the allowed affiliations' + more(petBad));
+  });
+
+  await group('README against the code', async () => {
+    await fresh();
+    const N = await p.eval('ROSTER.length'), names = await p.eval('ARENAS.map(a => a.name)');
+    const rows = readme.split('\n').filter(l => /^\| (Tibo|Poteto|Dot|Alexandr Wang|Muse)\b/.test(l)).map(cells);
+    const mv = await p.eval(`ROSTER.map(r => { const M = MOVES[r.id], by = i => (M.sp.find(m => m.input === i) || {}).name; return [by('L'), by('FWD+L'), by('DOWN+L'), M.air.name, M.su.name, M.fin.name]; })`);
+    const AFF = ['Tibo (Codex at OpenAI)', 'Poteto', "Dot (OpenAI's dots)", 'Alexandr Wang (Meta)', "Muse (Meta's agent)"], tbl = [];
+    if (rows.length !== mv.length) tbl.push('the README roster table has ' + rows.length + ' rows, the game has ' + mv.length + ' fighters');
+    rows.forEach((r, i) => {
+      if (r[0] !== AFF[i]) tbl.push('row ' + (i + 1) + ' says "' + r[0] + '", expected "' + AFF[i] + '"');
+      (mv[i] || []).forEach((n, k) => { if (!n || (r[k + 1] || '').toLowerCase() !== n.toLowerCase()) tbl.push((AFF[i] || i) + ' column ' + (k + 1) + ': README "' + r[k + 1] + '" vs game "' + n + '"'); });
+    });
+    check(!tbl.length, 'README roster table: affiliations and every special, air special, super and finisher match the game' + more(tbl));
+    const listed = (section('Arenas').match(/\n\n([^\n]+?)\. Each has/) || [])[1] || '';
+    check(listed.split(', ').map(s => s.toLowerCase()).sort().join('|') === names.map(s => s.toLowerCase()).sort().join('|'), 'README lists the ' + names.length + ' arenas by their in-game names');
+    const counted = [...readme.matchAll(/\b(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) (fighters?|arenas?)\b/gi)].map(m => [m[2].toLowerCase().replace(/s$/, ''), m[1].toLowerCase()]);
+    const miscount = counted.filter(([what, n]) => { const want = what === 'fighter' ? N : names.length; return n !== word(want) && n !== String(want); });
+    check(counted.some(c => c[0] === 'fighter') && counted.some(c => c[0] === 'arena') && !miscount.length, 'every count of fighters (' + N + ') and arenas (' + names.length + ') in the README is right' + more(miscount.map(c => c.join(' '))));
+    const kb = +(readme.match(/under (\d+) KB/) || [])[1], size = fs.statSync(path.join(ROOT, 'index.html')).size;
+    check(kb > 0 && size < kb * 1024, 'index.html (' + (size / 1024).toFixed(1) + ' KB) is within the README size claim (under ' + kb + ' KB)');
+    const dev = section('Development'), refs = [...new Set([...dev.matchAll(/`([\w./-]+\.(?:js|mjs|html))`/g)].map(m => m[1]))], cmds = [...dev.matchAll(/\bnode ([\w./-]+\.mjs)/g)].map(m => m[1]);
+    const gone = [...refs.filter(f => !fs.existsSync(path.join(ROOT, f)) && !fs.existsSync(path.join(ROOT, 'tools', f))), ...cmds.filter(f => !fs.existsSync(path.join(ROOT, f)))];
+    check(refs.length > 8 && cmds.length >= 4 && !gone.length, 'every file and command that the README Development section names exists' + more(gone));
+    const pngs = IDS.map(id => { const b = fs.readFileSync(path.join(ROOT, 'pets', id, 'spritesheet.png')); return b.readUInt32BE(16) + 'x' + b.readUInt32BE(20); });
+    check(pngs.every(s => s === '1536x2288') && /8 x 11 cells of 192x208/.test(readme), 'the Codex pet sheets are 8 x 11 cells of 192x208 (1536x2288), as the README says');
+    check(/unofficial fan parody/i.test(readme) && /not affiliated with or endorsed by OpenAI, Meta, xAI/.test(readme), 'README keeps the unofficial fan parody disclaimer');
+    // debug hashes
+    const hashes = [];
+    await p.goto(URL_BASE + '#select'); await p.wait(250); if (await p.eval('game.phase') !== 'select') hashes.push('#select');
+    await p.goto(URL_BASE + '#demo=1,2&arena=5&stop'); await p.wait(250); if (!await p.eval('game.sel.join() === "1,2" && game.arena === 5 && game.f.every(f => f.cpu)')) hashes.push('#demo=1,2&arena=5');
+    await p.goto(URL_BASE + '#demo=0,1&ff=40&stop'); await p.wait(250); if (!await p.eval('game.tick >= 40')) hashes.push('#demo ff');
+    await p.goto(URL_BASE + '#sheet=muse'); await p.wait(250); if (await p.eval('game.phase') !== 'sheet') hashes.push('#sheet');
+    check(!hashes.length, 'the debug URL hashes in the README work' + more(hashes));
+  });
+
+  await group('page meta', async () => {   // title, description and the Open Graph / X card, in the source page and in the built one
+    const OG = 'https://clagradi.github.io/codex-brawl/og.png', bad = [];
+    for (const f of ['dev.html', 'index.html']) {
+      const html = read(f), m = Object.fromEntries([...html.matchAll(/<meta\s+(?:name|property)="([^"]+)"\s+content="([^"]*)"/g)].map(x => [x[1], x[2]]));
+      const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1], d = m.description || '';
+      if (title !== 'Agent Brawl') bad.push(f + ': the title is "' + title + '"');
+      if (d.length < 60 || d.length > 200) bad.push(f + ': the description is ' + d.length + ' characters long');
+      if (m['og:description'] !== d || m['twitter:description'] !== d) bad.push(f + ': the og and twitter descriptions differ from the description');
+      if (!/^Agent Brawl/.test(m['og:title'] || '') || m['og:title'] !== m['twitter:title']) bad.push(f + ': og:title and twitter:title');
+      if (m['og:image'] !== OG || m['twitter:image'] !== OG) bad.push(f + ': og:image and twitter:image must be exactly ' + OG);
+      if (m['og:image:width'] !== '1200' || m['og:image:height'] !== '630' || m['twitter:card'] !== 'summary_large_image') bad.push(f + ': the card size or type');
+      if (!/width=device-width/.test(m.viewport || '')) bad.push(f + ': the viewport meta');
+      if (!['Tibo', 'Poteto', 'Dot', 'Wang', 'Muse'].every(n => new RegExp('\\b' + n + '\\b').test(d))) bad.push(f + ': the description does not name the five fighters');
+      for (const o of orgsIn(d)) bad.push(f + ': the description names ' + o);
+    }
+    const og = fs.readFileSync(path.join(ROOT, 'og.png'));
+    if (og.readUInt32BE(16) !== 1200 || og.readUInt32BE(20) !== 630) bad.push('og.png is ' + og.readUInt32BE(16) + 'x' + og.readUInt32BE(20) + ', the card meta says 1200x630');
+    check(!bad.length, 'the title, description and Open Graph / X card meta are right in dev.html and index.html, and og.png is the 1200x630 card' + more(bad));
+  });
+
+  await group('keys', async () => {
+    await fresh();
+    const tokCode = t => /^[A-Z]$/.test(t) ? 'Key' + t : { ',': 'Comma', '.': 'Period', '/': 'Slash', Shift: 'ShiftRight' }[t] || t;
+    const toks = c => [...(c || '').matchAll(/`([^`]+)`/g)].map(m => tokCode(m[1]));
+    const line = n => cells(readme.split('\n').find(l => l.startsWith('| ' + n + ' |')) || '').slice(1);
+    const m = await p.eval('({ MAP, ALT, LABEL, ALTL })'), bad = [], M0 = m.MAP[0], M1 = m.MAP[1], p1 = line('P1'), p2 = line('P2');
+    const eq = (a, b, what) => { if (a.join() !== b.join()) bad.push(what + ': README ' + a.join(' ') + ' vs code ' + b.join(' ')); };
+    eq(toks(p1[0]), [M0.u[0], M0.l[0], M0.d[0], M0.r[0]], 'P1 movement'); eq(toks(p1[1]), M0.p, 'P1 punch'); eq(toks(p1[2]), M0.k, 'P1 kick'); eq(toks(p1[3]), M0.s, 'P1 special');
+    eq(toks(p1[4]), [M0.p[0], M0.k[0], M0.x[0]], 'P1 super (J + K together, or I)');
+    eq([M1.l[0], M1.r[0], M1.u[0], M1.d[0]], ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'], 'P2 movement'); if (!/arrows/i.test(p2[0] || '')) bad.push('README does not say P2 moves with the arrows');
+    eq(toks(p2[1]), M1.p, 'P2 punch'); eq(toks(p2[2]), M1.k, 'P2 kick'); eq(toks(p2[3]), M1.s, 'P2 special'); eq(toks(p2[4]), M1.x, 'P2 super');
+    eq(['Z', 'X', 'C', 'V'].map(tokCode), [m.ALT.p[0], m.ALT.k[0], m.ALT.s[0], m.ALT.x[0]], '1P alternate keys'); if (!/`Z` `X` `C` `V`/.test(readme)) bad.push('README does not list the Z X C V keys');
+    const lab = (l, side) => /^NUM\d$/.test(l) ? 'Numpad' + l[3] : 'Key' + l;
+    for (const a of ['p', 'k', 's', 'x']) { if (lab(m.LABEL[0][a]) !== M0[a][0]) bad.push('LABEL[0].' + a); if (lab(m.LABEL[1][a]) !== M1[a][0]) bad.push('LABEL[1].' + a); if ('Key' + m.ALTL[a] !== m.ALT[a][0]) bad.push('ALTL.' + a); }
+    check(!bad.length, 'README controls table, the Z X C V alternates and the on-screen key labels match the key maps' + more(bad));
+    const c = await p.eval(`(() => { const r = {}; game.mode = 1; r.p1 = codes(0, 'p').join(); r.l1 = codes(0, 'l').join(); r.p2 = codes(1, 'p').join(); game.mode = 2; r.p1m2 = codes(0, 'p').join(); r.l1m2 = codes(0, 'l').join(); game.mode = 1; return r; })()`);
+    check(c.p1 === 'KeyJ,KeyZ' && c.l1 === 'KeyA,ArrowLeft' && c.p1m2 === 'KeyJ' && c.l1m2 === 'KeyA' && c.p2 === 'Numpad1,Comma', 'the arrows and Z X C V drive P1 in 1P mode only');
+  });
+
+  await group('share on X', async () => {
+    await fresh();
+    const cases = [['1P win', 1, [0, 3], 0, false, null, 'I beat WANG with TIBO 2-1 in Agent Brawl.'], ['1P loss', 1, [0, 3], 1, false, null, 'WANG destroyed my TIBO 2-1 in Agent Brawl.'],
+      ['2P', 2, [2, 4], 1, false, null, 'MUSE beat DOT 2-1 in Agent Brawl.'], ['finisher', 1, [1, 2], 0, true, f => 'I beat DOT with POTETO 2-1, finished with ' + f + ' in Agent Brawl.', null]];
+    const bad = [];
+    for (const [label, mode, sel, side, fin, build, fixed] of cases) {
+      const r = await p.eval(`({ text: __over(${mode}, ${JSON.stringify(sel)}, ${side}, ${fin}), fin: game.fin && game.fin.name, url: shareUrl() })`);
+      const want = fixed || build(r.fin), u = new URL(r.url);
+      if (r.text !== want) bad.push(label + ': "' + r.text + '" vs "' + want + '"');
+      if (!/^(?:I beat [A-Z ]+ with [A-Z ]+|[A-Z ]+ destroyed my [A-Z ]+|[A-Z ]+ beat [A-Z ]+) \d-\d(?:, finished with [A-Z' -]+)? in Agent Brawl\.$/.test(r.text)) bad.push(label + ': the text is not just the result');
+      if (r.text.length > 200 || /https?:|@|#/.test(r.text)) bad.push(label + ': the text carries a link, a handle, a tag or is long');
+      if (u.origin !== 'https://x.com' || u.pathname !== '/intent/post' || [...u.searchParams.keys()].join() !== 'text,url' || u.searchParams.get('text') !== r.text || u.searchParams.get('url') !== 'https://clagradi.github.io/codex-brawl/' || /[ "<>]/.test(r.url)) bad.push(label + ': the intent URL is wrong (' + r.url.slice(0, 80) + ')');
+    }
+    check(!bad.length, 'the X post is the match result alone, URL-encoded, with the game link in the url parameter' + more(bad));
+    const a = await p.eval(`(() => { __over(1, [0, 3], 0, false); render(); const e = document.getElementById('share'), r = e.getBoundingClientRect(), c = cv.getBoundingClientRect(); return { hidden: e.hidden, href: e.href, target: e.target, rel: e.rel, text: e.textContent.trim(), r: [r.left, r.top, r.right, r.bottom], c: [c.left, c.top, c.right, c.bottom], s: lay.s, vw: innerWidth, vh: innerHeight, url: shareUrl() }; })()`);
+    check(!a.hidden && a.href === a.url && a.target === '_blank' && /noopener/.test(a.rel) && a.text === 'SHARE ON X', 'the SHARE ON X button is an anchor to the intent URL that opens a new tab');
+    check(a.r[1] >= a.c[1] + 120 * a.s - 1 && a.r[3] <= a.c[3] && a.r[0] >= 0 && a.r[2] <= a.vw, 'the SHARE ON X button sits below the result line, inside the screen');
+    await p.eval('__opens.length = 0'); await tap('KeyT');
+    const o = await p.eval('({ opens: __opens, url: shareUrl() })');
+    check(o.opens.length === 1 && o.opens[0][0] === o.url && o.opens[0][1] === '_blank' && o.opens[0][2] === 'noopener', 'T opens the intent URL in a new tab (noopener)');
+    for (const ph of ['title', 'select', 'fight', 'pause']) { await p.eval(`game.phase = '${ph}'`); await tap('KeyT'); }
+    check(await p.eval('__opens.length') === 1, 'T does nothing outside the end screen');
+  });
+
+  await group('rules', async () => {
+    await fresh();
+    const R = await p.eval(`(() => {
+      const out = {}, tick = () => { game.timer = 1; game.clock = 59; step(1); };
+      out.timers = [1, 2, 3].map(r => { __fight([0, 2], 1, r); return game.timer; });
+      let [f, o] = __fight([0, 2]); f.hp = 49; o.hp = 46; tick();   // Tibo 49/100 = 49%, Dot 46/92 = 50%: the percentage decides
+      out.pct = { phase: game.phase, wins: game.wins.slice(), banner: game.banner && game.banner.txt };
+      __fight([0, 2], 1, 2); tick(); out.draw = { phase: game.phase, wins: game.wins.slice(), banner: game.banner && game.banner.txt };
+      __fight([0, 2], 1, 3); game.wins = [1, 1]; tick(); let n = 0; while (game.phase === 'ko' && n++ < 400) step(1);
+      out.next = { phase: game.phase, round: game.round, sudden: game.sudden, timer: game.timer, hp: game.f.map(q => q.hp), max: game.f.map(q => q.d.hp), banner: game.banner && game.banner.txt, tip: (fightTip() || {}).txt };
+      out.meter = []; for (const [m0, m1] of [[10, 40], [40, 10]]) { [f, o] = __fight([0, 2], 1, 4); f.meter = m0; o.meter = m1; tick(); out.meter.push(game.wins.slice()); }
+      return out; })()`);
+    check(R.timers.join() === '99,99,99' && /99-second rounds/.test(readme), 'rounds 1 to 3 run 99 seconds (README: 99-second rounds)');
+    check(R.pct.phase === 'ko' && R.pct.wins.join() === '0,1' && R.pct.banner === 'TIME', 'a time-out goes to the fighter with more health by percentage (49/100 loses to 46/92)');
+    check(R.draw.wins.join() === '0,0' && R.draw.banner === 'DRAW', 'an exact tie on health in rounds 1 to 3 is a draw nobody wins');
+    check(R.next.round === 4 && R.next.sudden && R.next.timer === 30 && R.next.hp.join() === R.next.max.map(h => Math.ceil(h * 0.25)).join() && R.next.banner === 'SUDDEN DEATH' && /30 seconds/.test(readme) && /quarter of their health/.test(readme),
+      'with no winner after round 3, round 4 is sudden death: 30 seconds, a quarter of the health (README rules)');
+    check(/SUDDEN DEATH/.test(R.next.tip || '') && /30 SECONDS/.test(R.next.tip) && /25%/.test(R.next.tip) && /SUPER METER/.test(R.next.tip), 'the sudden-death round explains its rules on screen');
+    check(R.meter.join('|') === '0,1|1,0', 'a sudden-death tie on health goes to the fuller super meter');
+  });
+
+  await group('finisher window', async () => {
+    await fresh();
+    const F = await p.eval(`(() => {
+      const out = { len: FINISH_LEN }, ko = (f, o) => { o.hp = 1; o.inv = 0; o.takeHit(f, 50, 5, 20, 'hit'); };
+      let [f, o] = __fight([0, 2]); ko(f, o); out.first = game.phase;   // the first round win is a plain K.O.
+      [f, o] = __fight([0, 2]); game.wins = [1, 0]; ko(f, o); out.p0 = game.phase; out.banner = game.banner && game.banner.txt; step(299); out.p299 = game.phase; step(1); out.p300 = game.phase;
+      [f, o] = __fight([1, 3]); game.wins = [1, 0]; ko(f, o); step(20); o.takeHit(f, 5, 2, 10, 'punch'); out.afterHit = game.phase;
+      [f, o] = __fight([2, 4]); game.wins = [1, 0]; ko(f, o); step(20); f.meter = 0; out.before = game.phase;
+      return out; })()`);
+    await p.key('KeyI', true); await p.eval('step(2)'); await p.key('KeyI', false);
+    check(F.first === 'ko' && F.p0 === 'finish' && F.banner === 'FINISH IT!', 'the first round win is a plain K.O.; winning the second opens FINISH IT!');
+    check(F.len === 300 && F.p299 === 'finish' && F.p300 === 'ko' && /FINISH IT! for 5 seconds/.test(readme), 'the FINISH IT! window lasts 5 seconds, then a plain K.O.');
+    check(F.afterHit === 'ko', 'any hit on the stunned fighter ends the match with a normal K.O.');
+    check(F.before === 'finish' && await p.eval('game.phase') === 'finisher', 'the super key performs the finisher with an empty meter');
+  });
+
+  await group('end screen keys', async () => {
+    await fresh();
+    const O = await p.eval(`(() => {
+      const out = {}, K = __key, over = (mode = 1, sel = [1, 3], pick = 3) => { game.arenaPick = pick; __over(mode, sel, 0, false); };
+      over(); K('KeyR'); out.r = [game.phase, game.sel.join(), game.arena, game.wins.join()];
+      over(); K('KeyI'); out.i = game.phase; over(2); K('Numpad0'); out.p2super = game.phase;
+      over(); K('Enter'); out.enter = [game.phase, game.ready.join()]; over(); K('Space'); out.space = game.phase; over(); K('KeyJ'); out.punch = game.phase; over(2); K('Numpad1'); out.p2punch = game.phase;
+      over(); K('Escape'); out.esc = game.phase;
+      game.arenaPick = -1; const seen = new Set(); for (let i = 0; i < 40; i++) { startMatch(); seen.add(game.arena); } out.random = seen.size;
+      over(1, [1, 3], -1); K('KeyR'); out.randomRematch = game.arenaPick;
+      return out; })()`);
+    check(O.r.join() === 'vs,1,3,3,0,0' && O.i === 'vs', 'R and the P1 super key rematch with the same fighters and the same arena');
+    check(O.p2super === 'over', "the P2 super key does not rematch (README: R or P1's super key)");
+    check(O.randomRematch === -1 && O.random > 1, 'a rematch with the arena left on RANDOM rolls the arena again');
+    check(O.enter.join() === 'select,false,false' && O.space === 'select' && O.punch === 'select' && O.p2punch === 'select' && O.esc === 'title', 'Enter, Space or a punch go back to select, Esc to the title');
+  });
+
+  await group('menu keys', async () => {
+    await fresh();
+    const r = await p.eval(`(() => {
+      const out = {}, K = __key, ph = () => game.phase;
+      out.t0 = [ph(), game.titleSel]; K('KeyS'); out.s = game.titleSel; K('KeyW'); out.w = game.titleSel; K('ArrowDown'); out.down = game.titleSel; K('ArrowUp'); out.up = game.titleSel;
+      K('Space'); out.space = [ph(), game.mode]; K('Escape'); out.escFirst = ph();
+      K('KeyJ'); out.punch = [ph(), game.mode]; K('KeyJ'); out.ready = game.ready[0]; K('Escape'); out.unready = [ph(), game.ready[0]]; K('Escape'); out.escTitle = ph();
+      K('KeyS'); K('Enter'); out.p2mode = [ph(), game.mode]; K('Escape'); out.esc2p = ph();
+      K('Enter'); game.arenaPick = -1; out.arena = []; for (let i = 0; i < 10; i++) { K('KeyE'); out.arena.push(game.arenaPick); } K('KeyQ'); out.q = game.arenaPick; K('KeyI'); out.superKey = game.arenaPick;
+      game.sel = [0, 4]; game.ready = [false, false]; out.col = []; for (const [s, k] of [[0, 'KeyS'], [3, 'KeyS'], [1, 'KeyS'], [4, 'KeyS'], [2, 'KeyS'], [4, 'KeyW']]) { game.sel[0] = s; K(k); out.col.push(game.sel[0]); }
+      K('Escape'); game.titleSel = 1; K('Enter'); out.tab = [ph(), game.mode]; game.sel = [0, 4]; game.ready = [false, false]; K('KeyD'); K('ArrowLeft'); out.nav2p = game.sel.join();
+      K('KeyJ'); K('Numpad2'); out.p1stays = game.ready.join(); K('KeyK'); out.p1undo = game.ready.join(); K('Numpad1'); K('Numpad2'); out.p2undo = game.ready.join();
+      __fight([0, 2]); K('KeyP'); out.p = ph(); K('KeyP'); out.p2 = ph(); K('Escape'); out.esc = ph(); K('Escape'); out.esc2 = ph(); K('KeyP'); K('Enter'); out.enter = ph(); K('KeyP'); K('KeyQ'); out.quit = ph();
+      return out; })()`);
+    check(r.t0.join() === 'title,0' && r.s === 1 && r.w === 0 && r.down === 1 && r.up === 0, 'title: W/S and the arrows choose the mode');
+    check(r.space.join() === 'select,1' && r.escFirst === 'title' && r.punch.join() === 'select,1', 'title: Space or a punch starts, Esc on the first pick goes back to the title');
+    check(r.ready === true && r.unready.join() === 'select,false' && r.escTitle === 'title', 'select: J confirms, Esc un-confirms and then goes to the title');
+    check(r.p2mode.join() === 'select,2' && r.esc2p === 'title', 'select (2P): Esc goes back to the title');
+    check(r.arena.join() === '0,1,2,3,4,5,6,7,8,-1' && r.q === 8 && r.superKey === -1, 'select: E, Q and the super key step through the nine arenas and RANDOM');
+    check(r.col.join() === '3,0,4,1,4,1', 'select: up and down keep the column');
+    check(r.tab.join() === 'select,2' && r.nav2p === '1,3' && r.p1stays === 'true,false' && r.p1undo === 'false,false' && r.p2undo === 'false,false', 'select (2P): each player moves and confirms with their own keys, and the kick key undoes only that player');
+    check(r.p === 'pause' && r.p2 === 'fight' && r.esc === 'pause' && r.esc2 === 'fight' && r.enter === 'fight' && r.quit === 'title', 'fight and pause: P or Esc pause, P, Esc or Enter resume, Q quits to the title');
+  });
+
+  await group('mute and blood', async () => {
+    await fresh();
+    const store = await p.eval(`(() => { try { localStorage.setItem('t', '1'); localStorage.removeItem('t'); return true; } catch (e) { return false; } })()`);
+    const r = await p.eval(`(() => { const out = { m0: muted, g0: FX.gore }; game.phase = 'title'; __key('KeyM'); out.m1 = muted; out.ms = store(); __key('KeyB'); out.g1 = FX.gore; out.gs = store(); return out; function store() { try { return [localStorage.getItem('brawl.muted'), localStorage.getItem('brawl.gore')].join(); } catch (e) { return ''; } } })()`);
+    check(r.m1 === !r.m0 && r.g1 === !r.g0, 'M toggles the sound and B the blood');
+    if (store) {
+      check(r.gs === (r.m1 ? '1' : '0') + ',' + (r.g1 ? '1' : '0'), 'both choices are stored in the browser');
+      await p.goto(URL_BASE); await p.wait(300);
+      const back = await p.eval('[muted, FX.gore]');
+      check(back[0] === r.m1 && back[1] === r.g1, 'a reload restores the sound and blood choices (README: remembered between visits)');
+      await p.eval(`(() => { localStorage.removeItem('brawl.muted'); localStorage.removeItem('brawl.gore'); })()`);
+    } else console.log('skip  browser storage is not available here: persistence of M and B not checked');
+  });
+
+  await group('gamepad', async () => {
+    await fresh();
+    const g = await p.eval(`(() => {
+      const mk = () => ({ axes: [0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) }), g1 = mk(), g2 = mk();
+      Object.defineProperty(navigator, 'getGamepads', { value: () => [g1, g2], configurable: true });
+      game.phase = 'sheet';   // the game ignores the keys, only pollPads() runs
+      const read = (g, b, code) => { g.buttons[b].pressed = true; step(1); const on = !!keys[code]; g.buttons[b].pressed = false; step(1); return on && !keys[code]; };
+      const out = { p1: [read(g1, 0, 'KeyJ'), read(g1, 1, 'KeyK'), read(g1, 2, 'KeyL'), read(g1, 3, 'KeyI'), read(g1, 5, 'KeyI'), read(g1, 14, 'KeyA'), read(g1, 15, 'KeyD'), read(g1, 12, 'KeyW'), read(g1, 13, 'KeyS')],
+        p2: [read(g2, 0, 'Numpad1'), read(g2, 1, 'Numpad2'), read(g2, 2, 'Numpad3'), read(g2, 3, 'Numpad0')] };
+      g1.axes[0] = 0.9; step(1); out.stick = !!keys.KeyD; g1.axes[0] = 0; step(1);
+      game.phase = 'title'; game.titleSel = 0; g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.startMenu = game.phase;   // Start is Enter on the menus
+      g1.buttons[8].pressed = true; step(1); g1.buttons[8].pressed = false; step(1); out.back = game.phase;   // Back is Esc
+      __fight([0, 2]); g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.pause = game.phase; g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.resume = game.phase;
+      return out; })()`);
+    check(g.p1.every(Boolean) && g.p2.every(Boolean) && g.stick, 'gamepads: pad 1 is P1, pad 2 is P2; d-pad or stick, A punch, B kick, X special, Y or RB super');
+    check(g.startMenu === 'select' && g.back === 'title' && g.pause === 'pause' && g.resume === 'fight', 'gamepad Start is Enter on the menus and pauses or resumes a fight, Back is Esc');
+  });
+
+  await group('touch pad on a laptop', async () => {
+    await fresh();
+    const r = await p.eval(`(() => {
+      const pad = document.getElementById('pad'), out = { start: touch.on };
+      dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true })); render(); out.mouse = touch.on;
+      dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true })); render(); out.touch = touch.on; out.shown = !pad.hidden;
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA' })); dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyA' })); render(); out.key = touch.on; out.hidden = pad.hidden;
+      return out; })()`);
+    check(!r.start && !r.mouse && r.touch && r.shown && !r.key && r.hidden, 'the on-screen pad appears on the first touch (never for a mouse) and a key press hides it again');
+  });
+
+  await group('text fit', async () => {
+    await fresh();
+    const bad = [];
+    const draw = async (label, setup, want = '[]', has = []) => {
+      const r = await p.eval(`(() => { ${setup}; const list = __draw(); return { list, want: ${want} }; })()`);
+      for (const msg of layoutProblems(r.list)) bad.push(label + ': ' + msg);
+      for (const w of r.want) if (!r.list.some(b => b.s.toUpperCase() === String(w).toUpperCase())) bad.push(label + ': "' + w + '" is not drawn');
+      for (const t of has) if (!r.list.some(b => b.s.includes(t))) bad.push(label + ': nothing says "' + t + '"');
+      verbose(label, layoutProblems(r.list));
+      return r.list;
+    };
+    await draw('title 1P', "game.phase = 'title'; game.titleSel = 0", '[]', ['W/S + ENTER', 'UNOFFICIAL FAN PARODY', 'NOT AFFILIATED WITH OPENAI, META OR XAI']);
+    await draw('title 2P', "game.phase = 'title'; game.titleSel = 1", '[]', ['P2 ARROWS']);
+    for (let i = 0; i < IDS.length; i++) for (const mode of [1, 2]) {
+      const j = (i + 2) % IDS.length;
+      await draw(`select ${mode}P ${IDS[i]}/${IDS[j]}`, `game.mode = ${mode}; game.sel = [${i}, ${j}]; game.ready = [${i % 2 === 0}, false]; game.arenaPick = ${i * 2 - 1}; game.phase = 'select'`,
+        `[...moveRows(ROSTER[${i}].id, 0, false), ...moveRows(ROSTER[${j}].id, 1, ${mode === 1})].map(r => r.name)`, mode === 2 ? ['NUM1', 'P1 WASD', 'P2 ARROWS'] : ['ARENA']);
+    }
+    for (let i = 0; i < IDS.length; i++) for (const mode of [1, 2]) {
+      const j = (i + 3) % IDS.length;
+      await draw(`pause ${mode}P ${IDS[i]}/${IDS[j]}`, `__fight([${i}, ${j}], ${mode}, 1, true); game.phase = 'pause'`, `[...moveRows(ROSTER[${i}].id, 0, false), ...moveRows(ROSTER[${j}].id, 1, ${mode === 1})].map(r => r.name)`,
+        mode === 2 ? ['SUDDEN DEATH', 'P2  ARROWS', 'GAMEPAD'] : ['SUDDEN DEATH', 'GAMEPAD']);
+    }
+    for (let i = 0; i < IDS.length; i++) await draw('over ' + IDS[i], `__over(1, [${i}, ${(i + 1) % IDS.length}], 0, true)`, "['P1 TAKES IT 2-1 · ' + game.fin.name]", ['ENTER CHARACTER SELECT']);
+    await draw('over, CPU wins', '__over(1, [3, 0], 1, true)', "['CPU TAKES IT 2-1 · ' + game.fin.name]");
+    await draw('tip, round 1 (1P)', "__fight([0, 3], 1, 1, true); game.clock = 10", '[fightTip().txt]');
+    await draw('tip, round 1 (2P)', "__fight([0, 3], 2, 1, false); game.clock = 10", '[fightTip().txt]');
+    await draw('tip, sudden death', "__fight([2, 4], 1, 4, true); game.phase = 'intro'", '[fightTip().txt]');
+    await draw('tip, finisher', "__fight([2, 4]); game.wins = [1, 0]; game.f[1].hp = 1; game.f[1].inv = 0; game.f[1].takeHit(game.f[0], 50, 5, 20, 'hit')", '[fightTip().txt]');
+    check(!bad.length, 'menu, pause, end and tip text stays on the canvas and does not overlap, in 1P and 2P for every fighter' + more(bad));
+  });
+
+  await group('desktop window sizes', async () => {
+    await fresh();
+    const bad = [];
+    try {
+      for (const [w, h] of [[1000, 600], [640, 480], [800, 300], [1280, 720], [1920, 1080], [1024, 768]]) {
+        await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }); await p.wait(80); await p.eval('fit()');
+        const g = await p.eval(`(() => { const c = cv.getBoundingClientRect(), de = document.documentElement; return { vw: innerWidth, vh: innerHeight, c: [c.left, c.top, c.right, c.bottom], sw: de.scrollWidth, sh: de.scrollHeight }; })()`);
+        if (g.vw !== w || g.vh !== h) bad.push(w + 'x' + h + ': the window did not resize');
+        else if (g.c[0] < -1 || g.c[1] < -1 || g.c[2] > w + 1 || g.c[3] > h + 1 || Math.abs((g.c[2] - g.c[0]) / (g.c[3] - g.c[1]) - 16 / 9) > 0.02 || g.sw > w + 1 || g.sh > h + 1) bad.push(w + 'x' + h + ': the canvas does not fit (' + g.c.map(Math.round).join(',') + ')');
+      }
+    } finally { await p.send('Emulation.clearDeviceMetricsOverride'); await p.wait(60); }
+    check(!bad.length, 'the canvas scales to the window on a desktop (no scrolling, 16:9) at every size tried' + more(bad));
+  });
+}
+
+// ---------- phone (runs on the emulated 390x844 touch device): the game by touch, then the layout on many screen sizes ----------
+const SCREENS = {
+  portrait: [[390, 844], [360, 640], [320, 568], [412, 915], [375, 667], [820, 1180]],
+  landscape: [[844, 390], [667, 375], [568, 320], [932, 430], [1024, 768], [1180, 820]],
+};
+const PHONE_PHASES = [   // [name, code that puts the game on that screen, how many menu buttons the touch layer shows there]
+  ['title', "game.phase = 'title'; game.titleSel = 0", 3],
+  ['select', "game.mode = 1; game.sel = [1, 3]; game.ready = [true, false]; game.arenaPick = 2; game.phase = 'select'; game.phaseT = 0", 4],
+  ['versus', "__fight([1, 3], 1, 1, true); game.phase = 'vs'; game.phaseT = 60", 1],
+  ['fight', "__fight([1, 3], 1, 1, true); game.clock = 20", 1],
+  ['sudden death', "__fight([2, 4], 1, 4, true); game.clock = 20", 1],
+  ['pause', "__fight([1, 3], 1, 1, true); game.phase = 'pause'", 3],
+  ['end', "__over(1, [1, 3], 0, true)", 4],   // SELECT, REMATCH, TITLE and the SHARE ON X button
+];
+// both fighters back to a neutral spot, so that a touch test starts from a known position
+const PARK = "(() => { const [f, o] = game.f; f.cpu = o.cpu = false; game.proj = []; game.fx = []; game.delayed = []; game.hitstop = 0; game.slow = 0; for (const q of [f, o]) { q.set('idle'); q.hp = q.d.hp; q.y = GROUND; q.vx = q.vy = 0; q.cool = q.inv = q.dashCool = 0; q.combo = 0; q.meter = 0; q.lie = 0; q.land = 0; } f.x = 300; o.x = 700; f.face = 1; o.face = -1; step(1); })()";
+
+export async function runPhoneTests(p) {
+  let ok = true;
+  const check = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!cond) ok = false; };
+  const group = groupOf(check);
+  const fresh = async () => { await p.goto(URL_BASE); await p.wait(400); };
+  // centre and size of a visible element in CSS pixels, optionally the one that carries this label
+  const at = (sel, txt) => p.eval(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find(n => ${txt === undefined ? 'true' : 'n.textContent === ' + JSON.stringify(txt)}); if (!e || e.hidden || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2, b.width, b.height]; })()`);
+  const tapEl = async (sel, txt) => { const c = await at(sel, txt); if (!c) return false; await p.tapAt(c[0], c[1]); await p.wait(90); return true; };
+  const pill = txt => tapEl('#pills .mb', txt);
+  const onCanvas = async (x, y) => { const c = await p.eval(`[lay.x + ${x} * lay.s, lay.y + ${y} * lay.s]`); await p.tapAt(c[0], c[1]); await p.wait(90); };
+  const cell = async i => { const c = await p.eval(`(() => { const c = selectCell(${i}); return [lay.x + (c.x + c.w / 2) * lay.s, lay.y + (c.y + c.h / 2) * lay.s]; })()`); await p.tapAt(c[0], c[1]); await p.wait(90); };
+  const held = () => p.eval("['KeyA', 'KeyD', 'KeyS', 'KeyW', 'KeyJ', 'KeyK', 'KeyL', 'KeyI'].filter(k => keys[k]).join('+')");
+  const lift = async () => { await p.touch('touchEnd', []); await p.wait(90); };
+  const stepr = n => p.eval(`step(${n}); render()`);
+
+  await group('menus by touch', async () => {
+    await fresh();
+    const i0 = await p.eval(`({ on: touch.on, stacked: lay.stacked, quiet: AC === null, phase: game.phase, padHidden: document.getElementById('pad').hidden, pills: [...document.querySelectorAll('#pills .mb')].map(e => e.textContent) })`);
+    check(i0.on && i0.stacked && i0.quiet && i0.phase === 'title' && !i0.padHidden, 'a phone gets the on-screen controls and the portrait layout, and the audio waits for the first tap');
+    check(i0.pills.slice(0, 2).join() === '1 PLAYER,2 PLAYERS' && /^SOUND O(N|FF)$/.test(i0.pills[2] || ''), 'title: 1 PLAYER, 2 PLAYERS and SOUND buttons under the game');
+    await onCanvas(480, 476);   // the "2 PLAYERS" row of the title
+    check((await p.eval('[game.phase, game.mode].join()')) === 'select,2' && await p.eval('AC !== null'), 'a tap on a title row picks that mode, and the first tap starts the audio');
+    await pill('BACK');
+    check((await p.eval('game.phase')) === 'title', 'select: BACK returns to the title');
+    await pill('1 PLAYER');
+    check((await p.eval('[game.phase, game.mode].join()')) === 'select,1', '1 PLAYER opens the character select');
+    await cell(2); const a = await p.eval('({ sel: game.sel.slice(), ready: game.ready.slice() })');
+    await cell(2); const b = await p.eval('game.ready.slice()');
+    check(a.sel[0] === 2 && !a.ready[0] && b[0] === true, 'select: a tap moves the cursor to a fighter, a second tap confirms it');
+    await pill('BACK'); const c = await p.eval('game.ready.join()');
+    await cell(2);
+    check(c === 'false,false' && (await p.eval('game.ready[0]')) === true, 'select: BACK takes the pick back, and the fighter can be confirmed again');
+    await cell(3);
+    check((await p.eval('game.sel.join()')) === '2,3', 'select: the CPU opponent is picked the same way');
+    const ar = [];
+    await onCanvas(480, 440); ar.push(await p.eval('game.arenaPick'));   // the arena picture
+    await pill('ARENA >'); ar.push(await p.eval('game.arenaPick'));
+    await pill('< ARENA'); ar.push(await p.eval('game.arenaPick'));
+    await pill('< ARENA'); ar.push(await p.eval('game.arenaPick'));
+    check(ar.join() === '0,1,0,-1', 'select: the arena picture and the ARENA buttons step through the arenas and back to RANDOM');
+    await pill('OK');
+    const v = await p.eval('({ phase: game.phase, mode: game.mode, sel: game.sel.join(), cpu: game.f.map(f => f.cpu).join() })');
+    check(v.phase === 'vs' && v.mode === 1 && v.sel === '2,3' && v.cpu === 'false,true', 'select: OK starts the match, you against the CPU');
+    await p.eval('hold(true)'); await stepr(40);
+    check(await pill('SKIP'), 'the versus screen has a SKIP button');
+    await stepr(1);
+    check((await p.eval('game.phase')) === 'intro', 'SKIP jumps from the versus screen to the round');
+    await p.eval("(() => { let n = 0; while (game.phase !== 'fight' && n++ < 400) step(1); render(); })()");
+    check((await p.eval('game.phase')) === 'fight', 'the round starts');
+    const ui = await p.eval(`(() => { const vis = e => !!e && !e.hidden && e.getClientRects().length > 0; return { dpad: vis(document.getElementById('dpad')), btns: [...document.querySelectorAll('#pad .tb')].filter(vis).map(e => e.textContent).join(), pills: [...document.querySelectorAll('#pills .mb')].map(e => e.textContent).join() }; })()`);
+    check(ui.dpad && ui.btns === 'SP,SU,P,K' && ui.pills === 'PAUSE', 'in a fight: the d-pad, the SP SU P K buttons and a PAUSE button');
+  });
+
+  await group('touch controls', async () => {
+    await p.eval(INIT);
+    if ((await p.eval('game.phase')) !== 'fight') await p.eval('__fight([2, 3], 1, 1, false)');
+    await stepr(1); await p.eval(PARK);
+    const [dx, dy, dw] = await at('#dpad'), R = dw / 2;
+    const bad = [];
+    for (const [deg, want] of [[0, 'KeyD'], [45, 'KeyD+KeyS'], [90, 'KeyS'], [135, 'KeyA+KeyS'], [180, 'KeyA'], [225, 'KeyA+KeyW'], [270, 'KeyW'], [315, 'KeyD+KeyW']]) {
+      const r = deg * Math.PI / 180;
+      await p.touch('touchStart', [{ id: 1, x: dx + 0.7 * R * Math.cos(r), y: dy + 0.7 * R * Math.sin(r) }]); await p.wait(40);
+      const h = await held(); if (h !== want) bad.push(deg + ' degrees gave ' + (h || 'nothing') + ', wanted ' + want);
+      await lift(); const left = await held(); if (left) bad.push(deg + ' degrees stayed held: ' + left);
+    }
+    await p.touch('touchStart', [{ id: 1, x: dx + 0.1 * R, y: dy }]); await p.wait(40);
+    const mid = await held(); if (mid) bad.push('the middle of the d-pad pressed ' + mid);
+    await lift();
+    check(!bad.length, 'the d-pad has eight directions, a dead centre, and lets go cleanly' + more(bad));
+    await p.touch('touchStart', [{ id: 1, x: dx + 0.7 * R, y: dy }]); await p.wait(40);
+    await p.touch('touchMove', [{ id: 1, x: dx - 0.7 * R, y: dy }]); await p.wait(40);
+    const slid = await held(); await lift();
+    check(slid === 'KeyA', 'sliding the thumb across the d-pad changes direction without lifting it');
+
+    for (const [label, sx, key] of [['forward', 0.6, 'KeyD'], ['back', -0.6, 'KeyA']]) {
+      await p.eval(PARK);
+      await p.touch('touchStart', [{ id: 1, x: dx + sx * R, y: dy - 0.6 * R }]); await p.wait(30);
+      const j = await p.eval(`(() => { const f = game.f[0], x0 = f.x, both = !!keys.${key} && !!keys.KeyW; let up = false; for (let i = 0; i < 30; i++) { step(1); if (!f.onGround) up = true; } return { both, up, dx: f.x - x0 }; })()`);
+      await lift();
+      check(j.both && j.up && (sx > 0 ? j.dx > 40 : j.dx < -40), 'a diagonal on the d-pad jumps ' + label + ' (' + Math.round(j.dx) + ' px)');
+    }
+
+    const dash = async x => {
+      await p.eval(PARK);
+      await p.touch('touchStart', [{ id: 1, x, y: dy }]); await p.wait(60); await p.eval('step(2)'); await lift(); await p.eval('step(2)');
+      await p.touch('touchStart', [{ id: 1, x, y: dy }]); await p.wait(60); await p.eval('step(3)');
+      const r = await p.eval('({ s: game.f[0].state, back: game.f[0].dashBack })'); await lift(); return r;
+    };
+    const d1 = await dash(dx + 0.7 * R), d2 = await dash(dx - 0.7 * R);
+    check(d1.s === 'dash' && !d1.back, 'tapping forward twice on the d-pad dashes in (' + d1.s + ')');
+    check(d2.s === 'dash' && d2.back, 'tapping back twice backdashes (' + d2.s + ')');
+
+    const button = async lbl => at('#pad .tb', lbl);
+    const [K, P, SP, SU] = [await button('K'), await button('P'), await button('SP'), await button('SU')];
+    check([K, P, SP, SU].every(Boolean) && [K, P, SP, SU].every(b => Math.min(b[2], b[3]) >= 40), 'the four action buttons are on the screen and at least 40 px big');
+    await p.eval(PARK); await p.eval('game.f[1].x = 350; step(1)');   // close enough to throw
+    await p.touch('touchStart', [{ id: 1, x: dx, y: dy + 0.7 * R }]); await p.wait(60);
+    await p.touch('touchStart', [{ id: 1, x: dx, y: dy + 0.7 * R }, { id: 2, x: K[0], y: K[1] }]); await p.wait(60);
+    const sw0 = await held(); await p.eval('step(3)');
+    const sw = await p.eval('({ s: game.f[0].state, atk: game.f[0].atk })'); await lift();
+    check(sw0 === 'KeyS+KeyK' && sw.s === 'kick' && sw.atk === 'sweep', 'down on the d-pad + K sweeps (' + sw.s + '/' + sw.atk + ')');
+    await p.eval(PARK); await p.eval('game.f[1].x = 350; step(1)');
+    await p.touch('touchStart', [{ id: 1, x: dx + 0.7 * R, y: dy }]); await p.wait(60);
+    await p.touch('touchStart', [{ id: 1, x: dx + 0.7 * R, y: dy }, { id: 2, x: P[0], y: P[1] }]); await p.wait(60);
+    await p.eval('step(3)');
+    const th = await p.eval('game.f.map(f => f.state).join()'); await lift();
+    check(th === 'throw,grabbed', 'forward on the d-pad + P throws (' + th + ')');
+    await p.eval(PARK); await p.tapAt(P[0], P[1]); await p.eval('step(2)');
+    const pu = await p.eval('game.f[0].state'); await p.eval(PARK);
+    check(pu === 'punch', 'the P button punches (' + pu + ')');
+    await p.tapAt(K[0], K[1]); await p.eval('step(2)');
+    const ki = await p.eval('game.f[0].state'); await p.eval(PARK);
+    check(ki === 'kick', 'the K button kicks (' + ki + ')');
+    await p.tapAt(SP[0], SP[1]); await p.eval('step(2)');
+    const sp = await p.eval('game.f[0].state'); await p.eval(PARK);
+    check(sp === 'special', 'the SP button fires the special (' + sp + ')');
+    await p.eval('game.f[0].meter = 100'); await p.tapAt(SU[0], SU[1]); await p.eval('step(2)');
+    const su = await p.eval('game.f[0].state'); await p.eval(PARK);
+    check(su === 'super', 'the SU button fires the super when the meter is full (' + su + ')');
+    check(!(await held()), 'every key is let go after the last finger leaves');
+
+    await p.eval(PARK); check(await pill('PAUSE'), 'a PAUSE button is on the screen'); await stepr(1);
+    const ps = await p.eval(`({ phase: game.phase, pills: [...document.querySelectorAll('#pills .mb')].map(e => e.textContent).join() })`);
+    check(ps.phase === 'pause' && /^RESUME,SOUND O(N|FF),QUIT$/.test(ps.pills), 'PAUSE pauses; the pause screen offers RESUME, SOUND and QUIT (' + ps.pills + ')');
+    const was = await p.eval('muted'); await pill(was ? 'SOUND OFF' : 'SOUND ON');
+    check((await p.eval('muted')) === !was, 'the SOUND button switches the sound'); await pill(was ? 'SOUND ON' : 'SOUND OFF');
+    await pill('RESUME'); await stepr(1);
+    check((await p.eval('game.phase')) === 'fight', 'RESUME goes back to the fight');
+    await pill('PAUSE'); await stepr(1); await pill('QUIT'); await stepr(1);
+    check((await p.eval('game.phase')) === 'title', 'QUIT leaves to the title');
+  });
+
+  await group('share and the end screen by touch', async () => {
+    await p.eval(INIT);
+    await p.eval(`(() => { __over(1, [0, 3], 0, false); render(); window.__clicks = [];
+      document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a'); __clicks.push(a ? { id: a.id, href: a.href, target: a.target } : { id: e.target.id || e.target.tagName }); e.preventDefault(); }, true); })()`);
+    const sh = await at('#share');
+    check(!!sh && sh[2] >= 40 && sh[3] >= 40, 'the end screen has a SHARE ON X button of at least 40 px');
+    await p.tapAt(sh[0], sh[1]); await p.wait(150);
+    const r = await p.eval('({ clicks: __clicks, url: shareUrl(), text: shareText() })');
+    check(r.clicks.length === 1 && r.clicks[0].id === 'share' && r.clicks[0].href === r.url && r.clicks[0].target === '_blank', 'a tap on SHARE ON X follows the intent link in a new tab');
+    check(new URL(r.url).searchParams.get('text') === r.text && /^I beat WANG with TIBO 2-1 in Agent Brawl\.$/.test(r.text), 'and that link posts only the match result (' + r.text + ')');
+    const ends = [];
+    for (const [lbl, want] of [['REMATCH', 'vs'], ['SELECT', 'select'], ['TITLE', 'title']]) {
+      await p.eval("__over(1, [0, 3], 0, false); render()");
+      if (!await pill(lbl)) { ends.push(lbl + ' is missing'); continue; }
+      await stepr(1); const ph = await p.eval('game.phase'); if (ph !== want) ends.push(lbl + ' went to ' + ph);
+    }
+    check(!ends.length, 'end screen: REMATCH, SELECT and TITLE buttons do what the keys do' + more(ends));
+    const pg = await p.eval(`(() => { const ev = new TouchEvent('touchmove', { cancelable: true, bubbles: true }); document.body.dispatchEvent(ev); const cs = getComputedStyle(document.body);
+      return { vp: document.querySelector('meta[name=viewport]').content, touchAction: cs.touchAction, moveBlocked: ev.defaultPrevented, overflow: getComputedStyle(document.documentElement).overflow + '/' + cs.overflow, position: cs.position }; })()`);
+    check(/width=device-width/.test(pg.vp) && /user-scalable=no/.test(pg.vp) && /maximum-scale=1/.test(pg.vp), 'the page cannot be zoomed by the viewport meta');
+    check(pg.touchAction === 'none' && pg.moveBlocked && pg.overflow === 'hidden/hidden' && pg.position === 'fixed', 'dragging or pinching never scrolls or zooms the page');
+  });
+
+  // The layout on many screen sizes. Portrait: game on top, menu buttons under it, controls at the bottom. Landscape: controls over the playfield,
+  // menu buttons down the right edge. Nothing may leave the screen, overlap, be clipped, be smaller than 40 px or cover the game's text.
+  const sweep = async (label, sizes) => {
+    const bad = [];
+    for (const [w, h] of sizes) {
+      await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 3, mobile: true }); await p.wait(120); await p.eval('fit()');
+      const size = await p.eval('innerWidth + "x" + innerHeight');
+      if (size !== w + 'x' + h) { bad.push(w + 'x' + h + ': the viewport is ' + size); continue; }
+      for (const [name, setup, menus] of PHONE_PHASES) {
+        await p.eval(setup);
+        const texts = await p.eval('__draw()'), g = await p.eval('__geom()'), found = geomProblems(g, texts);
+        const n = g.items.filter(i => i.type === 'menu').length;
+        if (n !== menus) found.push(n + ' menu buttons instead of ' + menus);
+        if (/fight|sudden/.test(name)) {
+          if (g.items.filter(i => i.type === 'dpad').length !== 1 || g.items.filter(i => i.type === 'btn').length !== 4) found.push('the d-pad and four buttons are not all there');
+          if (g.lay.stacked) for (const i of g.items) if ((i.type === 'dpad' || i.type === 'btn') && i.y0 < g.vh * 0.45) found.push(i.name + ' is not in the thumb zone');
+        }
+        verbose(w + 'x' + h + ' ' + name, found);
+        for (const m of found) bad.push(w + 'x' + h + ' ' + name + ': ' + m);
+      }
+    }
+    check(!bad.length, label + (bad.length ? ' (' + bad.length + ' problems)' + more(bad) : ''));
+    return bad;
+  };
+  await group('layout, portrait', async () => {
+    await p.eval(INIT); await p.eval(CAPTURE); await p.eval(GEOM);
+    await sweep('portrait screens (' + SCREENS.portrait.map(s => s.join('x')).join(', ') + '): menus, versus, fight, pause and end screen fit, with every control on screen, reachable and clear of the game', SCREENS.portrait);
+  });
+  await group('layout, landscape', async () => {
+    await sweep('landscape screens (' + SCREENS.landscape.map(s => s.join('x')).join(', ') + '): controls sit between the HUD bands and the menu buttons never cover the game text', SCREENS.landscape);
+  });
+  await group('rotating the phone', async () => {
+    const seen = [];
+    for (const [w, h] of [[844, 390], [390, 844], [844, 390]]) {   // the browser's own resize event must be enough: no fit() call here
+      await p.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 3, mobile: true }); await p.wait(250);
+      await p.eval(PHONE_PHASES[3][1]);
+      const texts = await p.eval('__draw()'), g = await p.eval('__geom()'), found = geomProblems(g, texts);
+      seen.push((g.lay.stacked ? 'stacked' : 'overlay') + (found.length ? ' with problems: ' + found[0] : ''));
+    }
+    check(seen.join() === 'overlay,stacked,overlay', 'rotating the phone re-lays the game and the controls by itself' + (seen.join() === 'overlay,stacked,overlay' ? '' : ': ' + seen.join(' | ')));
+    await p.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true }); await p.wait(150);
+  });
+
+  check(!p.errors.length, 'no console errors on the phone' + (p.errors.length ? ': ' + p.errors.slice(0, 3).join(' | ') : ''));
   return ok;
 }

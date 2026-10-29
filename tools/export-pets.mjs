@@ -8,12 +8,15 @@ import { fileURLToPath } from 'node:url';
 import { withPage } from './headless.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Parody characters. The only real-world affiliations named are the ones the game itself shows: Tibo at Codex (OpenAI), Dot as a nod to OpenAI's
+// dots, Alexandr Wang at Meta and Muse as a nod to Meta's agent. Poteto gets a gag description and no affiliation. Keep in step with the
+// ROSTER bios in game.js and with the "description" in pets/<id>/pet.json.
 const INFO = {
-  tibo: 'Codex engineer in a hoodie who grins through every outage and ships anyway.',
-  poteto: 'React Compiler alum who throws hot sweet potatoes at flaky builds.',
-  dot: 'Fuzzy yellow ball in round glasses and a bow tie. Surprisingly fast, slightly fragile.',
-  wang: 'Calm superintelligence lead who blows iridescent bubbles while the lab runs.',
-  muse: 'Fluffy cream-pink hooded plush with bead eyes that runs on its own VM.',
+  tibo: 'Hoodie-wearing parody of Tibo from Codex at OpenAI. Fights with commits, hotfixes and reverts.',
+  poteto: 'Long-haired fighter in round glasses who throws hot sweet potatoes.',
+  dot: "Fuzzy yellow pom-pom in round glasses and a bow tie, a parody of OpenAI's dots. Fast but fragile.",
+  wang: 'Parody of Alexandr Wang at Meta. Calm, with iridescent bubbles and lab drones.',
+  muse: "Fluffy cream-pink hooded plush, a parody of Meta's agent. Pings, undoes and swarms.",
 };
 
 const atlas = await withPage(async p => {
