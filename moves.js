@@ -26,10 +26,47 @@ function divify(p) {
   if (p.vy < 0) { p.vy = 1; return; }
   const u = p.update, dy = Math.max(3.5, Math.abs(p.vx) * 0.55);
   if (!u) return;
+  tiltShot(p, dy);
   p.update = q => {
     if (q.by !== undefined) q.by += dy; u(q); if (q.by === undefined) q.y += dy;
     if (q.y > GROUND - 14 && q.life > 0) { q.life = 0; dust(q.x, GROUND); }
   };
+}
+// A diving shot also leans into the dive: its art is turned to follow the path (movement and hitbox stay exactly as they were).
+// Wang's bubble is round and has bars sorting inside it, so it stays upright.
+const TILT_SKIP = { wang: 1 };
+function tiltShot(p, dy) {
+  const draw = p.draw, id = p.owner && p.owner.d && p.owner.d.id;
+  if (!draw || TILT_SKIP[id]) return;
+  p.ang = sgn(p.vx) * Math.atan2(dy, Math.abs(p.vx));
+  p.draw = (c, q) => tiltDraw(c, q, draw, p.ang);
+}
+// The shot is drawn upright into a small scratch buffer (1 cell = 2 screen px), turned with nearest-neighbour sampling so it stays on
+// the 2px grid like the rest of the art (no smoothing), then blitted at 2x around the shot's centre.
+const TILT_H = 48;                                               // half-size of the scratch buffer in cells (96 px each way)
+let tiltBuf = null;
+function tiltDraw(c, p, draw, ang) {
+  const N = TILT_H * 2;
+  if (!tiltBuf) {
+    const a = document.createElement('canvas'), b = document.createElement('canvas'); a.width = a.height = b.width = b.height = N;
+    tiltBuf = { g: a.getContext('2d', { willReadFrequently: true }), out: b, og: b.getContext('2d') };
+    tiltBuf.img = tiltBuf.og.createImageData(N, N);
+  }
+  const { g, out, og, img } = tiltBuf, ox = q2(p.x), oy = q2(p.y);
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, N, N);
+  g.setTransform(0.5, 0, 0, 0.5, TILT_H - ox / 2, TILT_H - oy / 2);   // world px to cells, shot centre in the middle of the buffer
+  draw(g, p);
+  const src = g.getImageData(0, 0, N, N).data, dst = img.data, cs = Math.cos(ang), sn = Math.sin(ang);
+  dst.fill(0);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const dx = i + 0.5 - TILT_H, dy = j + 0.5 - TILT_H;
+    const si = Math.floor(dx * cs + dy * sn + TILT_H), sj = Math.floor(dy * cs - dx * sn + TILT_H);
+    if (si < 0 || sj < 0 || si >= N || sj >= N) continue;
+    const a = (sj * N + si) * 4, b = (j * N + i) * 4;
+    dst[b] = src[a]; dst[b + 1] = src[a + 1]; dst[b + 2] = src[a + 2]; dst[b + 3] = src[a + 3];
+  }
+  og.putImageData(img, 0, 0);
+  c.save(); c.imageSmoothingEnabled = false; c.drawImage(out, ox - TILT_H * 2, oy - TILT_H * 2, N * 2, N * 2); c.restore();
 }
 const foe = self => game.f[1 - self.side];
 

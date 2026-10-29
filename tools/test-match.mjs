@@ -165,6 +165,78 @@ export async function runTests(p) {
   await p.goto(URL_BASE + '#select'); await p.wait(200); await p.shot(path.join(ROOT, 'tools', '.shot-select.png'));
   await p.goto(URL_BASE); await p.wait(200); await p.shot(path.join(ROOT, 'tools', '.shot-title.png'));
 
+  // 5. ART REGRESSION (sprites.js and the drawing half of moves.js): sheet geometry, the dedicated throw / low jab / sweep poses,
+  //    the thrown-victim tumble, plain frames everywhere else, and diving shots that lean into their dive
+  await p.goto(`${URL_BASE}#demo=0,1&stop`); await p.wait(250);
+  const art = await p.eval(`(() => {
+    const bad = [], edge = g => { for (let x = 0; x < g.w; x++) if (g.c[x] || g.c[(g.h - 1) * g.w + x]) return true; for (let y = 0; y < g.h; y++) if (g.c[y * g.w] || g.c[y * g.w + g.w - 1]) return true; return false; };
+    const under = g => { for (let y = FEET + 1; y < g.h; y++) for (let x = 0; x < g.w; x++) if (g.c[y * g.w + x]) return true; return false; };
+    const bare = (n, fn) => { const orig = POSE[n]; POSE[n] = i => { const q = orig(i); q.fx = null; q.aura = 0; return q; }; try { return fn(); } finally { POSE[n] = orig; } };   // body only, no effects
+    const strips = [...ANIMS.map(a => [a.n, a.f]), ...XROWS.map(n => [n, XFRAMES])];
+    for (const id in LOOK) for (const [n, nf] of strips) for (let f = 0; f < nf; f++) {
+      const tag = id + ' ' + n + '[' + f + ']';
+      if (edge(renderFrame(id, n, f))) bad.push(tag + ' touches the cell edge');
+      if (bare(n, () => under(renderFrame(id, n, f)))) bad.push(tag + ' dips below the ground line');
+    }
+    const reach = [];   // the drawn foot / fist at the hit tick stays near the attack box (loose: Dot's short legs are the extreme)
+    for (const k of ['low', 'sweep', 'kickf']) { const A = ATK[k], n = XROWS[XPOSE[k][0]], f = frameFromTimeline(A.frames, A.hit);
+      for (const id in LOOK) { const r = (bare(n, () => renderFrame(id, n, f)).bounds().x1 + 1 - FW / 2) * PX; if (r < A.box[1] - 36 || r > A.box[1] + 24) reach.push(id + ' ' + k + ' ' + r + 'px vs box ' + A.box[1]); } }
+    const heads = Object.keys(LOOK).filter(id => { const h = HEADCANVAS[id]; if (!h) return true; const d = h.getContext('2d').getImageData(0, 0, h.width, h.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n < 500; });
+    const xs = Object.keys(XSHEETS).map(id => XSHEETS[id].width + 'x' + XSHEETS[id].height);
+    return { dims: [FW, FH, ANIMS.length, MAXF].join('x'), xs: [...new Set(xs)].join() + ' for ' + xs.length, rows: XROWS.join(), n: bad.length, bad: bad.slice(0, 5), reach, heads,
+      farfur: FARFUR, wang: { lid: FACE.wang.lid, ry: FACE.wang.ry } };
+  })()`);
+  check(art.dims === '96x104x11x8', 'sprite cell stays 96x104 with 11 animation rows (the Codex pet atlas depends on it): ' + art.dims);
+  check(art.rows === 'throw,low,sweep' && art.xs === '480x312 for 5', 'extra pose strips throw, low and sweep exist for all five fighters (' + art.xs + ')');
+  check(art.n === 0, 'no sheet or pose frame touches the cell edge or dips below the ground line' + (art.n ? ': ' + art.bad.join('; ') : ''));
+  check(art.reach.length === 0, 'drawn low jab, sweep and forward kick reach stays near their attack boxes' + (art.reach.length ? ': ' + art.reach.join('; ') : ''));
+  check(art.heads.length === 0, 'every fighter has a filled portrait / head icon' + (art.heads.length ? ': ' + art.heads.join(' ') : ''));
+  check(parseInt(art.farfur.slice(1, 3), 16) > parseInt(art.farfur.slice(5, 7), 16) + 20, 'plush far-side limbs shade towards warm rose, not cold violet (' + art.farfur + ')');
+  check(art.wang.lid && art.wang.ry <= 2.6, 'Wang keeps calm narrow half-lidded eyes');
+  const live = await p.eval(`(() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 400; const g = cv.getContext('2d', { willReadFrequently: true });
+    const grab = () => g.getImageData(0, 0, 400, 400).data.slice();
+    const ndiff = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2] || a[i + 3] !== b[i + 3]) n++; return n; };
+    const snap = (q, anim, fr, off) => { g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 400, 400); g.setTransform(1, 0, 0, 1, 200 - Math.round(q.x) - off, 300 - Math.round(q.y)); drawSprite(g, q.d.id, anim, fr, q.x + off, q.y, q.face); g.setTransform(1, 0, 0, 1, 0, 0); return grab(); };
+    const view = q => { const [a, fr] = q.frame(); return [snap(q, a, fr, 0), snap(q, a, fr, 3), a + ':' + fr]; };   // 3px off its real spot matches no live fighter, so that one is the plain sheet frame
+    game.sel = [0, 1]; startMatch(); startRound(); game.phase = 'fight'; game.banner = null;
+    const [f, o] = game.f; f.cpu = o.cpu = false;
+    const reset = dx => { game.proj = []; game.fx = []; game.delayed = []; game.hitstop = 0; game.slow = 0; for (const q of [f, o]) { q.set('idle'); q.hp = q.d.hp; q.y = GROUND; q.vx = q.vy = 0; q.cool = q.inv = q.dashCool = 0; q.combo = 0; q.lie = 0; q.land = 0; } f.x = 300; o.x = 300 + dx; f.face = 1; o.face = -1; };
+    const out = { thrower: [], names: [], victim: [], steps: [], tum: [], atk: {} };
+    reset(50); f.startThrow(o); let prev = null, prevV = null;
+    for (const k of [3, 9, 15, 21, 26]) {
+      for (let n = 0; f.st < k && n < 60; n++) step(1);
+      const [a, b, name] = view(f); out.thrower.push(ndiff(a, b)); out.names.push(name); out.steps.push(prev ? ndiff(a, prev) : 99); prev = a;
+      if (o.state === 'grabbed') { const [va, vb] = view(o); out.victim.push(ndiff(va, vb)); out.tum.push(prevV ? ndiff(va, prevV) : 99); prevV = va; }
+    }
+    reset(200); const cell = snap(f, 'punch', 2, 3); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 400, 400); g.imageSmoothingEnabled = false;
+    g.drawImage(SHEETS[f.d.id], 2 * FW, ANIM_ROW.punch * FH, FW, FH, 200 - FW / 2 * PX, 300 - (FEET + 1) * PX, FW * PX, FH * PX); out.plain = ndiff(cell, grab());
+    for (const k of ['low', 'sweep', 'kickf']) { reset(200); f.startAtk(k); step(ATK[k].hit); const [a, b, name] = view(f); out.atk[k] = [f.atk, ndiff(a, b), name]; }
+    return out;
+  })()`);
+  check(live.names.slice(0, 4).every(s => s.startsWith('punch:')) && live.thrower.slice(0, 4).every(n => n > 60), 'a throwing fighter is drawn in its own throw pose, not the punch frame (' + live.thrower.join(',') + ' px differ)');
+  check(live.steps.slice(1, 4).every(n => n > 20) && live.thrower[4] > 60, 'the throw pose changes from grab to lift to overhead to slam and release (' + live.steps.join(',') + ')');
+  check(live.victim.length === 4 && live.victim.every(n => n > 60) && live.tum.slice(1).every(n => n > 20), 'the thrown foe tumbles over the thrower instead of showing one hit frame (' + live.victim.join(',') + ')');
+  check(live.plain === 0, 'a sprite that matches no live fighter (menus, finishers) is exactly the plain sheet frame (' + live.plain + ' px differ)');
+  check(['low', 'sweep', 'kickf'].every(k => live.atk[k][0] === k && live.atk[k][1] > 40), 'low jab, sweep and forward kick are drawn with their own low poses: ' + JSON.stringify(live.atk));
+  const dive = await p.eval(`(() => {
+    const out = {}, cv = document.createElement('canvas'); cv.width = cv.height = 400; const g = cv.getContext('2d', { willReadFrequently: true });
+    const shot = (q, a) => { q.ang = a; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 400, 400); g.setTransform(1, 0, 0, 1, 200 - q.x, 200 - q.y); q.draw(g, q); g.setTransform(1, 0, 0, 1, 0, 0); return g.getImageData(0, 0, 400, 400).data.slice(); };
+    for (let i = 0; i < ROSTER.length; i++) for (const face of [1, -1]) {
+      game.sel = [i, (i + 1) % ROSTER.length]; startMatch(); startRound(); game.phase = 'fight'; game.banner = null;
+      const [f, o] = game.f, mv = MOVES[f.d.id].sp[0]; f.cpu = o.cpu = false; game.proj = [];
+      f.set('idle'); f.cool = 0; f.x = face > 0 ? 300 : 660; f.face = face; f.vx = 0; f.y = GROUND - 150; f.vy = -1; o.set('idle'); o.x = face > 0 ? 840 : 120;
+      f.startMove(mv, 'special', o); step(mv.hit + 3);
+      const q = game.proj.find(s => s.owner === f); let diff = 0;
+      if (q && q.ang) { const ang = q.ang, a = shot(q, ang), b = shot(q, 0); q.ang = ang; for (let k = 3; k < a.length; k += 4) if (a[k] !== b[k]) diff++; }
+      out[f.d.id + (face > 0 ? ' R' : ' L')] = q ? { air: f.airSp, ang: q.ang || 0, face, diff } : null;
+    }
+    return out;
+  })()`);
+  const tilts = Object.entries(dive).filter(([k]) => /^(tibo|dot|muse) /.test(k)), flat = Object.entries(dive).filter(([k]) => /^(poteto|wang) /.test(k));
+  check(tilts.length === 6 && tilts.every(([, v]) => v && v.air && Math.sign(v.ang) === v.face && Math.abs(v.ang) > 0.3 && Math.abs(v.ang) < 1.5 && v.diff > 20), 'diving air specials of Tibo, Dot and Muse lean into the dive, both ways round: ' + JSON.stringify(tilts));
+  check(flat.length === 4 && flat.every(([, v]) => v && v.ang === 0), "Wang's bubble and Poteto's lob keep their upright art: " + JSON.stringify(flat));
+
   if (p.errors.length) { console.log('console errors:\n' + p.errors.join('\n')); ok = false; } else console.log('ok    no console errors');
   return ok;
 }
