@@ -5,7 +5,8 @@
 // sw shuffle (fraction of a 16th), tm [tremolo Hz, depth], fill (snare roll before odd repeats), dv drum level, lf loop-from bar, qv level after the first pass.
 (function () {
   'use strict';
-  const MASTER = 0.12, LOOK = 0.25, DUCK = 0.35;
+  const MASTER = 0.3, LOOK = 0.25, DUCK = 0.35, TRIM = { title: .88, vs: 1.07, over: .63, gpupit: .85, cathedral: .61, bridge: .8, furnace: .76, forest: .61, temple: .75, graveyard: .71, rooftop: .87, wasteland: 1.22 };   // MASTER: output gain of every theme; TRIM[name]: per-theme level correction so all themes sound equally loud
+  const level = name => MASTER * (TRIM[name] || 1);
   const MIN = [0, 2, 3, 5, 7, 8, 10], HMIN = [0, 2, 3, 5, 7, 8, 11], PHR = [0, 1, 3, 5, 7, 8, 10], MAJ = [0, 2, 4, 5, 7, 9, 11];
   const CHR = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], PENT = [0, 2, 4, 7, 9], MPENT = [0, 3, 5, 7, 10], SEN = [0, 1, 5, 7, 10];
   const AR = ['gpupit', 'cathedral', 'bridge', 'furnace', 'forest', 'temple', 'graveyard', 'rooftop', 'wasteland'];
@@ -116,8 +117,8 @@
   const snare = (A, dst, t, v) => { noise(A, dst, t, .14, 'highpass', 1500, .45 * v); thump(A, dst, t, .3 * v, 230, 130, .09, 'triangle'); };
 
   // ---------- scheduler ----------
-  let S = null, off = false, cool = 0;   // S: running theme {name, ac, ch (node chain), t (next step time), n (step), rep (loop count), lv (master level)}
-  const M = window.MUSIC = { tick, stop() { off = true; halt(); }, resume() { off = false; }, now: null, theme: null, err: null };   // now: theme actually sounding, theme: theme the game state asks for
+  let S = null, off = false, cool = 0, tried = 0;   // S: running theme {name, ac, ch (node chain), t (next step time), n (step), rep (loop count), lv (master level)}
+  const M = window.MUSIC = { tick, stop() { off = true; halt(); }, resume() { off = false; }, now: null, theme: null, err: null, get master() { return S ? S.ch.lim : null; } };   // now: theme actually sounding, theme: theme the game state asks for, master: last node before the output (measurement tap)
   function stepAt(th, t, sd) {
     const c = comp(th), n = S.n, A = S.ac, bus = S.ch.bus, vm = th.lf && S.rep ? th.qv : 1;
     for (const k of 'lba') {
@@ -135,19 +136,26 @@
     if ((x = row('h'))) noise(A, bus, t, x === 'o' ? .14 : .035, 'highpass', 7000, .2 * dv * g(x));
     if (th.fill && S.rep & 1 && n >= c.len - 4) snare(A, bus, t, dv * (.5 + (n - c.len + 4) * .15));   // roll into the next repeat
   }
+  function pump(th, sd, until) { // schedule every 16th step that starts before `until`
+    while (S.t < until) {
+      stepAt(th, S.t + (S.n % 4 === 2 ? (th.sw || 0) * sd : 0), sd);
+      S.t += sd; if (++S.n >= comp(th).len) { S.n = (th.lf || 0) * 16; S.rep++; }
+    }
+  }
   function halt() { // fade the running chain out and drop it; notes already scheduled die with it
     M.now = null; if (!S) return;
     const { ac: A, ch } = S; S = null;
     try { ch.m.gain.cancelScheduledValues(A.currentTime); ch.m.gain.setTargetAtTime(0, A.currentTime, .025); } catch (e) { /* ignore */ }
-    setTimeout(() => { try { ch.lfo.stop(); } catch (e) { /* ignore */ } for (const nd of [ch.tb, ch.bus, ch.m]) try { nd.disconnect(); } catch (e) { /* ignore */ } }, 400);
+    setTimeout(() => { try { ch.lfo.stop(); } catch (e) { /* ignore */ } for (const nd of [ch.tb, ch.bus, ch.m, ch.lim]) try { nd.disconnect(); } catch (e) { /* ignore */ } }, 400);
   }
-  function begin(A, name, lv) { // fresh node chain: tremolo bus (lead / pads) and plain bus (bass / drums) -> compressor -> master -> out
+  function begin(A, name, lv) { // fresh node chain: tremolo bus (lead / pads) and plain bus (bass / drums) -> compressor -> master -> limiter -> out
     halt();
-    const th = T[name], t0 = A.currentTime, ch = { bus: A.createDynamicsCompressor(), m: A.createGain(), tb: A.createGain(), lfo: A.createOscillator(), lg: A.createGain() }, [tr, td] = th.tm || [4, 0], k = ch.bus;
+    const th = T[name], t0 = A.currentTime, ch = { bus: A.createDynamicsCompressor(), m: A.createGain(), lim: A.createDynamicsCompressor(), tb: A.createGain(), lfo: A.createOscillator(), lg: A.createGain() }, [tr, td] = th.tm || [4, 0], k = ch.bus, z = ch.lim;
     k.threshold.value = -16; k.knee.value = 12; k.ratio.value = 8; k.attack.value = .004; k.release.value = .2;
+    z.threshold.value = -14; z.knee.value = 0; z.ratio.value = 20; z.attack.value = .001; z.release.value = .1;   // output limiter: loud enough music without clipping next to effects
     ch.m.gain.setValueAtTime(0, t0); ch.m.gain.setTargetAtTime(lv, t0 + .01, .02);
     ch.tb.gain.value = 1 - td; ch.lg.gain.value = td; ch.lfo.frequency.value = tr; ch.lfo.connect(ch.lg); ch.lg.connect(ch.tb.gain); ch.lfo.start();
-    ch.tb.connect(k); k.connect(ch.m); ch.m.connect(A.destination);
+    ch.tb.connect(k); k.connect(ch.m); ch.m.connect(z); z.connect(A.destination);
     S = { name, ac: A, ch, t: t0 + .06, n: 0, rep: 0, lv }; M.now = name;
   }
 
@@ -170,17 +178,23 @@
     try {
       const g = rd(() => typeof game !== 'undefined' ? game : window.game), w = want(g); M.theme = w;
       const A = rd(() => typeof AC !== 'undefined' ? AC : window.AC), mu = rd(() => typeof muted !== 'undefined' ? muted : window.muted);
+      if (A && (A.state === 'suspended' || A.state === 'interrupted') && !document.hidden && Date.now() - tried > 1000) {   // Safari / iOS leave the context suspended or 'interrupted' (calls, tab switches): ask to resume, harmless outside a gesture
+        tried = Date.now(); try { const r = A.resume(); if (r && r.catch) r.catch(() => { /* needs a gesture: audioInit retries on the next one */ }); } catch (e) { /* ignore */ }
+      }
       if (off || !w || !A || A.state !== 'running' || mu || document.hidden) { halt(); return; }   // nothing is scheduled while muted / suspended / hidden
-      const lv = MASTER * (g.phase === 'pause' ? DUCK : 1);
+      const lv = level(w) * (g.phase === 'pause' ? DUCK : 1);
       if (!S || S.name !== w || S.ac !== A) begin(A, w, lv);
       if (S.lv !== lv) { S.ch.m.gain.setTargetAtTime(lv, A.currentTime, .06); S.lv = lv; }
       const th = T[w], sd = 15 / th.bpm, now = A.currentTime;
       if (S.t < now) S.t = now + .03;   // fell behind (throttled timer): resync instead of bursting
-      while (S.t < now + LOOK) {
-        stepAt(th, S.t + (S.n % 4 === 2 ? (th.sw || 0) * sd : 0), sd);
-        S.t += sd; if (++S.n >= comp(th).len) { S.n = (th.lf || 0) * 16; S.rep++; }
-      }
+      pump(th, sd, now + LOOK);
     } catch (e) { M.err = e; cool = 12; try { halt(); } catch (e2) { /* ignore */ } }
   }
+  M.render = (name, secs) => { // debug / tests: render a theme offline (mono, 44.1 kHz, no sound) and resolve to an AudioBuffer; leaves the live player untouched
+    const th = T[name], sd = 15 / th.bpm, len = secs || Math.min(40, comp(th).len * sd * (th.lf ? 1 : 2)), saved = [S, M.now];   // default: both variants of the loop (the first pass only for the jingle)
+    const A = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, Math.ceil(len * 44100), 44100);
+    let out; try { S = null; begin(A, name, level(name)); pump(th, sd, len); out = A.startRendering(); } finally { S = saved[0]; M.now = saved[1]; }
+    return out;
+  };
   setInterval(tick, 80);
 })();
