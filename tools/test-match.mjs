@@ -32,6 +32,7 @@ export async function runTests(p) {
   // 1. menus: title -> select -> pick -> arena reveal -> intro -> fight
   await p.goto(URL_BASE); await p.wait(400);
   check(await p.eval('game.phase') === 'title', 'boots to title');
+  await p.eval("game.titleSel = titleItems().findIndex(i => i.id === 'versus')");   // feature files add title entries (arcade is first), so the classic ones are picked by id
   await tap('Enter'); await p.wait(50);
   check(await p.eval('game.phase') === 'select', 'enter opens select');
   await tap('KeyD'); await tap('KeyJ'); await p.wait(50); check(await p.eval('game.ready[0]'), 'J confirms P1');
@@ -72,7 +73,7 @@ export async function runTests(p) {
   await p.shot(path.join(ROOT, 'tools', '.shot-fight.png'));
 
   // 1b. two-player select flow and the end screen's rematch / back-to-select keys
-  await p.goto(URL_BASE); await p.wait(300); await tap('KeyS'); await tap('Enter');
+  await p.goto(URL_BASE); await p.wait(300); await p.eval("game.titleSel = titleItems().findIndex(i => i.id === 'versus2')"); await tap('Enter');
   check(await p.eval('game.phase === "select" && game.mode === 2'), '2P mode select');
   await tap('ArrowRight'); await tap('Numpad1'); await tap('KeyJ'); await p.wait(50);
   check(await p.eval('game.phase') === 'vs', '2P picks start a match');

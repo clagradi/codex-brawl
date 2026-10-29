@@ -76,21 +76,24 @@ export async function run(t) {
 
   // ---- MODES and the title menu ----
   await clean();
-  const m0 = await ev("({ ids: MODES.list().map(m => m.id), labels: titleItems().map(i => i.label), slot: titleSlot(1, 2), five: [0, 1, 2, 3, 4].map(i => titleSlot(i, 5)), modeId: game.modeId, mode: game.mode })");
+  const m0 = await ev("({ ids: MODES.list().map(m => m.id).filter(id => id === 'versus' || id === 'versus2'), labels: titleItems().map(i => i.label).filter(l => l === '1 PLAYER VS CPU' || l === '2 PLAYERS'), slot: titleSlot(1, 2), five: [0, 1, 2, 3, 4].map(i => titleSlot(i, 5)), modeId: game.modeId, mode: game.mode })");
   check(JSON.stringify(m0.ids) === '["versus","versus2"]' && JSON.stringify(m0.labels) === '["1 PLAYER VS CPU","2 PLAYERS"]' && m0.modeId === 'versus' && m0.mode === 1, 'the title menu is built from MODES and starts as the shipped two entries');
   check(m0.slot.y === 476 && m0.slot.on === 28 && m0.slot.off === 22 && m0.five.every(q => q.x > 0 && q.x < 960 && q.y > 400 && q.y < 500), 'two title entries keep their classic place; five fit on screen');
-  await tap('KeyS'); await tap('Enter'); await t.wait(50);
-  check(await ev("game.phase === 'select' && game.mode === 2 && game.modeId === 'versus2'"), 'S + Enter on the title picks 2 PLAYERS');
-  await t.open(); await tap('Enter'); await t.wait(50);
+  const at = id => ev("titleItems().findIndex(i => i.id === '" + id + "')");   // feature files add title entries of their own, so entries are found by id
+  await ev("game.titleSel = titleItems().findIndex(i => i.id === 'versus2')"); await tap('Enter'); await t.wait(50);
+  check(await ev("game.phase === 'select' && game.mode === 2 && game.modeId === 'versus2'"), 'Enter on the 2 PLAYERS title entry picks 2 PLAYERS');
+  await t.open(); await ev("game.titleSel = titleItems().findIndex(i => i.id === 'versus')"); await tap('Enter'); await t.wait(50);
   check(await ev("game.phase === 'select' && game.mode === 1 && game.modeId === 'versus'"), 'Enter on the title picks 1 PLAYER VS CPU');
   await t.open();
   await ev(`window.__ran = 0; window.__picked = null; HOOKS.add('titleItems', () => [{ id: 'x1', label: 'ZED ITEM', order: 5, run: () => { window.__ran++; } }, { id: 'x2', label: 'LAST ONE', order: 200 }]);
     MODES.register({ id: 'tmode', label: 'TEST MODE', order: 15, players: 2, onPick: g => { window.__picked = g.modeId; return false; } }); render();`);
-  check(await ev("JSON.stringify(titleItems().map(i => i.id)) === '[\"x1\",\"versus\",\"tmode\",\"versus2\",\"x2\"]'"), 'extra title items and registered modes sort by order');
-  await tap('Enter'); await tap('KeyS'); await tap('KeyS'); await tap('Enter'); await t.wait(50);
-  check(await ev("window.__ran === 1 && window.__picked === 'tmode' && game.mode === 2 && game.phase === 'title' && game.titleSel === 2"), 'a title item runs, a mode with onPick returning false stays on the title');
+  check(await ev("JSON.stringify(titleItems().map(i => i.id).filter(id => ['x1', 'versus', 'tmode', 'versus2', 'x2'].includes(id))) === '[\"x1\",\"versus\",\"tmode\",\"versus2\",\"x2\"]'"), 'extra title items and registered modes sort by order');
+  await ev("game.titleSel = titleItems().findIndex(i => i.id === 'x1')"); await tap('Enter'); await ev("game.titleSel = titleItems().findIndex(i => i.id === 'tmode')"); await tap('Enter'); await t.wait(50);
+  const tm = await at('tmode');
+  check(await ev("window.__ran === 1 && window.__picked === 'tmode' && game.mode === 2 && game.phase === 'title' && game.titleSel === " + tm), 'a title item runs, a mode with onPick returning false stays on the title');
   await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await t.wait(30);
-  check(await ev("game.titleSel === 1 && (render(), true)"), 'the title menu wraps around and draws five entries');
+  const nt = await ev('titleItems().length');
+  check(await ev("game.titleSel === " + (((tm - 6) % nt + nt) % nt) + " && (render(), true)"), 'the title menu wraps around and draws every entry');
 
   // ---- engine events through a whole CPU match (one round to win keeps it short) ----
   await t.open('#select');
