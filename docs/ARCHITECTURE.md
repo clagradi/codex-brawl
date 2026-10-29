@@ -127,6 +127,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `gore` | bool, `true` | | `FX.gore` in `hud.js` mirrors it; migrated from the old `brawl.gore` key |
 | `muted` | bool, `false` | | the `muted` flag in `game.js` mirrors it (use `setMuted(v)`); migrated from the old `brawl.muted` key |
 | `binds` | any, `null` | `null` or `{ p1?, p2?, alt? }` | `game.js` `applyBinds()`: for each player, an object of action letter to an array of `KeyboardEvent.code`; it replaces only the actions it names. Actions are `l r u d p k s x` |
+| `palettes.p1` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the colourway player 1 last picked for each fighter (0 classic, 1 to 3 alternates, 4 the star colourway) |
+| `palettes.p2` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the same for player 2 |
+| `palettes.unlocked` | any, `{}` | `{ fighterId: true }` | `palettes.js`: the star colourways opened by winning a match as a human player |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 

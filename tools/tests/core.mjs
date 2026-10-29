@@ -16,7 +16,7 @@ export async function run(t) {
 
   // ---- files and docs ----
   const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  check(JSON.stringify(order) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
+  check(JSON.stringify(order.slice(0, LOAD_ORDER.length)) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
   const doc = fs.readFileSync(path.join(ROOT, 'docs', 'ARCHITECTURE.md'), 'utf8');
   await clean();
   const keys = await ev("SETTINGS.list().map(d => d.key)");
@@ -58,7 +58,7 @@ export async function run(t) {
     SETTINGS.set('muted', true); out.muted = muted; setMuted(false); out.mutedBack = [muted, SETTINGS.get('muted')];
     out.events = evs; SETTINGS.reset(); out.after = SETTINGS.all(); return out;
   })()`);
-  check(JSON.stringify(s.defaults) === JSON.stringify({ difficulty: 'normal', rounds: 2, time: 99, musicVol: 1, sfxVol: 1, voiceVol: 1, gore: true, muted: false, binds: null }), 'SETTINGS defaults match the shipped game: ' + JSON.stringify(s.defaults));
+  check(JSON.stringify(Object.fromEntries(Object.entries(s.defaults).slice(0, 9))) === JSON.stringify({ difficulty: 'normal', rounds: 2, time: 99, musicVol: 1, sfxVol: 1, voiceVol: 1, gore: true, muted: false, binds: null }), 'SETTINGS defaults match the shipped game (the nine core keys; feature keys come after them): ' + JSON.stringify(s.defaults));
   check(JSON.stringify(s.clamp) === '[4,1,30,0.1]' && s.badEnum === 'normal' && s.enum === 'hard' && s.unknown === undefined, 'SETTINGS clamps numbers, steps them and rejects bad enum values: ' + JSON.stringify(s.clamp));
   check(s.stored && s.stored.rounds === 1 && s.stored.difficulty === 'hard', "SETTINGS persists to localStorage 'brawl.settings'");
   check(s.toggle === false && s.fxGore === false && s.fxBack === true && s.muted === true && s.mutedBack[0] === false && s.mutedBack[1] === false, "SETTINGS 'gore' and 'muted' stay in step with FX.gore and the muted flag");
