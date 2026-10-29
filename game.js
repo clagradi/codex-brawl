@@ -21,11 +21,27 @@ addEventListener('resize', fit); fit();
 let AC = null, muted = false;
 try { muted = localStorage.getItem('brawl.muted') === '1'; } catch (e) { /* storage blocked: start unmuted */ }
 function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } if (v && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { } }
-function audioInit() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { AC = null; } }
+// Levels: music.js plays at about -17 dBFS RMS (each theme trimmed to match). Effects are scaled up to sit clearly above it (a normal hit peaks near -9 dBFS)
+// and pass through a soft limiter (SFX), so effects stacked in a special move or a KO cannot clip the output.
+const SFX_BEEP = 6, SFX_THUD = 9, SFX_CEIL = 0.6, SFX_RANGE = 4;
+let SFX = null, audioFail = false;   // audioFail: this browser would not give us a context (the title then stops asking for a key press)
+function audioInit() { // runs on every gesture type: a context made on a gesture the browser does not count (or left suspended / interrupted by Safari / iOS) is resumed by the next one
+  if (!AC) {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }   // Safari / iOS: Web Audio is silenced by the ring switch unless the page asks to play back
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); audioFail = false; } catch (e) { AC = null; audioFail = true; return; }
+    try { const s = AC.createBufferSource(); s.buffer = AC.createBuffer(1, 1, 22050); s.connect(AC.destination); s.start(0); } catch (e) { }   // silent blip: the classic iOS unlock
+  }
+  if (!SFX) try { // effects bus: input is +-SFX_RANGE of signal, output tops out near SFX_CEIL (tanh curve: transparent when quiet, rounded when loud; the 2x oversampling can overshoot it by about 2 dB)
+    const sh = AC.createWaveShaper(), c = new Float32Array(2049);
+    for (let i = 0; i < c.length; i++) c[i] = SFX_CEIL * Math.tanh((i / 1024 - 1) * SFX_RANGE / SFX_CEIL);
+    sh.curve = c; sh.oversample = '2x'; sh.connect(AC.destination); SFX = sh;
+  } catch (e) { SFX = null; }
+  if (AC.state !== 'running') try { const r = AC.resume(); if (r && r.catch) r.catch(() => { /* not a gesture the browser accepts: the next one retries */ }); } catch (e) { }
+}
 function beep(f, d, type = 'square', v = 0.06, slide = 0.5) {
   if (!AC || muted || AC.state !== 'running') return;
   try {
-    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v; o.connect(g); g.connect(AC.destination);
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f; g.gain.value = v * SFX_BEEP / SFX_RANGE; o.connect(g); g.connect(SFX || AC.destination);
     const n = AC.currentTime; o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), n + d); g.gain.exponentialRampToValueAtTime(0.0001, n + d); o.start(); o.stop(n + d);
   } catch (e) { }
 }
@@ -34,11 +50,11 @@ function thud(d = 0.12, v = 0.12) { // short noise burst for impacts
   if (!AC || muted || AC.state !== 'running') return;
   try {
     if (!NOISE) { NOISE = AC.createBuffer(1, AC.sampleRate * 0.3, AC.sampleRate); const ch = NOISE.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length); }
-    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v;
-    s.connect(f); f.connect(g); g.connect(AC.destination); const n = AC.currentTime; g.gain.exponentialRampToValueAtTime(0.0001, n + d); s.start(); s.stop(n + d);
+    const s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter(); s.buffer = NOISE; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = v * SFX_THUD / SFX_RANGE;
+    s.connect(f); f.connect(g); g.connect(SFX || AC.destination); const n = AC.currentTime; g.gain.exponentialRampToValueAtTime(0.0001, n + d); s.start(); s.stop(n + d);
   } catch (e) { }
 }
-for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, audioInit, { passive: true });
+for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchstart', 'touchend']) addEventListener(ev, audioInit, { passive: true });
 function say(key, arg) { try { ANNOUNCER.say(key, arg); } catch (e) { /* the announcer is optional */ } }
 function setGore(v) { FX.gore = v; try { localStorage.setItem('brawl.gore', v ? '1' : '0'); } catch (e) { } }
 
@@ -647,6 +663,12 @@ function drawTitle() {
   ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
   uiText(touch.on ? 'TAP TO START' : 'W/S + ENTER · FIGHT WITH WASD + J K L I OR ARROWS + Z X C V · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
+  if (!muted && !audioFail && !(AC && AC.state === 'running')) {   // browsers keep a page silent until the first key press / tap
+    const s = (touch.on ? 'TAP' : 'PRESS ANY KEY OR TAP') + ' FOR SOUND';
+    ctx.save(); ctx.font = '16px Impact, Haettenschweiler, "Arial Narrow", sans-serif'; const w = ctx.measureText(s).width + 30; ctx.restore();
+    ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(Math.round(W / 2 - w / 2), 11, Math.round(w), 27);
+    uiText(s, W / 2, 25, 16, '#ffd76a', 'center', 0.75 + 0.25 * Math.sin(t / 12));
+  }
 }
 function selectCell(i) {
   const COLS = 3, cw = 96, ch = 112, gap = 12, row = Math.floor(i / COLS), col = i % COLS, rowCount = Math.min(COLS, ROSTER.length - row * COLS);
@@ -728,6 +750,8 @@ function drawFight() {
   const t = game.tick, [a, b] = game.f;
   drawWorld(); drawHUD(ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
+  if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
+    uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
   if (game.phase === 'fight' && game.round === 1 && game.clock < 360 && !touch.on && !(a.cpu && b.cpu))
     uiText('J J J COMBO · FWD+J THROW · DOWN+K SWEEP · L SPECIAL · TAP FWD TWICE DASH · I SUPER · HOLD BACK TO BLOCK', W / 2, H - 18, 14, '#fff', 'center', Math.min(1, (360 - game.clock) / 60));
   if (game.phase === 'finish') uiText((game.winner.cpu ? 'CPU' : LABEL[game.winner.side].x) + ' FOR THE FINISHER · ANY HIT ENDS IT', W / 2, H - 20, 16, '#ff6b5c', 'center', t % 30 < 20 ? 1 : 0.5);

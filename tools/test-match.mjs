@@ -165,6 +165,53 @@ export async function runTests(p) {
   await p.goto(URL_BASE + '#select'); await p.wait(200); await p.shot(path.join(ROOT, 'tools', '.shot-select.png'));
   await p.goto(URL_BASE); await p.wait(200); await p.shot(path.join(ROOT, 'tools', '.shot-title.png'));
 
+  // audio: music is audible, starts with the first gesture, follows the arena and can be muted; effects stay above it without clipping
+  // (regression: the live site played no music in Safari: it sat ~25 dB under the effects and the announcer, and a suspended context was never resumed)
+  const until = async (js, ms = 1000) => { for (let t = 0; t <= ms; t += 50) { if (await p.eval(js)) return true; await p.wait(50); } return false; };
+  const dB = x => 20 * Math.log10(Math.max(x, 1e-9));
+  const spy = "window.__ui = []; { const u = uiText; uiText = (s, ...a) => { __ui.push(String(s)); return u(s, ...a); }; }";   // records the HUD strings drawn from now on
+  const shown = async re => { await p.eval('__ui.length = 0'); await p.wait(120); return p.eval('__ui.some(s => ' + re + '.test(s))'); };
+  await p.goto(URL_BASE); await p.wait(400); await p.eval(spy);
+  check(await p.eval('AC === null && MUSIC.now === null && MUSIC.theme === "title"'), 'audio: nothing plays before the first gesture');
+  check(await shown('/FOR SOUND/'), 'audio: the title asks for a key press or tap while the context is not running');
+  await tap('KeyS');   // first key press on the title (also moves the menu cursor)
+  check(await until('MUSIC.now === "title"', 1000) && await p.eval('MUSIC.err == null && AC.state === "running"'), 'audio: the first key on the title starts the title music within 1 s');
+  check(!await shown('/FOR SOUND/'), 'audio: the sound hint is gone once the context runs');
+  const live = await p.eval(`new Promise(res => { const m = MUSIC.master, an = AC.createAnalyser(), buf = new Float32Array(2048); an.fftSize = 2048; m.connect(an); let ss = 0, n = 0;
+    const iv = setInterval(() => { an.getFloatTimeDomainData(buf); for (const v of buf) { ss += v * v; n++; } }, 25); setTimeout(() => { clearInterval(iv); m.disconnect(an); res(Math.sqrt(ss / n)); }, 3000); })`);
+  check(dB(live) > -23 && dB(live) < -11, `audio: the live title music measures ${dB(live).toFixed(1)} dBFS RMS (expected about -17)`);
+  await tap('KeyM'); check(await until('MUSIC.now === null', 600), 'audio: M mutes the music on the title');
+  await tap('KeyM'); check(await until('MUSIC.now === "title"', 1000), 'audio: M again brings it back');
+  check(await p.eval('AC.suspend().then(() => AC.state)') === 'suspended' && await until('MUSIC.now === null', 600), 'audio: a suspended context silences the music');
+  await tap('KeyW'); check(await until('AC.state === "running" && MUSIC.now === "title"', 2000), 'audio: a suspended context is resumed (by the next gesture or by the music clock) and the music returns');
+  for (const ev of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchstart', 'touchend']) { // Safari / iOS only accept some of these as an unlock: every one must start the audio
+    await p.goto(URL_BASE); await p.wait(150);
+    const was = await p.eval('AC === null'); await p.eval(`dispatchEvent(new Event('${ev}'))`);
+    check(was && await p.eval('!!AC && AC.state === "running"'), `audio: a ${ev} event creates and starts the context`);
+  }
+  await p.goto(`${URL_BASE}#demo=0,1&arena=2&stop`); await p.wait(300); await p.eval(spy);
+  await tap('KeyH');   // a gesture inside the demo
+  check(await until('MUSIC.now === "vs"', 1000), 'audio: the versus screen plays its own jingle');
+  await stepUntil('fight');
+  check(await until('MUSIC.now === ARENAS[game.arena].id', 1000) && await p.eval('MUSIC.err == null'), 'audio: a fight plays the music of its arena (' + await p.eval('ARENAS[game.arena].id') + ')');
+  check(await shown('/\\u266a ' + (await p.eval('ARENAS[game.arena].name')) + '/'), 'audio: the arena track name is shown at the start of round 1');
+  await p.eval('step(140)'); check(!await shown('/\\u266a/'), 'audio: the track name goes away after about 2 s');
+  await tap('KeyM'); check(await until('MUSIC.now === null', 600), 'audio: M mutes a fight');
+  await tap('KeyM'); check(await until('MUSIC.now === ARENAS[game.arena].id', 1000), 'audio: M again brings the arena music back');
+  await p.goto(URL_BASE); await p.wait(300);
+  const names = ['title', 'vs', 'over', 'gpupit', 'cathedral', 'bridge', 'furnace', 'forest', 'temple', 'graveyard', 'rooftop', 'wasteland'];
+  const rms = await p.eval(`(async () => { const out = []; for (const n of ${JSON.stringify(names)}) { const d = (await MUSIC.render(n)).getChannelData(0); let s = 0; for (const v of d) s += v * v; out.push(Math.sqrt(s / d.length)); } return out; })()`);
+  check(rms.every(r => dB(r) > -18.5 && dB(r) < -15.5), 'audio: all ' + names.length + ' themes render within -18.5..-15.5 dBFS RMS: ' + rms.map((r, i) => names[i] + ' ' + dB(r).toFixed(1)).join(', '));
+  const fx = await p.eval(`(async () => {   // effects through a tapped output: a normal hit must clear the music, a pile-up of big effects must stay below clipping
+    AC = new AudioContext(); await AC.resume(); const real = AC.destination, sp = AC.createScriptProcessor(1024, 1, 1), sum = AC.createGain(); let pk = 0, on = false;
+    sp.onaudioprocess = e => { if (!on) return; for (const v of e.inputBuffer.getChannelData(0)) if (Math.abs(v) > pk) pk = Math.abs(v); };
+    sum.connect(sp); sp.connect(real); Object.defineProperty(AC, 'destination', { get: () => sum }); MUSIC.stop(); audioInit();
+    const peak = async f => { pk = 0; on = true; f(); await new Promise(r => setTimeout(r, 700)); on = false; return pk; };
+    return { hit: await peak(() => { thud(); beep(120, 0.1, 'sawtooth', 0.06); }), pile: await peak(() => { for (let i = 0; i < 12; i++) { thud(0.5, 0.3); thud(0.3, 0.2); beep(110, 0.5, 'sawtooth', 0.09, 0.5); beep(70, 0.35, 'sawtooth', 0.1, -0.3); } }) };
+  })()`);
+  check(dB(fx.hit) >= -12, `audio: a normal hit peaks at ${dB(fx.hit).toFixed(1)} dBFS, at least 5 dB above the music (-17 dBFS RMS)`);
+  check(dB(fx.pile) < -1.5, `audio: 48 stacked effects peak at ${dB(fx.pile).toFixed(1)} dBFS, clear of clipping (limiter ceiling is -4.4, its 2x oversampling overshoots by up to ~2 dB; without the bus this pile is far above 0)`);
+
   if (p.errors.length) { console.log('console errors:\n' + p.errors.join('\n')); ok = false; } else console.log('ok    no console errors');
   return ok;
 }
