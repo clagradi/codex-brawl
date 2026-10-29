@@ -771,7 +771,7 @@ export async function uxDesktopChecks(p, check, tap) {
       K('Space'); out.space = [ph(), game.mode]; K('Escape'); out.escFirst = ph();
       K('KeyJ'); out.punch = [ph(), game.mode]; K('KeyJ'); out.ready = game.ready[0]; K('Escape'); out.unready = [ph(), game.ready[0]]; K('Escape'); out.escTitle = ph();
       K('KeyS'); K('Enter'); out.p2mode = [ph(), game.mode]; K('Escape'); out.esc2p = ph();
-      K('Enter'); game.arenaPick = -1; out.arena = []; for (let i = 0; i < 10; i++) { K('KeyE'); out.arena.push(game.arenaPick); } K('KeyQ'); out.q = game.arenaPick; K('KeyI'); out.superKey = game.arenaPick;
+      K('Enter'); game.arenaPick = -1; out.arena = []; for (let i = 0; i <= ARENAS.length; i++) { K('KeyE'); out.arena.push(game.arenaPick); } K('KeyQ'); out.q = game.arenaPick; K('KeyI'); out.superKey = game.arenaPick;
       game.sel = [0, 4]; game.ready = [false, false]; out.col = []; for (const [s, k] of [[0, 'KeyS'], [3, 'KeyS'], [1, 'KeyS'], [4, 'KeyS'], [2, 'KeyS'], [4, 'KeyW']]) { game.sel[0] = s; K(k); out.col.push(game.sel[0]); }
       K('Escape'); game.titleSel = 1; K('Enter'); out.tab = [ph(), game.mode]; game.sel = [0, 4]; game.ready = [false, false]; K('KeyD'); K('ArrowLeft'); out.nav2p = game.sel.join();
       K('KeyJ'); K('Numpad2'); out.p1stays = game.ready.join(); K('KeyK'); out.p1undo = game.ready.join(); K('Numpad1'); K('Numpad2'); out.p2undo = game.ready.join();
@@ -781,7 +781,7 @@ export async function uxDesktopChecks(p, check, tap) {
     check(r.space.join() === 'select,1' && r.escFirst === 'title' && r.punch.join() === 'select,1', 'title: Space or a punch starts, Esc on the first pick goes back to the title');
     check(r.ready === true && r.unready.join() === 'select,false' && r.escTitle === 'title', 'select: J confirms, Esc un-confirms and then goes to the title');
     check(r.p2mode.join() === 'select,2' && r.esc2p === 'title', 'select (2P): Esc goes back to the title');
-    check(r.arena.join() === '0,1,2,3,4,5,6,7,8,-1' && r.q === 8 && r.superKey === -1, 'select: E, Q and the super key step through the nine arenas and RANDOM');
+    check(r.arena.join() === [...r.arena.slice(0, -1).keys(), -1].join() && r.arena.length > 9 && r.q === r.arena.length - 2 && r.superKey === -1, 'select: E, Q and the super key step through every arena and RANDOM');
     check(r.col.join() === '3,0,4,1,4,1', 'select: up and down keep the column');
     check(r.tab.join() === 'select,2' && r.nav2p === '1,3' && r.p1stays === 'true,false' && r.p1undo === 'false,false' && r.p2undo === 'false,false', 'select (2P): each player moves and confirms with their own keys, and the kick key undoes only that player');
     check(r.p === 'pause' && r.p2 === 'fight' && r.esc === 'pause' && r.esc2 === 'fight' && r.enter === 'fight' && r.quit === 'title', 'fight and pause: P or Esc pause, P, Esc or Enter resume, Q quits to the title');
@@ -811,12 +811,12 @@ export async function uxDesktopChecks(p, check, tap) {
       const out = { p1: [read(g1, 0, 'KeyJ'), read(g1, 1, 'KeyK'), read(g1, 2, 'KeyL'), read(g1, 3, 'KeyI'), read(g1, 5, 'KeyI'), read(g1, 14, 'KeyA'), read(g1, 15, 'KeyD'), read(g1, 12, 'KeyW'), read(g1, 13, 'KeyS')],
         p2: [read(g2, 0, 'Numpad1'), read(g2, 1, 'Numpad2'), read(g2, 2, 'Numpad3'), read(g2, 3, 'Numpad0')] };
       g1.axes[0] = 0.9; step(1); out.stick = !!keys.KeyD; g1.axes[0] = 0; step(1);
-      game.phase = 'title'; game.titleSel = 0; g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.startMenu = game.phase;   // Start is Enter on the menus
+      for (const k in pressed) pressed[k] = false; game.phase = 'title'; game.titleSel = 0; g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.startMenu = game.phase;   // Start is Enter on the menus
       g1.buttons[8].pressed = true; step(1); g1.buttons[8].pressed = false; step(1); out.back = game.phase;   // Back is Esc
       __fight([0, 2]); g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.pause = game.phase; g1.buttons[9].pressed = true; step(1); g1.buttons[9].pressed = false; step(1); out.resume = game.phase;
       return out; })()`);
     check(g.p1.every(Boolean) && g.p2.every(Boolean) && g.stick, 'gamepads: pad 1 is P1, pad 2 is P2; d-pad or stick, A punch, B kick, X special, Y or RB super');
-    check(g.startMenu === 'select' && g.back === 'title' && g.pause === 'pause' && g.resume === 'fight', 'gamepad Start is Enter on the menus and pauses or resumes a fight, Back is Esc');
+    check(g.startMenu === 'select' && g.back === 'title' && g.pause === 'pause' && g.resume === 'fight', 'gamepad Start is Enter on the menus and pauses or resumes a fight, Back is Esc: ' + JSON.stringify([g.startMenu, g.back, g.pause, g.resume]));
   });
 
   await group('touch pad on a laptop', async () => {
@@ -850,9 +850,10 @@ export async function uxDesktopChecks(p, check, tap) {
     }
     for (let i = 0; i < IDS.length; i++) for (const mode of [1, 2]) {
       const j = (i + 3) % IDS.length;
-      await draw(`pause ${mode}P ${IDS[i]}/${IDS[j]}`, `__fight([${i}, ${j}], ${mode}, 1, true); game.phase = 'pause'`, `[...moveRows(ROSTER[${i}].id, 0, false), ...moveRows(ROSTER[${j}].id, 1, ${mode === 1})].map(r => r.name)`,
+      await draw(`pause ${mode}P ${IDS[i]}/${IDS[j]}`, `__fight([${i}, ${j}], ${mode}, 1, true); game.phase = 'pause'; if (typeof OPTIONS !== 'undefined') OPTIONS.open('moves')`, `[...moveRows(ROSTER[${i}].id, 0, false), ...moveRows(ROSTER[${j}].id, 1, ${mode === 1})].map(r => r.name)`,
         mode === 2 ? ['SUDDEN DEATH', 'P2  ARROWS', 'GAMEPAD'] : ['SUDDEN DEATH', 'GAMEPAD']);
     }
+    await p.eval(`typeof OPTIONS !== 'undefined' && OPTIONS.close()`);
     for (let i = 0; i < IDS.length; i++) await draw('over ' + IDS[i], `__over(1, [${i}, ${(i + 1) % IDS.length}], 0, true)`, "['P1 TAKES IT 2-1 · ' + game.fin.name]", ['ENTER CHARACTER SELECT']);
     await draw('over, CPU wins', '__over(1, [3, 0], 1, true)', "['CPU TAKES IT 2-1 · ' + game.fin.name]");
     await draw('tip, round 1 (1P)', "__fight([0, 3], 1, 1, true); game.clock = 10", '[fightTip().txt]');

@@ -38,7 +38,7 @@
   const ACT_OF = {}; for (const a in BIND_DEFAULTS.p1) ACT_OF[BIND_DEFAULTS.p1[a][0]] = a;   // default P1 key -> action, to move the touch buttons with the binds
   function syncLabels() {   // LABEL / ALTL are objects game.js and hud.js read at draw time: change them in place
     for (const a of ['p', 'k', 's', 'x']) { LABEL[0][a] = keyName(MAP[0][a][0]); LABEL[1][a] = keyName(MAP[1][a][0]); ALTL[a] = keyName(ALT[a][0]); }
-    for (const b of TBTN) { if (!b.base) b.base = b.code; const a = ACT_OF[b.base]; b.code = a ? MAP[0][a][0] : b.base; }
+    if (typeof TBTN !== 'undefined') for (const b of TBTN) { if (!b.base) b.base = b.code; const a = ACT_OF[b.base]; b.code = a ? MAP[0][a][0] : b.base; }
   }
   syncLabels(); BUS.on('settings', e => { if (e.key === 'binds') syncLabels(); });
   const dirKeys = m => { const s = [m.u, m.l, m.d, m.r].map(c => keyName(c[0])).join(' '); return s === 'W A S D' ? 'WASD' : s === 'UP LEFT DOWN RIGHT' ? 'ARROWS' : s; };
@@ -49,7 +49,7 @@
     return 'W/S + ENTER · FIGHT WITH ' + dirKeys(MAP[0]) + ' + ' + [L.p, L.k, L.s, L.x].join(' ') + ' OR ' + dirKeys(ALT) + ' + ' + [A.p, A.k, A.s, A.x].join(' ') +
       ' · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : '');
   }
-  function fightHint() { const L = LABEL[0]; return [L.p, L.p, L.p].join(' ') + ' COMBO · FWD+' + L.p + ' THROW · DOWN+' + L.k + ' SWEEP · ' + L.s + ' SPECIAL · TAP FWD TWICE DASH · ' + L.x + ' SUPER · HOLD BACK TO BLOCK'; }
+  function fightHint() { const L = LABEL[0]; return [L.p, L.p, L.p].join(' ') + ' COMBO · FWD + ' + L.p + ' THROW · DOWN + ' + L.k + ' SWEEP · ' + L.s + ' SPECIAL · TAP FWD TWICE DASH · ' + L.x + ' SUPER · HOLD BACK TO BLOCK'; }
 
   // ---------- binds: conflicts, reserved keys, writing SETTINGS 'binds' ----------
   const ACTS = [['l', 'LEFT'], ['r', 'RIGHT'], ['u', 'UP / JUMP'], ['d', 'DOWN / CROUCH'], ['p', 'PUNCH'], ['k', 'KICK'], ['s', 'SPECIAL'], ['x', 'SUPER']];
@@ -234,6 +234,7 @@
     if (ui.screen === 'options') optPtr(x, y); else if (ui.screen === 'controls') ctlPtr(x, y); else if (ui.screen === 'moves') back();
     else if (ui.screen === 'quit') { if (Math.abs(y - 292) < 22) { if (Math.abs(x - (W / 2 - 80)) < 60) { ui.qsel = 0; quitNow(); } else if (Math.abs(x - (W / 2 + 80)) < 60) back(); } }
   }
+  const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   addEventListener('pointerdown', e => {
     if (e.target !== cv) return;
     const touchy = e.pointerType !== 'mouse', [x, y] = canvasPos(e), ph = game.phase;
@@ -302,6 +303,7 @@
     uiText('P2  ' + dirKeys(MAP[1]) + ' · ' + M.p + ' PUNCH · ' + M.k + ' KICK · ' + M.s + ' SPECIAL · ' + M.x + ' SUPER', W / 2, 372, 16, '#ddd');
     uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
     uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    uiText('NO MATCH WINNER AFTER ROUND 3? SUDDEN DEATH: 30 SECONDS · 25% HEALTH · A TIE GOES TO THE FULLER SUPER METER', W / 2, 442, 12, '#ffb4a8');
     uiText(touch.on ? 'TAP TO GO BACK' : 'ESC OR ENTER: BACK', W / 2, 500, 18, '#c9a24a');
   }
   function drawPauseMenu() {

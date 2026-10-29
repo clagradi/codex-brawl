@@ -234,8 +234,8 @@
   });
 
   // ---------------------------------------------------------------- modes and title entries
-  MODES.register({ id: 'arcade', label: 'ARCADE', order: 5, players: 1, onPick() { openSelect('arcade'); return false; } });
-  MODES.register({ id: 'survival', label: 'SURVIVAL', order: 6, players: 1, onPick() { openSelect('survival'); return false; } });
+  MODES.register({ id: 'arcade', label: 'ARCADE', order: 25, players: 1, onPick() { openSelect('arcade'); return false; } });
+  MODES.register({ id: 'survival', label: 'SURVIVAL', order: 26, players: 1, onPick() { openSelect('survival'); return false; } });
   HOOKS.add('titleItems', () => ({ id: 'stats', label: 'STATS', order: 30, run() { A.statsFrom = 'title'; go('stats'); clearPressed(); } }));
   function openSelect(kind) {
     A.kind = kind; A.sel = Math.max(0, Math.min(ROSTER.length - 1, game.sel[0] | 0));

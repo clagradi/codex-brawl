@@ -18,9 +18,9 @@ export async function run(t) {
   // ---- the title: ARCADE first, SURVIVAL next, STATS as a title item, and the arcade run is startable by keys ----
   await fresh();
   const ids = await ev('titleItems().map(i => i.id)');
-  check(ids[0] === 'arcade' && ids[1] === 'survival' && ids.includes('stats') && ids.includes('versus') && ids.includes('versus2'), 'ARCADE is first on the title menu, then SURVIVAL, with STATS and the two classic modes: ' + ids.join(','));
-  check(await ev("game.titleSel === 0 && MODES.get('arcade').order === 5 && MODES.get('survival').label === 'SURVIVAL'"), 'the title cursor starts on ARCADE (mode order 5)');
-  await press('Enter');
+  check(ids.indexOf('arcade') === ids.indexOf('versus2') + 1 && ids.indexOf('survival') === ids.indexOf('arcade') + 1 && ids.includes('stats') && ids[0] === 'versus', 'ARCADE and SURVIVAL follow the two classic modes on the title menu, with STATS: ' + ids.join(','));
+  check(await ev("game.titleSel === 0 && MODES.get('arcade').order === 25 && MODES.get('survival').label === 'SURVIVAL'"), 'the title cursor starts on 1 PLAYER VS CPU, ARCADE has order 25');
+  await ev("game.titleSel = titleItems().findIndex(i => i.id === 'arcade')"); await press('Enter');
   check(await S("S.screen === 'select' && S.kind === 'arcade' && game.phase === 'title'"), 'Enter on ARCADE opens the fighter and difficulty screen');
   await press('KeyD'); await press('KeyS');
   check(await S('S.sel === 1 && S.diffSel === 2'), 'D picks the next fighter and S the next difficulty tier');
@@ -80,7 +80,7 @@ export async function run(t) {
 
   // ---- SURVIVAL: health carries over, score, initials entry, top 10 ----
   await fresh();
-  await press('KeyS'); await press('Enter');
+  await ev("game.titleSel = titleItems().findIndex(i => i.id === 'survival')"); await press('Enter');
   check(await S("S.screen === 'select' && S.kind === 'survival'"), 'S + Enter on the title opens SURVIVAL');
   await press('KeyJ');
   check(await ev("game.phase === 'vs' && game.modeId === 'survival' && ARCADE.S.screen === null"), 'J starts the first survival fight');

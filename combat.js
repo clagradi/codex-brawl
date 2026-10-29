@@ -343,17 +343,18 @@
 
   // ---------- move lists ----------
   const moveRows0 = window.moveRows;
+  // the extra rows (overhead, target combos) show on the pause screen only: the select panels have no room for them
   if (typeof moveRows0 === 'function') window.moveRows = function (id, side, cpu) {
-    const rows = moveRows0(id, side, cpu), M = MOVES[id], L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side], out = [];
+    const rows = moveRows0(id, side, cpu), M = MOVES[id], room = game.phase !== 'select', L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side], out = [];
     const finRow = rows.find(r => M.fin && r.name === M.fin.name && r.col === '#ff6b5c');
     for (const r of rows) {
-      if (r === finRow) continue;
+      if (room && r === finRow) continue;
       const mv = (M.sp || []).find(m => m.name === r.name);
       const row = (mv && mv.cbLow) || (r.name === 'SWEEP' && !r.note) ? Object.assign({}, r, { note: 'LOW' }) : r;   // lows are blocked crouching
-      if (r.name === M.su.name && finRow) out.push(Object.assign({}, row, { note: 'FIN ' + M.fin.name }));
+      if (room && r.name === M.su.name && finRow) out.push(Object.assign({}, row, { note: 'FIN ' + M.fin.name }));
       else out.push(row);
-      if (r.name === 'SWEEP' && OVH[id]) out.push({ input: 'FWD + ' + L.k, name: OVH[id][0], note: 'OVERHEAD' });
-      if (r.name === M.air.name) for (const [s, nm] of TCS[id] || []) out.push({ input: [...s].map(ch => ch === 'P' ? L.p : L.k).join('>'), name: nm });
+      if (room && r.name === 'SWEEP' && OVH[id]) out.push({ input: 'FWD + ' + L.k, name: OVH[id][0], note: 'OVERHEAD' });
+      if (room && r.name === M.air.name) for (const [s, nm] of TCS[id] || []) out.push({ input: [...s].map(ch => ch === 'P' ? L.p : L.k).join('>'), name: nm });
     }
     return out;
   };
@@ -382,8 +383,10 @@
   });
   HOOKS.add('drawTop', (c, g) => {
     if (g.phase === 'pause') {
-      uiText('FWD + K OVERHEAD (GUARD STANDING) · DOWN + P/K ARE LOWS (GUARD CROUCHING) · JUMP ATTACKS ARE OVERHEADS', W / 2, 444, 12, '#aab');
-      uiText('HOLD SU + SP = EX SPECIAL, 1 BAR (PAD RB + X) · BACK + SU WHILE HIT = BREAKER, 2 BARS · DOWN, DOWN + SU = TAUNT', W / 2, 457, 12, '#aab');
+      const scr = typeof OPTIONS !== 'undefined' ? OPTIONS.screen : 'moves', y = scr === 'moves' ? 457 : 400;   // the options pause menu has a gap under its rows; its other screens have no room
+      if (scr && scr !== 'moves') return;
+      uiText('FWD + K OVERHEAD (GUARD STANDING) · DOWN + P/K ARE LOWS (GUARD CROUCHING) · JUMP ATTACKS ARE OVERHEADS', W / 2, y + 17, 12, '#aab');
+      uiText('HOLD SU + SP = EX SPECIAL, 1 BAR (PAD RB + X) · BACK + SU WHILE HIT = BREAKER, 2 BARS · DOWN, DOWN + SU = TAUNT', W / 2, y, 12, '#aab');
     } else if (g.phase === 'fight' && g.round === 1 && g.clock >= 340 && g.clock < 700 && !(g.f[0].cpu && g.f[1].cpu))
       uiText('FWD+K OVERHEAD · HOLD SU+SP EX · BACK+SU IN HITSTUN BREAKER · 3 BARS = SUPER', W / 2, H - 18, 14, '#fff', 'center', Math.min(1, (700 - g.clock) / 60, (g.clock - 340) / 30));
   });
