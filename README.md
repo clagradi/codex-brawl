@@ -2,7 +2,9 @@
 
 Open `index.html` in any modern browser. It is one self-contained file (about 80 KB): the pixel heads, the sprite generator, the bitmap font and the engine are all inlined, no network requests, no build step needed to play.
 
-Five fighters, 1 player vs CPU or 2 players on one keyboard, best of 3 rounds, specials and supers, full 8-bit pixel-art sprite sheets generated at load time.
+Five fighters, 1 player vs CPU or 2 players on one keyboard, best of 3 rounds, specials and supers, full 8-bit pixel-art sprite sheets generated at load time. The mute toggle (M) is remembered between visits.
+
+Source: https://github.com/clagradi/codex-brawl
 
 ## Roster
 

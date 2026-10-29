@@ -15,6 +15,8 @@ addEventListener('resize', fit); fit();
 
 // ---------- audio (tiny synth, unlocked on first interaction) ----------
 let AC = null, muted = false;
+try { muted = localStorage.getItem('brawl.muted') === '1'; } catch (e) { /* storage blocked: start unmuted */ }
+function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } }
 function audioInit() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { AC = null; } }
 function beep(f, d, type = 'square', v = 0.06, slide = 0.5) {
   if (!AC || muted || AC.state !== 'running') return;
@@ -37,7 +39,7 @@ for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, 
 // ---------- input ----------
 const keys = {}, pressed = {};
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyR', 'KeyJ', 'KeyK', 'KeyL', 'KeyI', 'KeyP', 'KeyQ', 'KeyM', 'Enter', 'Escape']);
-addEventListener('keydown', e => { if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.code === 'KeyM') muted = !muted; });
+addEventListener('keydown', e => { if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.code === 'KeyM') setMuted(!muted); });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; if (game.phase === 'fight') game.phase = 'pause'; });
 function clearPressed() { for (const k in pressed) pressed[k] = false; }
@@ -307,7 +309,10 @@ function update() {
   }
   if (game.phase === 'select') {
     const N = ROSTER.length, COLS = 3;
-    const nav = (s, m) => { let c = game.sel[s]; if (tap(m.l)) c = (c + N - 1) % N; if (tap(m.r)) c = (c + 1) % N; if (tap(m.u)) c = (c - COLS + N) % N; if (tap(m.d)) c = (c + COLS) % N; if (c !== game.sel[s]) beep(500 - s * 100, 0.04); game.sel[s] = c; };
+    const ROWS = Math.ceil(N / COLS);
+    // Up/down keep the column and wrap by row; a short last row clamps to its last cell instead of jumping across the grid.
+    const vert = (c, dir) => { const col = c % COLS, row = (Math.floor(c / COLS) + dir + ROWS) % ROWS; return Math.min(row * COLS + col, N - 1); };
+    const nav = (s, m) => { let c = game.sel[s]; if (tap(m.l)) c = (c + N - 1) % N; if (tap(m.r)) c = (c + 1) % N; if (tap(m.u)) c = vert(c, -1); if (tap(m.d)) c = vert(c, 1); if (c !== game.sel[s]) beep(500 - s * 100, 0.04); game.sel[s] = c; };
     if (game.mode === 1) {
       const m = MAP[0], s = game.ready[0] ? 1 : 0; nav(s, m);
       if (tap(m.p) || tap('Enter')) { game.ready[s] = true; beep(900, 0.12); }
@@ -363,7 +368,7 @@ function drawTitle() {
   ROSTER.forEach((r, i) => { const f = loopFrame('idle', t + i * 11); drawSprite(ctx, r.id, 'idle', f, W / 2 + (i - (ROSTER.length - 1) / 2) * 128, 352, 1, 3); });
   const opts = ['1 PLAYER VS CPU', '2 PLAYERS'];
   opts.forEach((o, i) => ptext(ctx, (game.titleSel === i ? '▶ ' : '  ') + o, W / 2, 400 + i * 34, 3, game.titleSel === i ? '#fff' : '#889', 'center'));
-  ptext(ctx, touch.on ? 'TAP TO START' : 'W/S SELECT · ENTER START · M MUTE', W / 2, 480, 2, '#99a', 'center');
+  ptext(ctx, touch.on ? 'TAP TO START' : 'W/S SELECT · ENTER START · M ' + (muted ? 'UNMUTE' : 'MUTE'), W / 2, 480, 2, '#99a', 'center');
   ptext(ctx, 'UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 518, 1, '#667', 'center', false);
 }
 function drawSelect() {
@@ -439,6 +444,7 @@ function drawFight() {
   if (game.banner) { const bn = game.banner; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, H / 2 - 120, W, 46); ptext(ctx, bn.txt, W / 2, H / 2 - 108, 3, bn.col, 'center'); }
   if (game.msg) { const big = game.msg.txt.length > 8 ? 4 : 6; ptext(ctx, game.msg.txt, W / 2, H / 2 - 30, big, game.msg.txt === 'K.O.!' ? '#ff4d4d' : '#fff', 'center'); }
   if (game.sudden && game.phase === 'fight') ptext(ctx, 'SUDDEN DEATH', W / 2, 60, 1, '#ff5050', 'center');
+  if (muted) ptext(ctx, 'MUTED', W - 16, 60, 1, '#99a', 'right');
   if (game.phase === 'pause') { ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H); ptext(ctx, 'PAUSED', W / 2, H / 2 - 60, 6, '#fff', 'center'); ptext(ctx, 'P / ESC RESUME · Q QUIT TO TITLE · M MUTE', W / 2, H / 2 + 10, 2, '#aaa', 'center'); ptext(ctx, 'P1: WASD · F PUNCH · G KICK · H SPECIAL · R SUPER', W / 2, H / 2 + 50, 1, '#889', 'center'); ptext(ctx, 'P2: ARROWS · K PUNCH · L KICK · J SPECIAL · I SUPER', W / 2, H / 2 + 66, 1, '#889', 'center'); }
   if (game.phase === 'over') {
     const gr = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, 520); gr.addColorStop(0, '#2a2350'); gr.addColorStop(1, '#07060f'); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
