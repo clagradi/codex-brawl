@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-mutators.js` | match mutators picked on the select screen (G): BIG HEADS, LOW GRAVITY, TURBO 1.5X, RATE LIMITED, LEGACY MODE, GLASS CANNON; public `MUTATORS` | p-mutators agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-mutators.js`, `tools/tests/x-p-mutators.mjs` | p-mutators agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -112,6 +114,8 @@ With nothing registered a call returns at once, so the engine calls them from ho
 | `pauseItems` | collect | no arguments; items `{ key, label, run(game) }`: while paused, pressing `key` (a `KeyboardEvent.code`) calls `run`; the labels are drawn under the pause text |
 | `musicTheme` | filter | `(themeName, game)`; return the name of any defined theme to replace the one the engine picked |
 
+A handler may run the engine's own `window.update()` again from inside an `update` handler to add a tick (`p-mutators.js` does this for TURBO 1.5X, with a re-entry guard and every other tick of a fight only). Every `update` handler then runs a second time inside that one real tick, so an `update` handler must be safe to run twice in a row and must not count real time by calls.
+
 ### SETTINGS keys
 
 One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocked or corrupt store means the defaults. Never read `localStorage` for options anywhere else. API: `SETTINGS.get(key)`, `set(key, value)` (validates, stores, persists, emits `settings`, returns the stored value), `toggle(key)`, `reset(key)` (no key: all), `all()`, `list()` (definitions in registration order, for an options screen), and `SETTINGS.define(key, spec)`.
@@ -142,6 +146,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `mutators.on` | any, `{}` | `{ mutatorId: true }` | `p-mutators.js`: the match mutators that are on (`bigheads`, `lowgrav`, `turbo`, `rate`, `legacy`, `glass`); all off by default; read and written through `window.MUTATORS` |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
