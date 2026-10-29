@@ -16,10 +16,10 @@ export async function run(t) {
 
   // ---- files and docs ----
   const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  check(JSON.stringify(order) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
+  check(JSON.stringify(order.slice(0, LOAD_ORDER.length)) === JSON.stringify(LOAD_ORDER),'dev.html loads the scripts in the documented order: ' + order.join(' '));
   const doc = fs.readFileSync(path.join(ROOT, 'docs', 'ARCHITECTURE.md'), 'utf8');
   await clean();
-  const keys = await ev("SETTINGS.list().map(d => d.key)");
+  const keys = (await ev("SETTINGS.list().map(d => d.key)")).filter(k => !k.includes('.'));   // dotted keys belong to a feature file and are documented in docs/features/<name>.md
   for (const [kind, list] of [['BUS event', EVENTS], ['hook point', HOOK_POINTS], ['setting', keys], ['script', LOAD_ORDER]]) {
     const miss = list.filter(n => !doc.includes('`' + n + '`'));
     check(!miss.length, 'docs/ARCHITECTURE.md documents every ' + kind + (miss.length ? ' (missing: ' + miss.join(', ') + ')' : ''));
@@ -50,13 +50,14 @@ export async function run(t) {
   // ---- SETTINGS ----
   const s = await ev(`(() => {
     const out = {}, evs = []; BUS.on('settings', e => evs.push(e.key + ':' + e.old + '>' + e.value));
-    out.defaults = SETTINGS.all();
+    const core = o => Object.fromEntries(Object.entries(o).filter(([k]) => !k.includes('.')));   // feature keys (dotted) are checked by their own test files
+    out.defaults = core(SETTINGS.all());
     out.clamp = [SETTINGS.set('rounds', 9), SETTINGS.set('rounds', 0), SETTINGS.set('time', 12), SETTINGS.set('musicVol', 0.123)];
     out.badEnum = SETTINGS.set('difficulty', 'nope'); out.enum = SETTINGS.set('difficulty', 'hard'); out.unknown = SETTINGS.get('no-such-key');
     out.stored = JSON.parse(localStorage.getItem('brawl.settings'));
     SETTINGS.set('rounds', 2); SETTINGS.set('rounds', 2); out.toggle = SETTINGS.toggle('gore'); out.fxGore = FX.gore; SETTINGS.set('gore', true); out.fxBack = FX.gore;
     SETTINGS.set('muted', true); out.muted = muted; setMuted(false); out.mutedBack = [muted, SETTINGS.get('muted')];
-    out.events = evs; SETTINGS.reset(); out.after = SETTINGS.all(); return out;
+    out.events = evs; SETTINGS.reset(); out.after = core(SETTINGS.all()); return out;
   })()`);
   check(JSON.stringify(s.defaults) === JSON.stringify({ difficulty: 'normal', rounds: 2, time: 99, musicVol: 1, sfxVol: 1, voiceVol: 1, gore: true, muted: false, binds: null }), 'SETTINGS defaults match the shipped game: ' + JSON.stringify(s.defaults));
   check(JSON.stringify(s.clamp) === '[4,1,30,0.1]' && s.badEnum === 'normal' && s.enum === 'hard' && s.unknown === undefined, 'SETTINGS clamps numbers, steps them and rejects bad enum values: ' + JSON.stringify(s.clamp));
