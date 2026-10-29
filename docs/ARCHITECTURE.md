@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-daily.js` | SPRINT OF THE DAY: the daily challenge, streak and result card | p-daily agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-daily.js`, `tools/tests/x-p-daily.mjs` | p-daily agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -140,6 +142,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `palettes.p2` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the same for player 2 |
 | `palettes.unlocked` | any, `{}` | `{ fighterId: true }` | `palettes.js`: the star colourways opened by winning a match as a human player |
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
+| `daily.state` | any, `null` | `{ v, last, streak, best, cleared, won, played, h }` | `p-daily.js`: the streak, the totals and the last 30 days of SPRINT OF THE DAY |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
 

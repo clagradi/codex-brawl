@@ -6,6 +6,8 @@ Or open `index.html` in any modern browser. It is one self-contained file (under
 
 Five fighters, 1 player vs CPU or 2 players on one keyboard (or two gamepads), best of 3 rounds, chain combos, throws, sweeps, air attacks, dashes, three specials plus an air special, a super and a finisher each, 21 arenas (pick one or leave it on RANDOM, with a reveal before round 1), each with its own chiptune theme generated in code.
 
+SPRINT OF THE DAY (title menu): one challenge per calendar day, the same fighter, opponent, arena, modifier and goal for everyone who plays that date, worked out on your own computer from the date alone. Clear it on consecutive days to build a streak, then share the result card. See `docs/features/p-daily.md`.
+
 Source: https://github.com/clagradi/codex-brawl
 
 ## Controls
