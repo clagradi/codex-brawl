@@ -164,9 +164,9 @@ function R(base, tint = '#3a2a78') {
 const flatCache = {};
 function flat(c) { return flatCache[c] || (flatCache[c] = { hi: c, lt: c, md: c, sh: c, dp: c, ol: c }); }
 const dimCache = new Map();
-function dim(r, k = 0.26) { // darker copy of a ramp, used for the far-side limbs
-  const key = r.md + k; let o = dimCache.get(key); if (o) return o;
-  o = {}; for (const n in r) o[n] = mix(r[n], '#1a0e2c', k); dimCache.set(key, o); return o;
+function dim(r, k = 0.26, to = '#1a0e2c') { // darker copy of a ramp, used for the far-side limbs ('to' is the colour it darkens towards)
+  const key = r.md + k + to; let o = dimCache.get(key); if (o) return o;
+  o = {}; for (const n in r) o[n] = mix(r[n], to, k); dimCache.set(key, o); return o;
 }
 const pick = (Rm, v) => v > 0.6 ? Rm.hi : v > 0.3 ? Rm.lt : v > -0.12 ? Rm.md : v > -0.78 ? Rm.sh : Rm.dp;
 
@@ -270,7 +270,7 @@ const LOOK = {
 const FACE = {
   tibo:   { ex: 8, ey: 3.5, rx: 3.3, ry: 4.6, dark: '#1d1520', sh: 2, my: 10.5, mouth: 'grin', blush: '#ee9488', brow: '#3a2418', bt: 1.9 }, // warm open grin, dark brown brows
   poteto: { ex: 8, ey: 4, rx: 3.9, ry: 5, dark: '#2a1510', iris: '#a05c2c', sh: 2, my: 11, mouth: 'open', blush: '#ff8f9c', bl: [11.6, 10.4, 3.7, 2.1], brow: '#3a2420', bt: 1.4, glasses: true, happyEyes: true }, // ^ ^ eyes when calm, big open smile, pink blush, gold round glasses
-  wang:   { ex: 8, ey: 3.5, rx: 2.6, ry: 3.2, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 1.2, bup: 1.5, pip: 1 }, // narrow calm eyes, thin straight brows set high
+  wang:   { ex: 8, ey: 3.9, rx: 2.9, ry: 2.5, dark: '#14121a', sh: 2, my: 11, mouth: 'flat', blush: null, brow: '#16141c', bt: 1.2, bup: 1.9, pip: 1, lid: 1 }, // narrow calm eyes, thin straight brows set high
   muse:   { ex: 6.6, ey: -1.2, rx: 2, ry: 2.2, dark: '#120d14', sh: 1, my: 5.8, mouth: 'tiny', ms: 0.9, blush: '#f5b3bd', bl: [7.4, 3.5, 2.7, 1.9], brow: null, bt: 1.2, pip: 1, abrow: '#8a5560' }, // small bead eyes with one glint, no brows unless angry
   dot:    { ex: 7.4, ey: 0, rx: 1.9, ry: 2.1, dark: '#17111d', sh: 1.5, my: 8.8, mouth: 'tiny', ms: 0.8, blush: '#f6b08a', bl: [11.6, 8.8, 2.6, 1.3], brow: null, bt: 1.2, pip: 1, specs: 6.3, lens: '#fde58a', abrow: '#17111d' },
 };
@@ -290,6 +290,7 @@ function face(H, F, ex, skin) {
     if (ex === 'g') { H.l(x - 3.6, y - sd * 0.0 - 0.2, x + 3.6, y + 0.6, F.dark, 2.2); return; }
     const ry = angry ? F.ry * 0.78 : F.ry, cy = angry ? y + 0.9 : y;
     H.e(x, cy, F.rx, ry, dark, { ol: false, flat: true });
+    if (F.lid) H.l(x - F.rx - 0.9, cy - ry + 0.3, x + F.rx + 0.9, cy - ry + 0.3, F.dark, 1.2); // heavy upper lid: calm, half-closed eyes
     if (F.iris) { H.e(x, cy + ry * 0.38, F.rx * 0.82, ry * 0.58, flat(F.iris), { ol: false, flat: true }); H.e(x, cy + ry * 0.52, F.rx * 0.45, ry * 0.3, flat('#2a1008'), { ol: false, flat: true }); }
     if (F.pip) { H.d(x - F.rx * 0.6, cy - ry * 0.6, 0.8, 0.8, '#ffffff'); return; } // dot eyes: a single pixel of shine
     H.d(x - F.rx * 0.62, cy - ry * 0.62, 2, 2, '#ffffff');
@@ -430,6 +431,7 @@ function drawHuman(P, L, q, id) {
 
 function eggShape(a, b, val) { return sUnion([a, b], val); }
 // muse: a tall, very fluffy cream-pink hooded plush. Head and body are one soft blob under a tall dome; a smooth peach face oval sits low inside the hood.
+const FARFUR = '#8a4658'; // far-side plush limbs darken towards a dusty rose, not the cold violet the humans use, so they stay fur-coloured
 function plushInk(L) { const fur = { ...R(L.fur, '#b06a70') }; fur.ol = mix(fur.sh, INK, 0.5); return { fur, crm: R(L.face, '#d08a84') }; } // warm rose shadows, softer outline than the ink
 function sFurCap(ax, ay, bx, by, r0, r1, jag = 0.06, fr = 10) { // capsule with a rippling, fuzzy edge for plush limbs
   const S = sCap(ax, ay, bx, by, r0 * (1 + jag), r1 * (1 + jag)), dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
@@ -449,14 +451,14 @@ function drawPlush(P, L, q, id) {
   const bcx = dx * 0.65 + hx * 0.35, top = dy - 25, bot = hy + 11, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 24, val = (x, y) => LV((x - bcx) / rx, (y - cy) / ry) + 0.42;
   const egg = eggShape(sEll(dx + 0.5, dy - 0.5, 23, 24.5, 0.06, 15), sEll(bcx, hy - 8, 22.5, 19, 0.06, 13), val);
   const arm = (shx, shy, hand, back) => { // stubby mitten: one fuzzy capsule ending in a round paw, no fingers
-    const F = back ? dim(fur, 0.14) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 6, 6, 1);
+    const F = back ? dim(fur, 0.2, FARFUR) : fur, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.78, ty = shy + (hand[1] - (sy + 3)) * 0.78, r = ik(shx, shy, tx, ty, 6, 6, 1);
     const cap = sFurCap(shx, shy, r.t[0], r.t[1], 5.4, 5.2, 0.06, 10);
     P.fill(sUnion([cap, sEll(r.t[0], r.t[1], 5.9, 5.6, 0.07, 9)], cap.val), F);
     return r;
   };
   const leg = (ox, oy, foot, back, late) => { // very short stubby leg + round foot, fur-coloured; raised legs (kicks) are drawn over the belly
     const up = foot[1] < oy + 5; if (up !== !!late) return;
-    const F = back ? dim(fur, 0.14) : fur; let tx = ox + (foot[0] - ox) * (up ? 0.9 : 0.62), ty = up ? oy + (foot[1] - oy) * 0.9 + 1 : foot[1] + 2.4;
+    const F = back ? dim(fur, 0.2, FARFUR) : fur; let tx = ox + (foot[0] - ox) * (up ? 0.9 : 0.62), ty = up ? oy + (foot[1] - oy) * 0.9 + 1 : foot[1] + 2.4;
     const d = Math.hypot(tx - ox, ty - oy), m = up ? 24 : 21; if (d > m) { tx = ox + (tx - ox) * m / d; ty = oy + (ty - oy) * m / d; }
     P.fill(sFurCap(ox, oy, tx, ty - (up ? 0 : 2.6), 5.6, 4.9, 0.06, 9), F);
     P.fill(sEll(tx + 2, ty, 6.2, 3.4, 0.05, 11), F);
@@ -499,7 +501,7 @@ function drawBlob(P, L, q, id) {
   const [hx, hy] = q.hip, [sx, sy] = q.sh, [dx, dy] = q.hd;
   const bcx = dx * 0.65 + hx * 0.35, top = dy - 13, bot = hy + 10, cy = (top + bot) / 2, ry = (bot - top) / 2, rx = 30 + Math.max(0, 31 - ry) * 0.5;
   const arm = (shx, shy, hand, back) => {
-    const F = back ? dim(body, 0.18) : body, tx = shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72, ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
+    const F = back ? dim(body, 0.18) : body, tx = Math.min(FW - 7.5, shx + (hand[0] - (sx + (back ? -10 : 10.5))) * 0.72), ty = shy + (hand[1] - (sy + 3)) * 0.72, r = ik(shx, shy, tx, ty, 6.5, 6.5, 1);
     P.fill(sCap(shx, shy, r.t[0], r.t[1], 4.6, 4.2), F);
     P.fill(sEll(r.t[0], r.t[1], 4.6, 4.4, 0.08, 9), F);
     return r;
@@ -529,7 +531,9 @@ function starburst(P, x, y, r, c1, c2) {
   const p2 = pts.map(([a, b]) => [x + (a - x) * 0.55, y + (b - y) * 0.55]); P.fill(sPoly(p2), flat(c2), { ol: false, flat: true });
 }
 function drawAura(P, cx, cy, lv, acc) {
-  const A = R(acc, '#2a2a9a'), rx = 21 + lv * 4.5, ry = 33 + lv * 3.4, ph = lv * 1.7;
+  const A = R(acc, '#2a2a9a'), WB = 1.19, ph = lv * 1.7; // WB: the edge wobble can push the outline out to 1.19 x the radius
+  const rx = Math.min(21 + lv * 4.5, (FW - 4) / 2 / WB), ry = Math.min(33 + lv * 3.4, (FEET + 1) / 2 / WB); // the glow stays inside the cell: shrink it, then nudge the centre
+  cx = Math.max(2 + rx * WB, Math.min(FW - 2 - rx * WB, cx)); cy = Math.max(1 + ry * WB, Math.min(FEET + 2 - ry * WB, cy));
   const S = sEll(cx, cy, rx, ry);
   S.test = (x, y) => { const u = (x - cx) / rx, v = (y - cy) / ry, a = Math.atan2(v, u); return Math.sqrt(u * u + v * v) <= 1 + 0.12 * Math.sin(a * 7 + ph) + 0.07 * Math.sin(a * 13 - ph * 2); };
   const x0 = Math.floor(cx - rx * 1.3), x1 = Math.ceil(cx + rx * 1.3), y0 = Math.floor(cy - ry * 1.3), y1 = Math.ceil(cy + ry * 1.3);
@@ -546,13 +550,14 @@ function fxBack(P, L, q) { // motion streaks and swing arcs drawn behind the fig
       const ox = q.hip[0] + 4, oy = q.hip[1], rad = Math.hypot(q.ff[0] - ox, q.ff[1] - oy), a1 = Math.atan2(q.ff[1] - oy, q.ff[0] - ox);
       for (let i = 0; i <= 22; i++) { const a = a1 + (22 - i) * 0.06, x = ox + Math.cos(a) * (rad + 3), y = oy + Math.sin(a) * (rad + 3), r = 0.6 + i * 0.1; P.fill(sEll(x, y, r, r), flat(i > 15 ? '#ffffff' : '#bfe0ff'), { ol: false, flat: true }); }
     }
+    if (kind === 'sweeptrail') for (const j of [-3, 0, 3]) P.fill(sCap(q.ff[0] - 30 + Math.abs(j) * 2, q.ff[1] + 4 + j, q.ff[0] - 11 + Math.abs(j), q.ff[1] + 4 + j, 0.6, 1.4), flat('#ffffff'), { ol: false, flat: true }); // streaks along the floor behind the foot
   }
 }
 function fxFront(P, L, q) {
   for (const f of q.fx || []) {
     const kind = Array.isArray(f) ? f[0] : f, e = Array.isArray(f) ? f[1] : 1, acc = L.acc || '#ffd23f';
-    if (kind === 'impact') starburst(P, q.fh[0] + 6, q.fh[1] - 1, 7, '#ffd23f', '#ffffff');
-    if (kind === 'burst') starburst(P, q.fh[0] + 6, q.fh[1], 9, '#ffd23f', '#ffffff');
+    if (kind === 'impact') starburst(P, Math.min(q.fh[0] + 6, FW - 10), q.fh[1] - 1, 7, '#ffd23f', '#ffffff'); // the star stays whole inside the cell
+    if (kind === 'burst') starburst(P, Math.min(q.fh[0] + 6, FW - 12), q.fh[1], 9, '#ffd23f', '#ffffff');
     if (kind === 'orb') {
       const mx = (q.fh[0] + q.bh[0]) / 2 + 8, my = (q.fh[1] + q.bh[1]) / 2 - 1, r = 3 + e * 6, A = R(acc, '#2a2a9a');
       P.fill(sEll(mx, my, r + 2.5, r + 2.5), flat(A.lt), { ol: false, flat: true, soft: true }); P.fill(sEll(mx, my, r, r), A, { ol: A.dp }); P.fill(sEll(mx - 0.5, my - 0.5, r * 0.5, r * 0.5), flat('#ffffff'), { ol: false, flat: true });
@@ -648,6 +653,28 @@ const POSE = {
     Q({ hip: [0, -22], sh: [0, -41], hd: [1, -61], fh: [-8, -38], bh: [17, -64], ex: 'w' }),
     Q({ hip: [0, -26], sh: [1, -46], hd: [2, -66], fh: [21, -64], bh: [-15, -60], ff: [11, -10], bf: [-10, -13], ex: 'w', fx: ['sparkle'] }),
   ][h]; },
+  // dedicated poses for moves the eleven rows only approximate. They are not sheet rows: buildSheets puts them in XSHEETS and drawSprite swaps them in for a live fighter
+  throw: i => [
+    Q({ hip: [1, -23], sh: [4, -42], hd: [7, -62], fh: [25, -47], bh: [20, -42], ff: [14, -6], bf: [-12, -6], ex: 'a' }),   // grab: both hands on the victim
+    Q({ hip: [-1, -22], sh: [-1, -42], hd: [1, -62], fh: [16, -59], bh: [9, -56], ff: [13, -6], bf: [-13, -6], ex: 'a' }),  // lift
+    Q({ hip: [-2, -21], sh: [-5, -42], hd: [-5, -62], fh: [9, -63], bh: [-3, -62], ff: [12, -6], bf: [-14, -6], ex: 'o' }), // overhead, leaning back
+    Q({ hip: [3, -20], sh: [8, -38], hd: [12, -56], fh: [-1, -33], bh: [-13, -31], ff: [16, -6], bf: [-11, -6], ex: 'o' }), // slam: bows forward, arms swung down and back
+    Q({ hip: [1, -23], sh: [3, -41], hd: [5, -61], fh: [14, -35], bh: [3, -31], ff: [14, -6], bf: [-11, -6], ex: 'n' }),    // let go
+  ][i],
+  low: i => [ // crouch jab: low fist at shin-to-waist height
+    Q({ hip: [-3, -17], sh: [-5, -34], hd: [-4, -54], fh: [3, -27], bh: [-9, -29], ff: [13, -6], bf: [-14, -6], ex: 'a' }),
+    Q({ hip: [-1, -16], sh: [1, -33], hd: [3, -53], fh: [28, -26], bh: [-6, -28], ff: [14, -6], bf: [-14, -6], ex: 'o', fx: ['trail', 'impact'] }),
+    Q({ hip: [-1, -16], sh: [2, -33], hd: [4, -53], fh: [29, -26], bh: [-6, -28], ff: [14, -6], bf: [-14, -6], ex: 'o', fx: ['impact'] }),
+    Q({ hip: [-2, -17], sh: [0, -34], hd: [1, -54], fh: [18, -27], bh: [-7, -29], ff: [13, -6], bf: [-14, -6], ex: 'a' }),
+    Q({ hip: [-2, -21], sh: [-2, -39], hd: [-1, -59], fh: [12, -34], bh: [3, -32], ff: [12, -6], bf: [-12, -6], ex: 'n' }),
+  ][i],
+  sweep: i => [ // low leg sweep: the body drops and lunges, the front leg skims the floor
+    Q({ hip: [-3, -19], sh: [-6, -37], hd: [-6, -57], fh: [6, -30], bh: [-10, -29], ff: [9, -6], bf: [-13, -6], ex: 'a' }),
+    Q({ hip: [0, -16], sh: [-6, -34], hd: [-7, -54], fh: [8, -27], bh: [-15, -25], ff: [22, -7], bf: [-12, -6], ex: 'a' }),
+    Q({ hip: [6, -14], sh: [-4, -32], hd: [-6, -52], fh: [8, -23], bh: [-17, -28], ff: [34, -9], bf: [-1, -6], ex: 'o', fx: ['sweeptrail'] }),
+    Q({ hip: [4, -15], sh: [-4, -33], hd: [-6, -53], fh: [8, -24], bh: [-16, -28], ff: [30, -8], bf: [-2, -6], ex: 'o', fx: ['sweeptrail'] }),
+    Q({ hip: [-1, -20], sh: [-1, -39], hd: [0, -59], fh: [10, -33], bh: [0, -32], ff: [14, -6], bf: [-10, -6], ex: 'n' }),
+  ][i],
 };
 
 function renderFrame(id, anim, i) {
@@ -746,22 +773,53 @@ function makeFx(key) {
 const FXKEYS = ['bolt', 'spud', 'ring', 'bubble', 'drone', 'pr', 'reset', 'star', 'spark'];
 
 // ---------- sheets ----------
-const SHEETS = {}, HEADCANVAS = {}, FXCANVAS = {};
+const SHEETS = {}, HEADCANVAS = {}, FXCANVAS = {}, XSHEETS = {};
+const XROWS = ['throw', 'low', 'sweep'], XFRAMES = 5; // extra pose strips (see POSE.throw), same cell size as the sheet
 function buildSheets() {
   for (const id in LOOK) {
     const cv = document.createElement('canvas'); cv.width = FW * MAXF; cv.height = FH * ANIMS.length;
     const c2 = cv.getContext('2d'); const img = c2.createImageData(cv.width, cv.height);
     ANIMS.forEach((a, row) => { for (let f = 0; f < a.f; f++) renderFrame(id, a.n, f).writeTo(img, f * FW, row * FH); });
     c2.putImageData(img, 0, 0); SHEETS[id] = cv;
+    const xc = document.createElement('canvas'); xc.width = FW * XFRAMES; xc.height = FH * XROWS.length;
+    const x2 = xc.getContext('2d'), xi = x2.createImageData(xc.width, xc.height);
+    XROWS.forEach((n, row) => { for (let f = 0; f < XFRAMES; f++) renderFrame(id, n, f).writeTo(xi, f * FW, row * FH); });
+    x2.putImageData(xi, 0, 0); XSHEETS[id] = xc;
     HEADCANVAS[id] = canvasOf(drawBust(id));
   }
   for (const k of FXKEYS) FXCANVAS[k] = canvasOf(makeFx(k));
 }
+// game.js asks for plain sheet frames. For a fighter it is drawing right now, a throw, a crouch jab or a sweep gets its own pose here instead:
+// the thrower an arms-up lift and slam, the victim a tumble over the thrower, low jab and sweep poses that really are low. Menus and finishers never match a live fighter.
+const XPOSE = { low: [1, 'punch'], sweep: [2, 'kick'], kickf: [2, 'kick'] }; // attack key -> [XSHEETS row, sheet row game.js shows for it]
+function liveFighter(id, x, y, face) {
+  const fs = typeof game === 'undefined' || !game ? null : game.f; if (!fs) return null;
+  x = Math.round(x); y = Math.round(y);
+  for (const o of fs) if (o && o.d && o.d.id === id && o.face === face && Math.round(o.x) === x && Math.round(o.y) === y) return o;
+  return null;
+}
+function livePose(o, anim, f) { // { row, f } in XSHEETS, { tumble: 0..1 } for a thrown victim, or null for the plain frame
+  if (o.state === 'throw' && anim === 'punch') return { row: 0, f: o.thr ? Math.min(3, Math.floor(o.st / 6)) : 4 };
+  const X = XPOSE[o.atk]; if (X && (o.state === 'punch' || o.state === 'kick') && anim === X[1]) return { row: X[0], f };
+  const g = o.grabber; if (o.state === 'grabbed' && g && g.state === 'throw' && g.thr === o) return { tumble: Math.min(1, g.st / (typeof THROW_T === 'undefined' ? 24 : THROW_T)) };
+  return null;
+}
+const TUMBLE_PIV = FEET + 1 - 40; // sheet row of the body centre a thrown victim turns about
 // draw a sheet frame with its feet centre at (x,y); face = 1 or -1
 function drawSprite(ctx, id, anim, f, x, y, face = 1, scale = PX) {
   const a = ANIMS[ANIM_ROW[anim]]; f = Math.max(0, Math.min(a.f - 1, f | 0));
-  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(face, 1); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(SHEETS[id], f * FW, ANIM_ROW[anim] * FH, FW, FH, -FW / 2 * scale, -(FEET + 1) * scale, FW * scale, FH * scale);
+  let cv = SHEETS[id], sx = f * FW, sy = ANIM_ROW[anim] * FH, tum = null;
+  const o = XSHEETS[id] && liveFighter(id, x, y, face), ov = o && livePose(o, anim, f);
+  if (ov) { if (ov.tumble === undefined) { cv = XSHEETS[id]; sx = ov.f * FW; sy = ov.row * FH; } else { tum = ov.tumble; sx = FW; sy = ANIM_ROW.hit * FH; } }
+  ctx.save(); ctx.imageSmoothingEnabled = false;
+  if (tum === null) {
+    ctx.translate(Math.round(x), Math.round(y)); ctx.scale(face, 1);
+    ctx.drawImage(cv, sx, sy, FW, FH, -FW / 2 * scale, -(FEET + 1) * scale, FW * scale, FH * scale);
+  } else { // thrown: tips head over heels about the body centre while it travels, ends lying on its back like the knock-down frames
+    const s = Math.max(0, Math.min(1, (tum - 0.06) / 0.88)), e = s * s * (3 - 2 * s);
+    ctx.translate(Math.round(x), Math.round(y) - (40 - 12 * e) * scale); ctx.rotate(face * e * Math.PI * 1.5); ctx.scale(face, 1);
+    ctx.drawImage(cv, sx, sy, FW, FH, -FW / 2 * scale, -TUMBLE_PIV * scale, FW * scale, FH * scale);
+  }
   ctx.restore();
 }
 // head-and-shoulders bust fitted (cover) into the rect x,y,w,h and clipped to it
@@ -2588,10 +2646,47 @@ function divify(p) {
   if (p.vy < 0) { p.vy = 1; return; }
   const u = p.update, dy = Math.max(3.5, Math.abs(p.vx) * 0.55);
   if (!u) return;
+  tiltShot(p, dy);
   p.update = q => {
     if (q.by !== undefined) q.by += dy; u(q); if (q.by === undefined) q.y += dy;
     if (q.y > GROUND - 14 && q.life > 0) { q.life = 0; dust(q.x, GROUND); }
   };
+}
+// A diving shot also leans into the dive: its art is turned to follow the path (movement and hitbox stay exactly as they were).
+// Wang's bubble is round and has bars sorting inside it, so it stays upright.
+const TILT_SKIP = { wang: 1 };
+function tiltShot(p, dy) {
+  const draw = p.draw, id = p.owner && p.owner.d && p.owner.d.id;
+  if (!draw || TILT_SKIP[id]) return;
+  p.ang = sgn(p.vx) * Math.atan2(dy, Math.abs(p.vx));
+  p.draw = (c, q) => tiltDraw(c, q, draw, p.ang);
+}
+// The shot is drawn upright into a small scratch buffer (1 cell = 2 screen px), turned with nearest-neighbour sampling so it stays on
+// the 2px grid like the rest of the art (no smoothing), then blitted at 2x around the shot's centre.
+const TILT_H = 48;                                               // half-size of the scratch buffer in cells (96 px each way)
+let tiltBuf = null;
+function tiltDraw(c, p, draw, ang) {
+  const N = TILT_H * 2;
+  if (!tiltBuf) {
+    const a = document.createElement('canvas'), b = document.createElement('canvas'); a.width = a.height = b.width = b.height = N;
+    tiltBuf = { g: a.getContext('2d', { willReadFrequently: true }), out: b, og: b.getContext('2d') };
+    tiltBuf.img = tiltBuf.og.createImageData(N, N);
+  }
+  const { g, out, og, img } = tiltBuf, ox = q2(p.x), oy = q2(p.y);
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, N, N);
+  g.setTransform(0.5, 0, 0, 0.5, TILT_H - ox / 2, TILT_H - oy / 2);   // world px to cells, shot centre in the middle of the buffer
+  draw(g, p);
+  const src = g.getImageData(0, 0, N, N).data, dst = img.data, cs = Math.cos(ang), sn = Math.sin(ang);
+  dst.fill(0);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const dx = i + 0.5 - TILT_H, dy = j + 0.5 - TILT_H;
+    const si = Math.floor(dx * cs + dy * sn + TILT_H), sj = Math.floor(dy * cs - dx * sn + TILT_H);
+    if (si < 0 || sj < 0 || si >= N || sj >= N) continue;
+    const a = (sj * N + si) * 4, b = (j * N + i) * 4;
+    dst[b] = src[a]; dst[b + 1] = src[a + 1]; dst[b + 2] = src[a + 2]; dst[b + 3] = src[a + 3];
+  }
+  og.putImageData(img, 0, 0);
+  c.save(); c.imageSmoothingEnabled = false; c.drawImage(out, ox - TILT_H * 2, oy - TILT_H * 2, N * 2, N * 2); c.restore();
 }
 const foe = self => game.f[1 - self.side];
 
