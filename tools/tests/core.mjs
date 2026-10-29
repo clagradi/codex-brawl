@@ -9,6 +9,7 @@ export const EVENTS = ['phase', 'match:start', 'round:start', 'round:end', 'matc
 export const HOOK_POINTS = ['input', 'update', 'fighterUpdate', 'damage', 'drawFighter', 'drawWorld', 'drawHud', 'drawTop', 'titleItems', 'pauseItems', 'musicTheme'];
 const FEATURES = ['combat', 'arcade', 'training', 'arenas2', 'music2', 'options', 'touch'];
 const LOAD_ORDER = ['bus.js', 'settings.js', 'modes.js', 'pixelfont.js', 'sprites.js', 'arenas.js', 'hud.js', 'music.js', 'moves.js', 'game.js', ...FEATURES.map(f => f + '.js')];
+const X_SCRIPTS = ['hazards.js'];   // x-feature scripts: loaded after the stubs, documented in docs/features/, not part of the documented order
 
 export async function run(t) {
   const { check, tap, stepUntil } = t, ev = t.eval;
@@ -16,7 +17,7 @@ export async function run(t) {
 
   // ---- files and docs ----
   const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  check(JSON.stringify(order) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
+  check(JSON.stringify(order.filter(n => !X_SCRIPTS.includes(n))) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
   const doc = fs.readFileSync(path.join(ROOT, 'docs', 'ARCHITECTURE.md'), 'utf8');
   await clean();
   const keys = await ev("SETTINGS.list().map(d => d.key)");
