@@ -44,6 +44,7 @@ Read this first, then read only the files you own.
 | 15 | `music2.js` | more themes and instruments | music agent |
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
+| 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -60,6 +61,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `music2.js`, `tools/tests/music2.mjs` | music agent | |
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
+| `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -127,6 +129,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `gore` | bool, `true` | | `FX.gore` in `hud.js` mirrors it; migrated from the old `brawl.gore` key |
 | `muted` | bool, `false` | | the `muted` flag in `game.js` mirrors it (use `setMuted(v)`); migrated from the old `brawl.muted` key |
 | `binds` | any, `null` | `null` or `{ p1?, p2?, alt? }` | `game.js` `applyBinds()`: for each player, an object of action letter to an array of `KeyboardEvent.code`; it replaces only the actions it names. Actions are `l r u d p k s x` |
+| `bonus.scores` | any, `{ benchmark: [], squash: [] }` | per mode, up to five `{ s, f }` rows (score, fighter index), best first | `bonus.js`: the top-five lists of BENCHMARK BREAK and BUG SQUASH; migrated from the old `brawl.bonus` key |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
