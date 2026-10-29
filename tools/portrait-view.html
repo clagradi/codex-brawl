@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>portrait view</title>
+<style>body{margin:0;background:#0e0c16}canvas{image-rendering:pixelated;display:block}</style></head>
+<body><canvas id="c" width="1000" height="560"></canvas>
+<script src="../sprites.js"></script>
+<script>
+// tools/portrait-view.html : busts via drawPortrait (several rects + flip), head icons, and every FX map at 4x
+buildSheets();
+const c=document.getElementById('c').getContext('2d');c.imageSmoothingEnabled=false;
+c.fillStyle='#0e0c16';c.fillRect(0,0,1000,560);
+const ids=Object.keys(LOOK);let x=10;
+ids.forEach((id,i)=>{
+  const bx=10+i*196;
+  c.fillStyle='#241f3a';c.fillRect(bx,10,176,176);drawPortrait(c,id,bx,10,176,176,false);
+  c.fillStyle='#241f3a';c.fillRect(bx,196,120,150);drawPortrait(c,id,bx,196,120,150,i%2===1);
+  c.fillStyle='#241f3a';c.fillRect(bx+130,196,40,40);drawPortrait(c,id,bx+130,196,40,40,false);
+  drawHeadIcon(c,id,bx+130,246,40,false);drawHeadIcon(c,id,bx+130,296,40,true);
+  c.fillStyle='#8f8aa8';c.font='12px monospace';c.fillText(id,bx+4,24);
+});
+let fx=10;FXKEYS.forEach(k=>{const cv=FXCANVAS[k],s=k==='star'||k==='spark'?6:3;c.drawImage(cv,fx,370+(60-cv.height*s)/2,cv.width*s,cv.height*s);c.fillStyle='#8f8aa8';c.font='11px monospace';c.fillText(k+' '+cv.width+'x'+cv.height,fx,450);fx+=Math.max(cv.width*s,64)+16;});
+// fx at game scale (PX) over a mock arena strip
+c.fillStyle='#34406a';c.fillRect(0,470,1000,90);
+let gx=30;['bolt','spud','ring','bubble','drone','pr','reset','star','spark'].forEach(k=>{drawFxMap(c,k,gx,515,PX);gx+=90;});
+</script></body></html>

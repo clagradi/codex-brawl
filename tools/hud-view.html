@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hud.js viewer</title>
+<style>
+  html, body { margin: 0; background: #0b0d14; color: #cbd5e6; font: 12px monospace; }
+  canvas { display: block; width: 960px; height: 540px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="960" height="540"></canvas>
+<script src="../pixelfont.js"></script>
+<script>
+  // Stand-ins for the globals game.js defines. hud.js only reads them at call time.
+  const W = 960, H = 540, GROUND = 468;
+  let AC = null, muted = true;
+  const beep = () => {}, thud = () => {};
+  const SHORT = r => r.id === 'wang' ? 'WANG' : r.name;
+  const R = {
+    tibo: { id: 'tibo', name: 'TIBO', tag: 'THE SHIPPER', col: '#7cc7ff', hp: 100 },
+    poteto: { id: 'poteto', name: 'POTETO', tag: 'THE SPUD', col: '#f6c544', hp: 100 },
+    dot: { id: 'dot', name: 'DOT', tag: 'THE POINT', col: '#f8f6f1', hp: 100 },
+    wang: { id: 'wang', name: 'ALEXANDR WANG', tag: 'THE LABELER', col: '#b98cff', hp: 100 },
+    muse: { id: 'muse', name: 'MUSE', tag: 'THE SPARK', col: '#f2a9ab', hp: 100 },
+  };
+  const q = new URLSearchParams(location.search);
+  const view = q.get('view') || 'hud';
+  const fixedT = q.has('t') ? +q.get('t') : null;
+  // optional real sprites for portraits: ?sprites=1
+  if (q.get('sprites')) document.write('<script src="../sprites.js"><\/script>');
+</script>
+<script src="../hud.js"></script>
+<script>
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const game = {
+    phase: 'fight', mode: '1p', round: 2, wins: [1, 0], timer: 87, tick: 0, sudden: false, toWin: 2,
+    f: [
+      { d: R[q.get('a') || 'tibo'], hp: 100, meter: 45, cpu: false },
+      { d: R[q.get('b') || 'poteto'], hp: 100, meter: 100, cpu: true },
+    ],
+  };
+  const arena = q.get('arena') || 'SERVER ROOM';
+  const P = (k, d) => (q.has(k) ? q.get(k) : d);
+
+  // ----- backdrop: dim stage so the HUD reads like it does over a real arena -----
+  function stage(c, t) {
+    let g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1a2a52'); g.addColorStop(0.62, '#2c3a68'); g.addColorStop(1, '#171a2c'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 9; i++) c.fillRect(60 + i * 110, 90, 70, 260);
+    g = c.createLinearGradient(0, GROUND - 6, 0, H); g.addColorStop(0, '#46526f'); g.addColorStop(1, '#1b1f30'); c.fillStyle = g; c.fillRect(0, GROUND, W, H - GROUND);
+    c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, GROUND, W, 2);
+    // two stand-in fighters
+    c.fillStyle = '#d8c9a2'; c.fillRect(260, GROUND - 120, 54, 120); c.fillStyle = '#6d4a2b'; c.fillRect(640, GROUND - 110, 60, 110);
+  }
+
+  // ----- views -----
+  // Each view renders the frame at tick t. Stateful pieces (HUD damage trail, FX) are re-simulated from tick 0.
+  function simHud(t) {
+    hudReset();
+    game.f[0].hp = 100; game.f[1].hp = 100;
+    const tgt = [P('hp1', 62) * 1, P('hp2', 18) * 1];
+    for (let k = 0; k <= t; k++) {
+      game.tick = k;
+      game.timer = P('timer', 87) - 0;
+      if (k === 20) game.f[0].hp = Math.max(tgt[0], 100 - 20);
+      if (k === 50) game.f[1].hp = Math.max(tgt[1], 60);
+      if (k === 55) game.f[0].hp = tgt[0];
+      if (k === 80) game.f[1].hp = tgt[1];
+      game.f[0].meter = P('m1', 45) * 1; game.f[1].meter = P('m2', 100) * 1;
+      game.sudden = q.get('sudden') === '1';
+      if (k < t) { const c = document.createElement('canvas').getContext('2d'); drawHUD(c, game); } else drawHUD(ctx, game);
+    }
+  }
+  const draw = {
+    hud(t) { stage(ctx, t); simHud(t); },
+    banner(t) {
+      stage(ctx, t);
+      const txt = P('txt', 'ROUND 2'), bt = P('bt', null);
+      const tt = bt == null ? t % 110 : +bt;
+      drawBanner(ctx, txt, tt, { sub: q.get('sub') || undefined });
+    },
+    vs(t) { drawVersus(ctx, game.f[0].d, game.f[1].d, t, arena); },
+    logo(t) {
+      ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, W, H);
+      const g = ctx.createRadialGradient(W / 2, 240, 40, W / 2, 240, 520); g.addColorStop(0, '#2a0c14'); g.addColorStop(1, '#05060c'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      drawLogo(ctx, W / 2, 262, 1, t);
+      drawTitleText(ctx, 'PRESS START', W / 2, 500, 26, { style: 'steel', glow: 0.3, alpha: 0.55 + 0.45 * Math.sin(t * 0.1) });
+    },
+    moves(t) {
+      stage(ctx, t);
+      drawMoveList(ctx, 'MOVE LIST', [
+        { input: 'DOWN + FWD + P', name: 'Hot Patch', note: 'PROJECTILE' },
+        { input: 'BACK + BACK + K', name: 'Rollback Kick' },
+        { input: 'DOWN + DOWN + P', name: 'Context Window' },
+        { input: 'FWD + FWD + K', name: 'Token Dash', note: 'TELEPORT' },
+        { input: 'P + K', name: 'Throw' },
+        { input: 'DOWN + FWD + P + K', name: 'Overclock', note: 'SUPER', col: '#ff6a5a' },
+        { input: 'UP + P', name: 'Uppercut' },
+      ], 250, 80, 460, 380);
+    },
+    fx(t) {
+      stage(ctx, t);
+      FX.clear(); FX.seed(7);
+      const hits = [[24, 330, 'blood', 1, 1], [50, 560, 'blood', -1, 2], [70, 300, 'sparks'], [90, 640, 'blood', 1, 3.5], [100, 480, 'dust']];
+      for (let k = 0; k <= t; k++) {
+        for (const h of hits) if (h[0] === k) {
+          if (h[2] === 'blood') FX.blood(h[1], GROUND - 150, h[3], h[4]);
+          else if (h[2] === 'sparks') FX.sparks(h[1], GROUND - 130, '#ffe14d', 14);
+          else FX.dust(h[1], GROUND);
+        }
+        FX.update();
+      }
+      FX.draw(ctx);
+    },
+    text(t) {
+      ctx.fillStyle = '#0b0d16'; ctx.fillRect(0, 0, W, H);
+      const styles = ['gold', 'blood', 'steel', 'ice', 'toxic'];
+      styles.forEach((s, i) => {
+        drawTitleText(ctx, s.toUpperCase() + ' CHISEL', 24, 50 + i * 72, 64, { style: s, align: 'left', glow: 1 });
+      });
+      drawTitleText(ctx, 'FLAWLESS', 760, 90, 80, { style: 'gold' });
+      drawTitleText(ctx, 'FINISH IT', 760, 200, 56, { style: 'blood' });
+      drawTitleText(ctx, '12345', 760, 290, 52, { style: 'steel', glow: 0 });
+      drawTitleText(ctx, 'NO GLOW', 760, 350, 34, { style: 'ice', glow: 0 });
+      drawTitleText(ctx, 'SMALL TEXT 18PX', 24, 440, 18, { style: 'steel', glow: 0, align: 'left' });
+      drawTitleText(ctx, 'TOXIC SWEEP', 24, 490, 44, { style: 'toxic', align: 'left', sweep: (t % 90) / 90 });
+    },
+  };
+  // all-in-one contact sheet for quick scanning (view=sheet)
+  draw.sheet = function (t) { draw.hud(t); };
+
+  window.setT = function (t) { cv.dataset.t = t; ctx.clearRect(0, 0, W, H); (draw[view] || draw.hud)(t); if (q.get('post') === '1') drawPost(ctx, t, { flash: +P('flash', 0), red: +P('red', 0), scan: 0 }); return t; };
+  if (fixedT != null) setT(fixedT);
+  else {
+    let t = 0, last = 0;
+    const loop = ts => { if (ts - last > 15) { last = ts; setT(t++); } requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+</script>
+</body>
+</html>

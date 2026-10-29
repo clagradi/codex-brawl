@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>arena view</title>
+<style>html,body{margin:0;background:#111;color:#ccc;font:12px monospace}canvas{display:block}</style></head>
+<body><canvas id="c" width="960" height="540"></canvas>
+<script>const W = 960, H = 540, GROUND = 468;</script>
+<script src="../arenas.js"></script>
+<script>
+// tools/arena-view.html?i=N   one arena, animated (n = next/prev with arrow keys)
+//   &t=TICK   freeze at a tick (default: animate)      &cam=X   camera x in px (-80..80)
+//   &zoom=Z   zoom 1..1.25 around the fighters         &dummy=0 hide the 52x170 stand-in fighters
+//   &front=0  hide the front layer                      &perf=1  print avg ms per frame in the corner
+//   ?all=1    grid of drawArenaThumb thumbnails (3 columns)
+const q = new URLSearchParams(location.search), num = (k, d) => q.has(k) ? +q.get(k) : d;
+const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
+let idx = num('i', 0), fixed = q.has('t') ? num('t', 0) : null, t = fixed == null ? 0 : fixed, cam = { x: num('cam', 0), zoom: num('zoom', 1) };
+const all = q.get('all') === '1', showDummy = q.get('dummy') !== '0', showFront = q.get('front') !== '0', perf = q.get('perf') === '1';
+let ms = 0, frames = 0;
+
+function dummy(x, col, rim) {   // 52x170 stand-in fighter, feet at GROUND
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(x, GROUND, 34, 8, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#05050a'; ctx.fillRect(x - 28, GROUND - 172, 56, 172);
+  ctx.fillStyle = col; ctx.fillRect(x - 26, GROUND - 170, 52, 168);
+  ctx.fillStyle = rim; ctx.fillRect(x - 26, GROUND - 170, 52, 36); ctx.fillRect(x - 26, GROUND - 60, 52, 8);
+}
+function frame() {
+  const t0 = performance.now();
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (all) {
+    const n = ARENAS.length, cols = 3, rows = Math.ceil(n / cols), cw = W / cols, ch = H / rows;
+    for (let k = 0; k < n; k++) { const x = (k % cols) * cw, y = ((k / cols) | 0) * ch; drawArenaThumb(ctx, k, x + 2, y + 2, cw - 4, ch - 4, t);
+      ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(x + 2, y + ch - 30, cw - 4, 28); ctx.fillStyle = ARENAS[k].accent; ctx.font = '11px monospace'; ctx.fillText(k + ' ' + ARENAS[k].name, x + 8, y + ch - 18); ctx.fillStyle = '#aaa'; ctx.fillText(ARENAS[k].tagline, x + 8, y + ch - 6); }
+  } else {
+    ctx.save();
+    if (cam.zoom !== 1) { ctx.translate(480, GROUND); ctx.scale(cam.zoom, cam.zoom); ctx.translate(-480, -GROUND); }
+    drawArena(ctx, idx, t, cam);
+    if (showDummy) { dummy(290, '#d9d2bf', '#a64a2e'); dummy(670, '#5a7fd0', '#e8e0c0'); }
+    if (showFront) drawArenaFront(ctx, idx, t, cam);
+    ctx.restore();
+    const a = ARENAS[idx]; ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, 330, 16); ctx.fillStyle = a.accent; ctx.font = '11px monospace'; ctx.fillText(idx + ' ' + a.name + ' / ' + a.tagline + '  t=' + t, 4, 12);
+  }
+  ms += performance.now() - t0; frames++;
+  if (perf) { ctx.fillStyle = '#ff0'; ctx.font = '12px monospace'; ctx.fillText((ms / frames).toFixed(2) + ' ms/frame', 4, 532); }
+  window.avgMs = ms / frames;
+}
+window.setT = v => { t = v; frame(); };
+window.draw = frame;
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') idx = (idx + 1) % ARENAS.length; if (e.key === 'ArrowLeft') idx = (idx + ARENAS.length - 1) % ARENAS.length; if (e.key === 'ArrowUp') cam.x = Math.min(80, cam.x + 10); if (e.key === 'ArrowDown') cam.x = Math.max(-80, cam.x - 10); });
+prewarmArenas();
+frame();
+if (fixed == null) { const loop = () => { t++; frame(); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script></body></html>

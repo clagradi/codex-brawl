@@ -1,22 +1,26 @@
-// ===== AGENT BRAWL: 8-bit parody fighter. Engine, AI, UI =====
-// Depends on heads.js (generated pixel heads), pixelfont.js and sprites.js being loaded first.
+// ===== AGENT BRAWL: parody arcade fighter. Engine, input, AI, phases, menus =====
+// Load order (dev.html): pixelfont.js, sprites.js (fighters), arenas.js (ARENAS), hud.js (HUD, ANNOUNCER, FX), moves.js (MOVES), game.js.
 'use strict';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const W = 960, H = 540, GROUND = 468;
+// W, H and GROUND are declared in dev.html before every script (moves.js needs GROUND at load).
 const TICK = 1000 / 60;            // fixed simulation step (ms)
 const GRAV = 0.7, JUMP_V = -13.5;
+const VS_LEN = 200, VS_LAND = 110, INTRO_LEN = 100, FINISH_LEN = 300;
+const ATTACKS = new Set(['punch', 'kick', 'special', 'super']);
 
 // ---------- scaling / resize ----------
+const shareEl = document.getElementById('share');
 function fit() {
   const s = Math.max(0.25, Math.floor(Math.min(innerWidth / W, innerHeight / H) * 4) / 4); // quarter-pixel steps keep pixels even
   cv.style.width = Math.round(W * s) + 'px'; cv.style.height = Math.round(H * s) + 'px';
+  if (shareEl) { shareEl.style.top = Math.round((innerHeight - H * s) / 2 + 150 * s) + 'px'; shareEl.style.fontSize = Math.max(12, Math.round(18 * s)) + 'px'; }
 }
 addEventListener('resize', fit); fit();
 
 // ---------- audio (tiny synth, unlocked on first interaction) ----------
 let AC = null, muted = false;
 try { muted = localStorage.getItem('brawl.muted') === '1'; } catch (e) { /* storage blocked: start unmuted */ }
-function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } }
+function setMuted(v) { muted = v; try { localStorage.setItem('brawl.muted', v ? '1' : '0'); } catch (e) { /* not persisted */ } if (v && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) { } }
 function audioInit() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { AC = null; } }
 function beep(f, d, type = 'square', v = 0.06, slide = 0.5) {
   if (!AC || muted || AC.state !== 'running') return;
@@ -35,28 +39,60 @@ function thud(d = 0.12, v = 0.12) { // short noise burst for impacts
   } catch (e) { }
 }
 for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, audioInit, { passive: true });
+function say(key, arg) { try { ANNOUNCER.say(key, arg); } catch (e) { /* the announcer is optional */ } }
+function setGore(v) { FX.gore = v; try { localStorage.setItem('brawl.gore', v ? '1' : '0'); } catch (e) { } }
 
 // ---------- input ----------
+// P1: WASD + J punch, K kick, L special, I super. P2: arrows + numpad 1/2/3/0 (or , . / and right shift).
+// Special: L alone, forward + L, down + L. Super: I, or J + K together. Holding back blocks.
 const keys = {}, pressed = {};
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyR', 'KeyJ', 'KeyK', 'KeyL', 'KeyI', 'KeyP', 'KeyQ', 'KeyM', 'Enter', 'Escape']);
-addEventListener('keydown', e => { if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.code === 'KeyM') setMuted(!muted); });
+const MAP = [
+  { l: ['KeyA'], r: ['KeyD'], u: ['KeyW'], d: ['KeyS'], p: ['KeyJ'], k: ['KeyK'], s: ['KeyL'], x: ['KeyI'] },
+  { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDown'], p: ['Numpad1', 'Comma'], k: ['Numpad2', 'Period'], s: ['Numpad3', 'Slash'], x: ['Numpad0', 'ShiftRight'] },
+];
+const ALT = { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDown'], p: ['KeyZ'], k: ['KeyX'], s: ['KeyC'], x: ['KeyV'] }; // 1P only: arrows + Z X C V
+const LABEL = [{ p: 'J', k: 'K', s: 'L', x: 'I' }, { p: 'NUM1', k: 'NUM2', s: 'NUM3', x: 'NUM0' }];
+const GAME_KEYS = new Set(['Space', 'Enter', 'Escape', 'KeyP', 'KeyQ', 'KeyE', 'KeyM', 'KeyB', 'KeyT', 'Tab']);
+for (const m of [...MAP, ALT]) for (const a in m) for (const c of m[a]) GAME_KEYS.add(c);
+addEventListener('keydown', e => {
+  if (GAME_KEYS.has(e.code)) e.preventDefault(); if (e.repeat) return; if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true;
+  if (e.code === 'KeyM') setMuted(!muted);
+  if (e.code === 'KeyT' && game.phase === 'over') share();   // opened here: popups need the key event itself
+});
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; for (const k in pressed) pressed[k] = false; if (game.phase === 'fight') game.phase = 'pause'; });
 function clearPressed() { for (const k in pressed) pressed[k] = false; }
-const MAP = [
-  { l: 'KeyA', r: 'KeyD', u: 'KeyW', d: 'KeyS', p: 'KeyF', k: 'KeyG', s: 'KeyH', x: 'KeyR' },
-  { l: 'ArrowLeft', r: 'ArrowRight', u: 'ArrowUp', d: 'ArrowDown', p: 'KeyK', k: 'KeyL', s: 'KeyJ', x: 'KeyI' },
-];
 function tap(c) { if (pressed[c]) { pressed[c] = false; return true; } return false; }
+function codes(side, a) { const c = MAP[side][a]; return side === 0 && game.mode === 1 ? c.concat(ALT[a]) : c; }
+function held(side, a) { return codes(side, a).some(c => keys[c]); }
+function hit(side, a) { let r = false; for (const c of codes(side, a)) if (pressed[c]) { pressed[c] = false; r = true; } return r; }
+
+// ---------- gamepads: pad 1 drives P1's keys, pad 2 P2's (A punch, B kick, X special, Y/RB super, Start) ----------
+const padPrev = [{}, {}];
+function pollPads() {
+  if (!navigator.getGamepads) return;
+  let pads; try { pads = [...navigator.getGamepads()].filter(Boolean).slice(0, 2); } catch (e) { return; }
+  pads.forEach((gp, side) => {
+    const m = MAP[side], ax = gp.axes || [], b = n => !!(gp.buttons[n] && gp.buttons[n].pressed);
+    const now = { [m.l[0]]: b(14) || ax[0] < -0.5, [m.r[0]]: b(15) || ax[0] > 0.5, [m.u[0]]: b(12) || ax[1] < -0.6, [m.d[0]]: b(13) || ax[1] > 0.6, [m.p[0]]: b(0), [m.k[0]]: b(1), [m.s[0]]: b(2), [m.x[0]]: b(3) || b(5), Start: b(9), Back: b(8) };
+    for (const c in now) {
+      if (now[c] === !!padPrev[side][c]) continue;
+      padPrev[side][c] = now[c];
+      if (c === 'Start') { if (now[c]) pressed[game.phase === 'fight' || game.phase === 'pause' ? 'KeyP' : 'Enter'] = true; continue; }
+      if (c === 'Back') { if (now[c]) pressed.Escape = true; continue; }
+      if (now[c] && !keys[c]) pressed[c] = true; keys[c] = now[c];
+    }
+  });
+}
 
 // ---------- touch controls (appear after the first touch) ----------
 const touch = { on: false, ptr: new Map() };
 const TBTN = [
   { code: 'KeyA', x: 70, y: 455, r: 34, lbl: '<' }, { code: 'KeyD', x: 160, y: 455, r: 34, lbl: '>' },
-  { code: 'KeyW', x: 115, y: 385, r: 30, lbl: 'JUMP' }, { code: 'KeyS', x: 115, y: 505, r: 26, lbl: 'BLOCK' },
-  { code: 'KeyF', x: 800, y: 475, r: 32, lbl: 'P', col: '#ffd23f' }, { code: 'KeyG', x: 870, y: 445, r: 32, lbl: 'K', col: '#ff7a5c' },
-  { code: 'KeyH', x: 790, y: 400, r: 30, lbl: 'SP', col: '#7cc7ff' }, { code: 'KeyR', x: 900, y: 370, r: 30, lbl: 'SU', col: '#ff4d6d' },
-  { code: 'KeyP', x: 480, y: 92, r: 18, lbl: 'II', col: '#aaa' },
+  { code: 'KeyW', x: 115, y: 385, r: 30, lbl: 'JUMP' }, { code: 'KeyS', x: 115, y: 505, r: 26, lbl: 'DOWN' },
+  { code: 'KeyJ', x: 800, y: 475, r: 32, lbl: 'P', col: '#ffd23f' }, { code: 'KeyK', x: 870, y: 445, r: 32, lbl: 'K', col: '#ff7a5c' },
+  { code: 'KeyL', x: 790, y: 400, r: 30, lbl: 'SP', col: '#7cc7ff' }, { code: 'KeyI', x: 900, y: 370, r: 30, lbl: 'SU', col: '#ff4d6d' },
+  { code: 'KeyP', x: 480, y: 116, r: 18, lbl: 'II', col: '#aaa' },
 ];
 function canvasPos(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
 function hitBtn(x, y) { return TBTN.find(b => (x - b.x) ** 2 + (y - b.y) ** 2 < (b.r + 8) ** 2); }
@@ -64,7 +100,7 @@ cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && !touch.on) return;
   touch.on = true; e.preventDefault(); const [x, y] = canvasPos(e); const b = hitBtn(x, y);
   if (b) { touch.ptr.set(e.pointerId, b.code); if (!keys[b.code]) pressed[b.code] = true; keys[b.code] = true; }
-  else if (game.phase === 'title' || game.phase === 'over') pressed.Enter = true;   // tap anywhere = confirm on menu screens
+  else if (['title', 'over', 'vs'].includes(game.phase)) pressed.Enter = true;   // tap anywhere = confirm on menu screens
 });
 cv.addEventListener('pointermove', e => {
   if (!touch.ptr.has(e.pointerId)) return; const [x, y] = canvasPos(e); const b = hitBtn(x, y); const cur = touch.ptr.get(e.pointerId);
@@ -74,23 +110,45 @@ const touchUp = e => { const c = touch.ptr.get(e.pointerId); if (c) { keys[c] = 
 cv.addEventListener('pointerup', touchUp); cv.addEventListener('pointercancel', touchUp); cv.addEventListener('pointerleave', touchUp);
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
-// ---------- roster ----------
+// ---------- roster (move sets live in moves.js) ----------
+// handle: X account (without @) tagged in the end-screen share post; left empty until the owner fills it in.
 const ROSTER = [
-  { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, sp: { name: 'CODEX BOLT', col: '#7cc7ff' }, su: { name: 'RATE LIMIT RESET', col: '#ff4d4d' }, bio: 'SHIPS CODEX. GRINS THROUGH EVERY OUTAGE. SUPER HITS RESET.' },
-  { id: 'poteto', name: 'POTETO', tag: 'GROK BOT', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, sp: { name: 'SWEET POTATO', col: '#c25a3a' }, su: { name: 'HUNDREDS OF PRS', col: '#58e07a' }, bio: 'REACT COMPILER ALUM. THROWS HOT SWEET POTATOES. SUPER: A PR STORM.' },
-  { id: 'dot', name: 'DOT', tag: 'TWO-DOT BLOB', col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, sp: { name: 'PUFF RING', col: '#e9e6de' }, su: { name: 'BIG BOUNCE', col: '#ffffff' }, bio: 'SOFT, ROUND, AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
-  { id: 'wang', name: 'ALEXANDR WANG', tag: 'META SUPERINTELLIGENCE', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, sp: { name: 'SCALE BUBBLE', col: '#b98cff' }, su: { name: 'SUPERINTELLIGENCE', col: '#4f7dff' }, bio: 'CALM. IRIDESCENT BUBBLES. SUPER SUMMONS THE LAB.' },
-  { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, sp: { name: 'SENTINEL', col: '#7ef0ff' }, su: { name: 'SECURE VM', col: '#7ef0ff' }, bio: 'FLUFFY PERSONAL AGENT. RUNS ON ITS OWN VM. WAVES BEFORE IT HITS.' },
+  { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, handle: '', bio: 'SHIPS CODEX. GRINS THROUGH EVERY OUTAGE.' },
+  { id: 'poteto', name: 'POTETO', tag: 'GROK BOT', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, handle: '', bio: 'REACT COMPILER ALUM. THROWS HOT SWEET POTATOES.' },
+  { id: 'dot', name: 'DOT', tag: 'TWO-DOT BLOB', col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, handle: '', bio: 'SOFT, ROUND AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
+  { id: 'wang', name: 'ALEXANDR WANG', tag: 'META SUPERINTELLIGENCE', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, handle: '', bio: 'CALM. IRIDESCENT BUBBLES. SUMMONS THE LAB.' },
+  { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, handle: '', bio: 'FLUFFY PERSONAL AGENT. RUNS ON ITS OWN VM.' },
 ];
 const SHORT = r => r.id === 'wang' ? 'WANG' : r.name;
 
-// ---------- attacks ----------
+// ---------- share on X (end screen): T key or the button over the canvas ----------
+const GAME_URL = 'https://clagradi.github.io/codex-brawl/';
+const named = r => SHORT(r) + (r.handle ? ' (@' + r.handle.replace(/^@/, '') + ')' : '');
+function shareText() {
+  const [a, b] = game.f; if (!a) return 'Agent Brawl: a parody fighter starring AI agents.';
+  const w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a, score = game.wins[w.side] + '-' + game.wins[l.side];
+  const fin = game.fin ? ', finished with ' + game.fin.name : '';
+  if (game.mode === 1 && w.cpu) return named(w.d) + ' destroyed my ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl. Rematch incoming.';
+  if (game.mode === 1) return 'I beat ' + named(l.d) + ' with ' + named(w.d) + ' ' + score + fin + ' in Agent Brawl.';
+  return named(w.d) + ' beat ' + named(l.d) + ' ' + score + fin + ' in Agent Brawl.';
+}
+const shareUrl = () => 'https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(GAME_URL);
+function share() { try { window.open(shareUrl(), '_blank', 'noopener'); } catch (e) { /* popup blocked: the button still works */ } }
+// move-list rows for the select and pause screens, labelled with that player's keys
+function moveRows(id, side, cpu) {
+  const M = MOVES[id], L = cpu ? { s: 'SP', x: 'SU', p: 'P', k: 'K' } : LABEL[side];
+  const lbl = inp => inp.replace('L', L.s).replace('FWD+', 'FWD + ').replace('DOWN+', 'DOWN + ');
+  const rows = M.sp.map(m => ({ input: lbl(m.input), name: m.name }));
+  rows.push({ input: L.x + (side === 0 && !cpu ? ' / J+K' : ''), name: M.su.name + ' (FULL METER)' });
+  rows.push({ input: L.x + ' AT FINISH IT', name: M.fin.name });
+  return rows;
+}
+
+// ---------- normal attacks ----------
 // len: total ticks, hit: tick the hitbox fires, frames: ticks spent on each sheet frame (sum = len)
 const ATK = {
-  punch: { len: 14, hit: 6, frames: [3, 3, 3, 3, 2], box: [8, 64, -150, -30], dmg: 5, kb: 4, stun: 14 },
-  kick: { len: 22, hit: 9, frames: [4, 5, 5, 4, 4], box: [10, 76, -120, -5], dmg: 8, kb: 7, stun: 20 },
-  special: { len: 30, hit: 12, frames: [4, 4, 4, 6, 6, 6] },
-  super: { len: 48, hit: 16, frames: [4, 4, 4, 4, 8, 8, 8, 8] },
+  punch: { len: 14, hit: 6, frames: [3, 3, 3, 3, 2], box: [8, 70, -150, -30], dmg: 5, kb: 4, stun: 14 },
+  kick: { len: 22, hit: 9, frames: [4, 5, 5, 4, 4], box: [10, 84, -120, -5], dmg: 8, kb: 7, stun: 20 },
 };
 function frameFromTimeline(frames, st) { let acc = 0; for (let i = 0; i < frames.length; i++) { acc += frames[i]; if (st < acc) return i; } return frames.length - 1; }
 
@@ -98,33 +156,42 @@ function frameFromTimeline(frames, st) { let acc = 0; for (let i = 0; i < frames
 class Fighter {
   constructor(def, side, cpu) { this.d = def; this.side = side; this.cpu = cpu; this.reset(); }
   reset() {
-    this.x = this.side ? W * 0.7 : W * 0.3; this.y = GROUND; this.vx = 0; this.vy = 0; this.face = this.side ? -1 : 1;
+    this.x = this.side ? W * 0.68 : W * 0.32; this.y = GROUND; this.vx = 0; this.vy = 0; this.face = this.side ? -1 : 1;
     this.hp = this.d.hp; this.meter = 0; this.state = 'idle'; this.st = 0; this.t = 0; this.hitDone = false; this.stun = 0; this.cool = 0; this.inv = 0; this.shield = 0; this.land = 0; this.combo = 0;
-    this.ai = { t: 0, act: null, lastX: this.x, stuck: 0 };
+    this.mv = null; this.back = false; this.hidden = false; this.lastP = -99; this.lastK = -99; this.dmgTaken = 0;
+    this.ai = { t: 0, act: null, lastX: this.x, stuck: 0, mv: -1, fin: null };
   }
   get onGround() { return this.y >= GROUND; }
-  busy() { return ['punch', 'kick', 'special', 'super', 'hurt', 'ko', 'win'].includes(this.state); }
-  set(s) { this.state = s; this.st = 0; this.hitDone = false; }
-  input() { if (this.cpu) return this.aiInput(); const m = MAP[this.side]; return { l: keys[m.l], r: keys[m.r], u: keys[m.u], d: keys[m.d], p: tap(m.p), k: tap(m.k), s: tap(m.s), x: tap(m.x) }; }
+  busy() { return ['punch', 'kick', 'special', 'super', 'hurt', 'ko', 'win', 'dizzy'].includes(this.state); }
+  set(s) { this.state = s; this.st = 0; this.hitDone = false; if (s !== 'special' && s !== 'super') this.mv = null; }
+  input() { if (this.cpu) return this.aiInput(); const s = this.side, i = {}; for (const a of ['l', 'r', 'u', 'd']) i[a] = held(s, a); for (const a of ['p', 'k', 's', 'x']) i[a] = hit(s, a); return i; }
   // ---- CPU brain: picks an intent every few ticks, reacts to threats, never camps in a corner ----
   aiInput() {
-    const o = game.f[1 - this.side], a = this.ai, i = {};
+    const o = game.f[1 - this.side], a = this.ai, i = {}, M = MOVES[this.d.id];
     const dx = o.x - this.x, dist = Math.abs(dx), lvl = game.cpuLevel;
     const toward = dx > 0 ? 'r' : 'l', away = dx > 0 ? 'l' : 'r';
-    const threat = (o.state === 'punch' || o.state === 'kick' || o.state === 'special') && dist < 150 && o.st < 10;
-    const incoming = game.proj.find(p => p.owner !== this && Math.sign(p.vx) === Math.sign(this.x - p.x) && Math.abs(p.x - this.x) < 230 && Math.abs(p.x - this.x) > 40);
+    if (game.phase === 'finish') { // winner of the match: usually performs its finisher
+      if (game.phaseT > 45 && !a.fin) a.fin = Math.random() < 0.75 ? 'fin' : 'hit';
+      if (a.fin === 'fin') i.x = true; else if (a.fin === 'hit') { if (dist > 80) i[toward] = true; else if (!this.busy()) i.p = true; }
+      return i;
+    }
+    const threat = ATTACKS.has(o.state) && dist < 170 && o.st < 10;
+    const incoming = game.proj.find(p => p.owner !== this && p.t >= 0 && Math.sign(p.vx) === Math.sign(this.x - p.x) && Math.abs(p.x - this.x) < 230 && Math.abs(p.x - this.x) > 40);
     const atWall = this.x < 70 || this.x > W - 70;
+    const inRange = k => { const m = M.sp[k], r = m && (m.ai || { min: 0, max: 999 }); return !!m && dist >= r.min && dist <= r.max; };
+    const pick = () => { const ok = [0, 1, 2].filter(inRange); return ok.length && this.cool <= 0 ? ok[Math.floor(Math.random() * ok.length)] : -1; };
     a.t--;
     if (Math.abs(this.x - a.lastX) < 0.5 && dist < 130) a.stuck++; else a.stuck = 0; a.lastX = this.x;
     if (a.t <= 0 || (threat && Math.random() < 0.2 + lvl * 0.25) || (incoming && Math.random() < 0.3)) {
-      a.t = 8 + Math.random() * (22 - lvl * 6); const r = Math.random();
+      a.t = 8 + Math.random() * (22 - lvl * 6); const r = Math.random(), k = pick(); a.mv = k;
       if (this.meter >= 100 && Math.random() < 0.35 + lvl * 0.3 && dist < 420) a.act = 'super';
+      else if (!o.onGround && dist < 220 && this.cool <= 0 && inRange(2) && r < 0.25 + lvl * 0.4) { a.act = 'special'; a.mv = 2; }
       else if (threat) a.act = r < 0.45 + lvl * 0.15 ? 'block' : r < 0.8 ? 'jump' : 'punch';
-      else if (incoming) a.act = r < 0.5 ? 'jump' : r < 0.85 ? 'block' : 'special';
+      else if (incoming) a.act = r < 0.45 ? 'jump' : 'block';
       else if (a.stuck > 40 || (atWall && dist < 120 && r < 0.5)) a.act = r < 0.5 ? 'jumpover' : 'kick';
-      else if (dist > 340) a.act = r < 0.4 && this.cool <= 0 ? 'special' : r < 0.9 ? 'approach' : 'jumpfwd';
-      else if (dist > 140) a.act = r < 0.18 && this.cool <= 0 ? 'special' : r < 0.78 ? 'approach' : r < 0.9 ? 'jumpfwd' : 'retreat';
-      else a.act = r < 0.38 ? 'punch' : r < 0.66 ? 'kick' : r < 0.8 ? 'block' : r < 0.9 ? 'retreat' : 'wait';
+      else if (dist > 340) a.act = r < 0.4 && k >= 0 ? 'special' : r < 0.9 ? 'approach' : 'jumpfwd';
+      else if (dist > 140) a.act = r < 0.25 && k >= 0 ? 'special' : r < 0.78 ? 'approach' : r < 0.9 ? 'jumpfwd' : 'retreat';
+      else a.act = r < 0.32 ? 'punch' : r < 0.56 ? 'kick' : r < 0.68 && k >= 0 ? 'special' : r < 0.8 ? 'block' : r < 0.9 ? 'retreat' : 'wait';
     }
     switch (a.act) {
       case 'approach': i[toward] = true; break;
@@ -138,48 +205,73 @@ class Fighter {
       case 'punch': i.p = true; a.act = Math.random() < 0.4 ? 'punch2' : 'wait'; break;
       case 'punch2': if (!this.busy()) { i.k = true; a.act = 'wait'; } break;
       case 'kick': i.k = true; a.act = 'wait'; break;
-      case 'special': if (this.cool <= 0) i.s = true; a.act = 'wait'; break;
+      case 'special': if (this.cool <= 0 && a.mv >= 0) { i.s = true; i.mv = a.mv; } a.act = 'wait'; break;
       case 'super': i.x = true; a.act = 'wait'; break;
     }
     return i;
   }
+  // an attack is coming: holding back turns into a guard
+  threatened(o) {
+    if (ATTACKS.has(o.state) && Math.abs(o.x - this.x) < 240) return true;
+    return game.proj.some(p => p.owner === o && p.t >= 0 && Math.abs(p.x - this.x) < 220);
+  }
+  startMove(mv, kind, o) {
+    if (!mv) return;
+    this.set(kind); this.mv = mv;
+    if (kind === 'super') { this.meter = 0; game.flash = 8; game.hitstop = 10; game.dark = 50; banner(mv.name, { style: 'gold', life: 80, size: 64, y: 150 }); beep(880, 0.4, 'sawtooth', 0.07); }
+    else beep(520, 0.06, 'triangle');
+    if (mv.start) mv.start(this, o);
+  }
   update(o) {
     this.t++; if (this.cool > 0) this.cool--; if (this.inv > 0) this.inv--; if (this.shield > 0) this.shield--; if (this.land > 0) this.land--;
-    const i = game.phase === 'fight' ? this.input() : {};
+    const active = game.phase === 'fight' || (game.phase === 'finish' && this === game.winner);
+    const i = active ? this.input() : {};
     this.st++;
+    const fwd = this.face > 0 ? i.r : i.l, bk = this.face > 0 ? i.l && !i.r : i.r && !i.l;
+    this.back = !!bk;
+    if (i.p) this.lastP = this.t; if (i.k) this.lastK = this.t;
+    const wantSuper = i.x || ((i.p || i.k) && Math.abs(this.lastP - this.lastK) <= 4);
+    if (wantSuper && this.onGround && (!this.busy() || ((this.state === 'punch' || this.state === 'kick') && this.st <= 5))) {
+      if (game.phase === 'finish') { startFinisher(this, o); return; }
+      if (this.meter >= 100) { this.startMove(MOVES[this.d.id].su, 'super', o); i.p = i.k = i.s = false; }
+    }
     if (!this.busy() && this.state !== 'block') this.face = o.x > this.x ? 1 : -1;
     if (this.state === 'hurt') { if (this.st > this.stun && (this.onGround || this.st > this.stun + 30)) this.set('idle'); }
+    else if (this.state === 'dizzy') { /* stands there until the finisher, a last hit or the window closes */ }
     else if (this.busy()) {
-      const A = ATK[this.state];
-      if (A) { if (this.st === A.hit && !this.hitDone && A.dmg) this.doHit(o, A); if (this.st >= A.len) this.set('idle'); }
-      if (this.state === 'special' && this.st === ATK.special.hit) this.fireSpecial(o);
-      if (this.state === 'super' && this.st === ATK.super.hit) this.fireSuper(o);
+      const A = ATK[this.state], mv = this.mv;
+      if (mv) {
+        if (mv.update) mv.update(this, o, this.st);
+        if (this.st === Math.max(1, mv.hit)) mv.fire(this, o);
+        if (this.st >= mv.len && this.mv === mv) { this.cool = mv.cool ?? 40; this.set('idle'); }
+      } else if (A) { if (this.st === A.hit && !this.hitDone) this.doHit(o, A); if (this.st >= A.len) this.set('idle'); }
+      else if (this.state === 'special' || this.state === 'super') { if (this.st >= 40) this.set('idle'); }
     } else {
       let mv = 0; if (i.l) mv -= 1; if (i.r) mv += 1;
       if (this.state === 'jump' && this.st === 3 && this.onGround) { this.vy = JUMP_V; beep(500, 0.08, 'triangle'); }  // jump squat
-      if (i.d && this.onGround && this.state !== 'jump') { if (this.state !== 'block') this.set('block'); this.vx = 0; }
+      const guard = i.d || (bk && this.threatened(o));
+      if (guard && this.onGround && this.state !== 'jump') { if (this.state !== 'block') this.set('block'); this.vx = 0; }
       else {
         if (this.state === 'block') this.set('idle');
-        this.vx = mv * this.d.spd * (this.onGround ? 1 : 0.85);
+        this.vx = mv * this.d.spd * (this.onGround ? 1 : 0.85) * (bk ? 0.85 : 1);
         if (i.u && this.onGround && this.state !== 'jump') this.set('jump');
         if (this.onGround && this.state !== 'jump') this.state = mv ? 'walk' : 'idle';
         else if (!this.onGround) this.state = 'jump';
       }
       if (this.state !== 'jump' || this.st > 3) {
-        if (i.p) { this.set('punch'); beep(300, 0.05); }
+        if (i.s && this.cool <= 0 && this.onGround) this.startMove(MOVES[this.d.id].sp[i.mv ?? (i.d ? 2 : fwd ? 1 : 0)], 'special', o);
+        else if (i.p) { this.set('punch'); beep(300, 0.05); }
         else if (i.k) { this.set('kick'); beep(220, 0.06); }
-        else if (i.s && this.cool <= 0) { this.set('special'); this.cool = 50; }
-        else if (i.x && this.meter >= 100) { this.set('super'); this.meter = 0; game.flash = 10; game.hitstop = 8; game.banner = { t: 75, txt: this.d.su.name, col: this.d.su.col }; beep(880, 0.4, 'sawtooth', 0.07); }
       }
     }
     // physics
-    if (['punch', 'kick', 'special', 'super', 'ko', 'win', 'block'].includes(this.state) && this.onGround) this.vx *= 0.7;
+    if (['punch', 'kick', 'special', 'super', 'ko', 'win', 'block', 'dizzy'].includes(this.state) && this.onGround) this.vx *= this.mv ? (this.mv.friction ?? 0.7) : 0.7;
     if (this.state === 'hurt' && this.onGround) this.vx *= 0.86;
     this.x += this.vx; this.vy += GRAV; this.y += this.vy;
-    if (this.y > GROUND) { const wasAir = this.vy > 4; this.y = GROUND; this.vy = 0; if (wasAir) { this.land = 4; if (this.state === 'jump') { this.state = 'idle'; puff(this.x, GROUND); } } }
+    if (this.y > GROUND) { const wasAir = this.vy > 4; this.y = GROUND; this.vy = 0; if (wasAir) { this.land = 4; FX.dust(this.x, GROUND); if (this.state === 'jump') this.state = 'idle'; if (this.state === 'ko') { game.shake = Math.max(game.shake, 6); thud(0.15, 0.12); } } }
     this.x = Math.max(46, Math.min(W - 46, this.x));
     const ov = 56 - Math.abs(this.x - o.x); // push apart
-    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko') { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
+    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && !this.hidden && !o.hidden) { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
   }
   doHit(o, A) {
     this.hitDone = true;
@@ -190,281 +282,360 @@ class Fighter {
     else if (o.state !== 'ko') beep(140, 0.03, 'triangle', 0.02); // whiff
   }
   takeHit(src, dmg, kb, stun, kind = 'hit') {
-    if (this.state === 'ko' || this.inv > 0 || game.phase !== 'fight') return;
+    if (game.phase === 'finish' && this === game.loser && src !== this) { finishOff(); return; }
+    if (this.state === 'ko' || this.state === 'dizzy' || this.inv > 0 || game.phase !== 'fight') return;
     const facingSrc = (src.x > this.x) === (this.face > 0);
-    const blocking = this.state === 'block' && facingSrc;
-    let shielded = false;
-    if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; shielded = true; spark(this.x, this.y - 80, '#7ef0ff', 6); }
-    if (blocking) { dmg *= 0.15; kb *= 0.5; spark(this.x + this.face * 28, this.y - 80, '#9cf', 6); beep(160, 0.05, 'square', 0.04); game.hitstop = 3; }
-    else {
-      this.set('hurt'); this.stun = stun; spark(this.x, this.y - 85, '#fff', 10); thud(); beep(120, 0.1, 'sawtooth', 0.06);
-      game.shake = Math.max(game.shake, kind === 'super' ? 12 : 6); game.hitstop = Math.max(game.hitstop, kind === 'super' ? 9 : kind === 'kick' ? 6 : 5);
+    const guarding = (this.state === 'block' || (this.back && this.onGround && !this.busy())) && facingSrc;
+    let soft = false;
+    if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; soft = true; FX.sparks(this.x, this.y - 90, '#7ef0ff', 8); }
+    if (guarding) {
+      dmg *= kind === 'super' ? 0.25 : 0.15; kb *= 0.5; if (this.state !== 'block') this.set('block');
+      FX.sparks(this.x + this.face * 30, this.y - 100, '#9cf', 8); beep(160, 0.05, 'square', 0.04); game.hitstop = Math.max(game.hitstop, 4);
+    } else {
+      const dir = this.x < src.x ? -1 : 1;
+      this.set('hurt'); this.stun = stun; thud(); beep(120, 0.1, 'sawtooth', 0.06);
+      if (!soft) FX.blood(this.x - dir * 8, this.y - 112, dir, Math.min(3, 0.6 + dmg / 8));
+      FX.sparks(this.x - dir * 14, this.y - 105, '#fff3b0', kind === 'super' ? 16 : 8);
+      game.shake = Math.max(game.shake, kind === 'super' ? 14 : kind === 'kick' ? 8 : 6); game.hitstop = Math.max(game.hitstop, kind === 'super' ? 10 : kind === 'kick' ? 7 : 5);
       this.inv = 6; src.combo = (src.lastHitT && this.t - src.lastHitT < 50) ? src.combo + 1 : 1; src.lastHitT = this.t;
-      if (src.combo >= 2) game.popups.push({ x: src.x, y: src.y - 200, t: 50, txt: src.combo + ' HITS', col: '#7cc7ff' });
+      if (src.combo >= 2) game.popups.push({ x: src.x, y: src.y - 215, t: 50, txt: src.combo + ' HIT COMBO' });
       if (!this.onGround || kb >= 10) this.vy = Math.min(this.vy, -4);
     }
-    this.hp = Math.max(0, this.hp - dmg); this.vx = (this.x < src.x ? -1 : 1) * kb;
+    this.hp = Math.max(0, this.hp - dmg); this.dmgTaken += dmg; this.vx = (this.x < src.x ? -1 : 1) * kb;
     src.meter = Math.min(100, src.meter + dmg * 1.5); this.meter = Math.min(100, this.meter + dmg * 0.7);
-    game.popups.push({ x: this.x, y: this.y - 160, t: 40, txt: Math.round(dmg) || 1, col: blocking || shielded ? '#9cf' : '#ffd23f' });
-    if (this.hp <= 0) { this.set('ko'); this.vy = -9; this.vx = (this.x < src.x ? -1 : 1) * 7; game.koBy(src, this); }
-  }
-  fireSpecial(o) {
-    const d = this.d, id = d.id, f = this.face, x = this.x + f * 50, y = this.y - 80; beep(660, 0.15, 'triangle');
-    const P = o2 => game.proj.push(Object.assign({ owner: this, x, y, vx: f * 7, vy: 0, dmg: 9 * d.pow, kb: 6, stun: 16, r: 16, life: 140, kind: id, t: 0 }, o2));
-    if (id === 'tibo') P({ vx: f * 10, map: 'bolt', dmg: 9 * d.pow });
-    else if (id === 'poteto') P({ vy: -7.5, grav: 0.32, vx: f * 7.5, r: 18, map: 'spud', spin: 1, dmg: 10 * d.pow });
-    else if (id === 'dot') P({ vx: f * 4.5, r: 20, grow: 0.12, map: 'ring', dmg: 8 * d.pow, kb: 8 });
-    else if (id === 'wang') P({ vx: f * 4.5, r: 20, wob: true, map: 'bubble', dmg: 10 * d.pow, life: 160 });
-    else if (id === 'muse') P({ vx: f * 3.5, home: true, r: 14, life: 200, map: 'drone', dmg: 8 * d.pow, stun: 14 });
-  }
-  fireSuper(o) {
-    const d = this.d, id = d.id, f = this.face; game.shake = 10;
-    if (id === 'tibo') { const fx = { kind: 'reset', x: o.x, y: o.y - 300, t: 0 }; game.fx.push(fx); game.later(24, () => { if (o.state !== 'ko' && Math.abs(o.x - fx.x) < 80) o.takeHit(this, 24 * d.pow, 12, 40, 'super'); }); this.hp = Math.min(this.d.hp, this.hp + 6); }
-    else if (id === 'poteto') { for (let k = 0; k < 11; k++) game.proj.push({ owner: this, x: o.x + (k - 5) * 38 + (Math.random() - 0.5) * 30, y: -40 - k * 42, vx: 0, vy: 6.5, dmg: 3 * d.pow, kb: 3, stun: 12, r: 18, life: 220, kind: 'pr', map: 'pr', t: 0 }); }
-    else if (id === 'dot') { this.vy = -19; this.vx = Math.sign(o.x - this.x) * Math.min(12, Math.abs(o.x - this.x) / 24); game.fx.push({ kind: 'dotdrop', t: 0 }); game.later(44, () => { game.shake = 14; thud(0.2, 0.2); if (Math.abs(o.x - this.x) < 190 && o.state !== 'ko') o.takeHit(this, 21 * d.pow, 12, 40, 'super'); game.fx.push({ kind: 'quake', x: this.x, y: GROUND, t: 30 }); }); }
-    else if (id === 'wang') { game.proj.push({ owner: this, x: this.x + f * 60, y: this.y - 95, vx: f * 5.5, vy: 0, dmg: 24 * d.pow, kb: 12, stun: 40, r: 56, life: 200, kind: 'superbubble', map: 'bubble', scale: 10, t: 0, super: true }); }
-    else if (id === 'muse') { this.shield = 240; this.hp = Math.min(this.d.hp, this.hp + 8); for (let k = 0; k < 3; k++) game.proj.push({ owner: this, x: this.x, y: this.y - 130 - k * 30, vx: f * (3 + k), vy: 0, home: true, dmg: 6 * d.pow, kb: 5, stun: 16, r: 14, life: 260, kind: 'muse', map: 'drone', t: -k * 8 }); }
+    if (this.hp <= 0) game.koBy(src, this);
   }
   // which sheet row/frame to show right now
   frame() {
     const s = this.state;
     if (s === 'idle' || s === 'walk' || s === 'win' || s === 'block') { if (this.land > 0 && s !== 'block') return ['jump', 0]; return [s, loopFrame(s, this.t)]; }
+    if (s === 'dizzy') return ['hit', [0, 1, 0, 2][Math.floor(this.t / 14) % 4]];
     if (s === 'jump') { if (this.st <= 3 && this.onGround) return ['jump', 0]; return ['jump', this.vy < -5 ? 1 : this.vy < 4 ? 2 : 3]; }
+    if ((s === 'special' || s === 'super') && this.mv) { const a = this.mv.anim || s; return [a, timedFrame(a, Math.min(0.999, this.st / this.mv.len))]; }
     if (ATK[s]) return [s, frameFromTimeline(ATK[s].frames, this.st)];
-    if (s === 'hurt') return ['hit', Math.min(2, Math.floor(this.st / Math.max(1, this.stun) * 3))];
+    if (s === 'special' || s === 'super') return [s, timedFrame(s, Math.min(0.999, this.st / 40))];
+    if (s === 'hurt' || s === 'hit') return ['hit', Math.min(2, Math.floor(this.st / Math.max(1, this.stun || 20) * 3))];
     if (s === 'ko') return ['ko', this.st < 6 ? 0 : this.st < 16 ? 1 : !this.onGround ? 1 : this.st < 26 ? 2 : this.st < 40 ? 3 : 4];
     return ['idle', 0];
   }
   draw() {
+    if (this.hidden) return;
     const [anim, f] = this.frame();
-    const airH = GROUND - this.y;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; const sh = Math.max(0.4, 1 - airH / 320); ctx.fillRect(Math.round(this.x - 28 * sh), GROUND - 2, Math.round(56 * sh), 6);
-    if (this.state === 'hurt' && this.st % 4 < 2) ctx.globalAlpha = 0.7;
-    drawSprite(ctx, this.d.id, anim, f, this.x, this.y, this.face);
-    ctx.globalAlpha = 1;
+    const airH = GROUND - this.y, sh = Math.max(0.4, 1 - airH / 320);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(this.x, GROUND + 2, 40 * sh, 7 * sh, 0, 0, 7); ctx.fill();
+    drawSprite(ctx, this.d.id, anim, f, Math.round(this.x), Math.round(this.y), this.face);
+    if (this.state === 'dizzy') for (let k = 0; k < 3; k++) { const a = this.t / 9 + k * 2.1; drawFxMap(ctx, 'star', this.x + Math.cos(a) * 30, this.y - 190 + Math.sin(a) * 7, 1); }
     if (this.shield > 0) {
       const a = 0.35 + 0.25 * Math.sin(this.t / 4); ctx.strokeStyle = 'rgba(126,240,255,' + a + ')'; ctx.lineWidth = 4;
-      ctx.strokeRect(this.x - 64, this.y - 176, 128, 180); ctx.fillStyle = 'rgba(126,240,255,0.07)'; ctx.fillRect(this.x - 64, this.y - 176, 128, 180);
-      ptext(ctx, 'SECURE VM', this.x, this.y - 192, 1, '#7ef0ff', 'center');
+      ctx.strokeRect(this.x - 66, this.y - 200, 132, 204); ctx.fillStyle = 'rgba(126,240,255,0.07)'; ctx.fillRect(this.x - 66, this.y - 200, 132, 204);
+      uiText('SECURE VM', this.x, this.y - 222, 16, '#7ef0ff');
     }
   }
 }
 
-// ---------- effects ----------
-const parts = [];
-function spark(x, y, c, n = 10) { for (let i = 0; i < n; i++) parts.push({ x, y, vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.8) * 8, t: 18 + Math.random() * 10, c, s: 4 }); }
-function puff(x, y) { for (let i = 0; i < 6; i++) parts.push({ x: x + (Math.random() - 0.5) * 40, y, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 1.5, t: 14, c: 'rgba(255,255,255,0.5)', s: 6, g: 0 }); }
-
-// ---------- stages ----------
-function pxRect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
-const STAGES = [
-  { name: 'CODEX TERMINAL', sky: ['#0b1022', '#1a2450'], floor: '#1c2238', floor2: '#283052', deco(t) { for (let i = 0; i < 14; i++) { const y = (i * 40 + t * 0.4) % 420; ptext(ctx, ['> CODEX RUN', '$ NPM TEST', '42 PASSED', '> /PET', 'DIFF --GIT', 'PR #' + (1000 + i * 37)][i % 6], 40 + (i * 137) % 820, y, 2, 'rgba(124,199,255,0.22)', 'left', false); } } },
-  { name: 'META LAB', sky: ['#1b1036', '#3b2a7a'], floor: '#2a2050', floor2: '#3a2d6a', deco(t) { for (let i = 0; i < 9; i++) { const x = (i * 113 + t * 0.3) % W, y = 120 + Math.sin(t / 40 + i) * 40 + i * 25; drawFxMap(ctx, 'bubble', x, y, 2 + i % 3); } } },
-  { name: 'LAUNCH PAD ROOFTOP', sky: ['#0a0a12', '#26203c'], floor: '#22222e', floor2: '#30303f', deco(t) { for (let i = 0; i < 60; i++) if ((i * 7 + Math.floor(t / 20)) % 9) pxRect((i * 157) % W, (i * 91) % 330, 3, 3, '#fff'); pxRect(800, 140, 16, 240, '#ddd'); pxRect(804, 110, 8, 30, '#ddd'); pxRect(796, 370, 24, 10, '#999'); } },
-  { name: 'POTATO FIELD', sky: ['#7fc8ff', '#ffe1a8'], floor: '#6b4a2b', floor2: '#7d5a36', deco(t) { pxRect(800, 70, 40, 40, '#ffd23f'); pxRect(792, 78, 56, 24, '#ffd23f'); pxRect(808, 62, 24, 56, '#ffd23f'); for (let i = 0; i < 20; i++) { pxRect(i * 50 + (t * 0.1 % 50), 384, 8, 20, '#4f8f3a'); pxRect(i * 50 + (t * 0.1 % 50) - 4, 380, 16, 6, '#6cc04a'); } } },
-];
-
 // ---------- game state ----------
 const game = {
-  phase: 'title', mode: 1, sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, tick: 0,
-  shake: 0, flash: 0, hitstop: 0, banner: null, stage: 0, msg: null, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
+  phase: 'title', phaseT: 0, mode: 1, sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
+  shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, banner: null, arena: 0, arenaPick: -1, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
+  cam: { x: 0, zoom: 1 }, winner: null, loser: null, fin: null, finT: 0, flawless: false, endAt: 160,
   later(t, fn) { this.delayed.push({ t, fn }); },
 };
+function setPhase(p) { game.phase = p; game.phaseT = 0; }
+function banner(txt, opts = {}) { const life = opts.life || 90; game.banner = { txt, t: 0, life, opts: Object.assign({ dur: life }, opts) }; }
 function startMatch() {
   game.f = [new Fighter(ROSTER[game.sel[0]], 0, false), new Fighter(ROSTER[game.sel[1]], 1, game.mode === 1)];
-  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.stage = Math.floor(Math.random() * STAGES.length); game.cpuLevel = 0.45; startRound();
+  game.wins = [0, 0]; game.round = 1; game.sudden = false; game.cpuLevel = 0.45;
+  game.arena = game.arenaPick >= 0 ? game.arenaPick : Math.floor(Math.random() * ARENAS.length);
+  game.proj = []; game.fx = []; game.popups = []; game.delayed = []; game.banner = null; game.fin = null; FX.clear();
+  setPhase('vs'); clearPressed();
 }
 function startRound() {
-  game.f.forEach(f => f.reset()); game.proj = []; game.fx = []; game.popups = []; game.delayed = []; parts.length = 0; game.timer = game.sudden ? 30 : 99; game.tick = 0; game.hitstop = 0; game.banner = null;
+  game.f.forEach(f => f.reset()); game.proj = []; game.fx = []; game.popups = []; game.delayed = []; FX.clear();
+  game.timer = game.sudden ? 30 : 99; game.clock = 0; game.hitstop = 0; game.slow = 0; game.dark = 0; game.winner = game.loser = game.fin = null; game.cam = { x: 0, zoom: 1 };
   if (game.sudden) game.f.forEach(f => f.hp = Math.ceil(f.d.hp * 0.25));
-  game.phase = 'intro'; game.msg = { t: 110, txt: game.sudden ? 'SUDDEN DEATH' : 'ROUND ' + game.round }; clearPressed();
+  if (typeof hudReset === 'function') hudReset();
+  setPhase('intro'); banner(game.sudden ? 'SUDDEN DEATH' : 'ROUND ' + game.round, { style: game.sudden ? 'blood' : 'gold', life: INTRO_LEN, sub: game.round === 1 ? ARENAS[game.arena].name : '' });
+  say(game.sudden ? 'sudden' : 'round', game.round); clearPressed();
 }
+// a fighter hit 0 HP: the match-deciding KO opens the FINISH IT window, any other one ends the round
 game.koBy = function (w, l) {
   if (game.phase !== 'fight') return;
-  game.phase = 'ko'; game.msg = { t: 160, txt: 'K.O.!' }; beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2); game.wins[w.side]++; game.hitstop = 12; game.shake = 14; game.flash = 8;
-  game.later(45, () => { if (w.state !== 'ko') w.set('win'); });
+  game.wins[w.side]++; game.winner = w; game.loser = l; game.flawless = w.dmgTaken === 0;
+  game.proj = []; game.dark = 0;
+  if (game.wins[w.side] >= 2 && MOVES[w.d.id].fin) {
+    setPhase('finish'); l.set('dizzy'); l.hp = 0; l.vx = (l.x < w.x ? -1 : 1) * 5; l.inv = 0;
+    if (w.busy()) w.set('idle');
+    game.slow = 40; game.hitstop = 14; game.shake = 12; game.flash = 6; thud(0.3, 0.2);
+    banner('FINISH IT!', { style: 'blood', life: 150 }); say('finish');
+  } else knockOut(w, l);
 };
+function knockOut(w, l) {
+  setPhase('ko'); l.set('ko'); l.vy = -9; l.vx = (l.x < w.x ? -1 : 1) * 7;
+  game.slow = 70; game.hitstop = 12; game.shake = 14; game.flash = 8; game.endAt = game.flawless ? 210 : 160;
+  banner('K.O.', { style: 'blood', life: 110 }); beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2);
+  FX.blood(l.x, l.y - 110, l.x < w.x ? -1 : 1, 3);
+  game.later(50, () => { if (w.state !== 'ko') w.set('win'); });
+  if (game.flawless) game.later(95, () => { banner('FLAWLESS', { style: 'gold', life: 100 }); say('flawless'); });
+}
+function finishOff() { if (game.phase === 'finish') knockOut(game.winner, game.loser); }
+function startFinisher(w, l) {
+  const fin = MOVES[w.d.id].fin; if (!fin) return finishOff();
+  game.fin = fin; game.finT = 0; setPhase('finisher');
+  w.set('idle'); w.vx = 0; l.vx = 0; game.proj = []; game.dark = 30;
+  banner(fin.name, { style: 'toxic', life: 140 }); say('finisher', fin.name); beep(220, 0.8, 'sawtooth', 0.07, 0.25);
+  if (fin.start) fin.start(w, l);
+}
 function endRoundTime() {
-  const [a, b] = game.f; game.phase = 'ko';
+  const [a, b] = game.f; setPhase('ko'); game.endAt = 170;
   const pa = a.hp / a.d.hp, pb = b.hp / b.d.hp; let w = Math.abs(pa - pb) < 0.001 ? -1 : (pa > pb ? 0 : 1);
-  game.msg = { t: 150, txt: w < 0 ? 'DRAW' : 'TIME!' };
-  if (w >= 0) { game.wins[w]++; game.f[w].set('win'); game.f[1 - w].set('ko'); game.f[1 - w].vy = -6; } else if (game.round >= 4) { w = a.meter >= b.meter ? 0 : 1; game.wins[w]++; }
+  if (w < 0 && game.round >= 4) w = a.meter >= b.meter ? 0 : 1;   // sudden death never draws
+  banner(w < 0 ? 'DRAW' : 'TIME', { style: 'steel', life: 120 });
+  if (w >= 0) { game.wins[w]++; game.winner = game.f[w]; game.loser = game.f[1 - w]; game.f[w].set('win'); game.f[1 - w].set('ko'); game.f[1 - w].vy = -6; }
 }
 function nextRound() {
-  if (game.wins[0] >= 2 || game.wins[1] >= 2) { game.phase = 'over'; game.msg = null; clearPressed(); return; }
+  if (game.wins[0] >= 2 || game.wins[1] >= 2) { // match over: winner call, then the end screen
+    const w = game.f[game.wins[0] >= 2 ? 0 : 1];
+    setPhase('outro'); banner(SHORT(w.d) + ' WINS', { style: 'gold', life: 140 }); say('wins', SHORT(w.d)); return;
+  }
   game.round++; game.cpuLevel = Math.min(1, game.cpuLevel + 0.2);
   if (game.round >= 4) game.sudden = true;
   startRound();
 }
 
 // ---------- update ----------
+function updateCam() {
+  const c = game.cam; let tz = 1, tx = 0;
+  if (game.f.length === 2 && ['ko', 'finish', 'finisher', 'outro'].includes(game.phase)) {
+    const [a, b] = game.f, focus = game.loser || a;
+    if (Math.abs(a.x - b.x) < 560 || game.phase !== 'finish') {
+      tz = 1.2; const half = W / 2 / tz, mid = game.phase === 'finish' ? (a.x + b.x) / 2 : focus.x;
+      tx = Math.max(half, Math.min(W - half, mid)) - W / 2;
+    }
+  }
+  c.zoom += (tz - c.zoom) * 0.07; c.x += (tx - c.x) * 0.07;
+}
 function update() {
-  game.tick++;
+  game.tick++; pollPads();
   if (game.shake > 0) game.shake--; if (game.flash > 0) game.flash--;
+  if (game.banner && ++game.banner.t > game.banner.life) game.banner = null;
+  if (tap('KeyB') && ['title', 'select', 'pause'].includes(game.phase)) setGore(!FX.gore);
   if (game.phase === 'sheet' || !game.f.length && !['title', 'select'].includes(game.phase)) { if (game.phase !== 'sheet') game.phase = 'title'; return; }
   if (game.phase === 'title') {
     if (tap('KeyW') || tap('ArrowUp') || tap('KeyS') || tap('ArrowDown')) { game.titleSel ^= 1; beep(400, 0.04); }
-    if (tap('Enter') || tap('Space') || tap('KeyF') || tap('KeyK')) { game.mode = game.titleSel ? 2 : 1; game.phase = 'select'; game.ready = [false, false]; beep(700, 0.1); clearPressed(); }
+    if (tap('Enter') || tap('Space') || hit(0, 'p') || tap('Numpad1')) { game.mode = game.titleSel ? 2 : 1; setPhase('select'); game.ready = [false, false]; beep(700, 0.1); say('choose'); clearPressed(); }
     return;
   }
-  if (game.phase === 'select') {
-    const N = ROSTER.length, COLS = 3;
-    const ROWS = Math.ceil(N / COLS);
-    // Up/down keep the column and wrap by row; a short last row clamps to its last cell instead of jumping across the grid.
-    const vert = (c, dir) => { const col = c % COLS, row = (Math.floor(c / COLS) + dir + ROWS) % ROWS; return Math.min(row * COLS + col, N - 1); };
-    const nav = (s, m) => { let c = game.sel[s]; if (tap(m.l)) c = (c + N - 1) % N; if (tap(m.r)) c = (c + 1) % N; if (tap(m.u)) c = vert(c, -1); if (tap(m.d)) c = vert(c, 1); if (c !== game.sel[s]) beep(500 - s * 100, 0.04); game.sel[s] = c; };
-    if (game.mode === 1) {
-      const m = MAP[0], s = game.ready[0] ? 1 : 0; nav(s, m);
-      if (tap(m.p) || tap('Enter')) { game.ready[s] = true; beep(900, 0.12); }
-      else if (tap(m.k) || tap('Escape')) { if (s === 1) game.ready[0] = false; else game.phase = 'title'; beep(300, 0.06); }
-      // P2 keys can also drive the CPU pick for convenience
-    } else {
-      for (let s = 0; s < 2; s++) { const m = MAP[s]; if (game.ready[s]) { if (tap(m.k)) { game.ready[s] = false; beep(300, 0.06); } continue; } nav(s, m); if (tap(m.p) || (s === 0 && tap('Enter'))) { game.ready[s] = true; beep(900, 0.12); } }
-      if (tap('Escape')) { game.phase = 'title'; game.ready = [false, false]; }
-    }
-    if (game.ready[0] && game.ready[1]) { game.ready = [false, false]; startMatch(); }
+  if (game.phase === 'select') { updateSelect(); return; }
+  if (game.phase === 'vs') {
+    game.phaseT++;
+    const k = rouletteStep(game.phaseT); if (k !== rouletteStep(game.phaseT - 1) && game.phaseT <= VS_LAND) beep(700 + (k % 3) * 90, 0.03, 'square', 0.03);
+    if (game.phaseT === VS_LAND) { say('arena', ARENAS[game.arena].name); thud(0.4, 0.2); game.flash = 6; }
+    if (game.phaseT >= VS_LEN || (game.phaseT > 30 && (tap('Enter') || hit(0, 'p') || hit(1, 'p')))) startRound();
     return;
   }
   if (game.phase === 'over') {
-    if (tap('Enter') || tap('KeyF') || tap('KeyK') || tap('Space')) { game.phase = 'select'; game.ready = [false, false]; }
-    if (tap('KeyR') || tap('KeyI')) startMatch();
-    if (tap('Escape')) game.phase = 'title';
+    if (tap('Enter') || tap('Space') || hit(0, 'p') || hit(1, 'p')) { setPhase('select'); game.ready = [false, false]; say('choose'); }
+    if (tap('KeyR') || hit(0, 'x')) startMatch();
+    if (tap('Escape')) setPhase('title');
     return;
   }
-  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) game.phase = 'title'; return; }
+  if (game.phase === 'pause') { if (tap('KeyP') || tap('Escape') || tap('Enter')) { game.phase = 'fight'; clearPressed(); } if (tap('KeyQ')) setPhase('title'); return; }
   if (game.phase === 'fight' && (tap('KeyP') || tap('Escape'))) { game.phase = 'pause'; return; }
-  // messages (round intro, KO) always tick
-  if (game.banner && --game.banner.t <= 0) game.banner = null;
-  if (game.msg) { game.msg.t--; if (game.msg.t <= 0) { game.msg = null; if (game.phase === 'intro') { game.phase = 'fight'; game.msg = { t: 40, txt: 'FIGHT!' }; beep(1000, 0.3, 'square', 0.06); clearPressed(); } else if (game.phase === 'ko') nextRound(); } }
-  for (const q of parts) { q.x += q.vx; q.y += q.vy; q.vy += q.g ?? 0.4; q.t--; } for (let i = parts.length - 1; i >= 0; i--) if (parts[i].t <= 0) parts.splice(i, 1);
+  game.phaseT++;
+  if (game.phase === 'intro' && game.phaseT >= INTRO_LEN) { setPhase('fight'); banner('FIGHT!', { style: 'blood', life: 50 }); say('fight'); beep(1000, 0.3, 'square', 0.06); clearPressed(); }
+  if (game.phase === 'finish' && game.phaseT >= FINISH_LEN) finishOff();
+  if (game.phase === 'ko' && game.phaseT >= game.endAt) nextRound();
+  if (game.phase === 'outro' && game.phaseT >= 150) { setPhase('over'); clearPressed(); return; }
+  FX.update(); updateCam();
   for (const p of game.popups) { p.t--; p.y -= 1; } game.popups = game.popups.filter(p => p.t > 0);
   if (game.hitstop > 0) { game.hitstop--; return; }   // hit stop: freeze the fighters and projectiles
-  const [a, b] = game.f; a.update(b); b.update(a);
+  if (game.slow > 0 && game.slow-- % 2) return;        // slow motion on knockouts: simulate every other tick
+  if (game.dark > 0) game.dark--;
+  const [a, b] = game.f;
+  if (game.phase === 'finisher') { // the finisher owns both fighters: no physics, no AI
+    for (const f of game.f) { f.t++; f.st++; }
+    game.finT++; if (game.fin.update) game.fin.update(game.winner, game.loser, game.finT);
+    if (game.finT >= game.fin.len) { setPhase('ko'); game.endAt = 100; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
+  } else { a.update(b); b.update(a); }
   for (const d of game.delayed) d.t--; for (const d of game.delayed.filter(d => d.t <= 0)) d.fn(); game.delayed = game.delayed.filter(d => d.t > 0);
-  if (game.phase === 'fight' && game.tick % 60 === 0) { game.timer--; if (game.timer <= 0) endRoundTime(); }
-  // projectiles
-  for (const p of game.proj) {
-    p.t++; if (p.t < 0) continue; p.life--; if (p.grav) p.vy += p.grav; if (p.grow) p.r += p.grow; if (p.wob) p.y += Math.sin(p.t / 6) * 1.5;
-    const tgt = game.f[1 - p.owner.side];
-    if (p.home) { const dy = (tgt.y - 90) - p.y, dx = tgt.x - p.x; p.vy += Math.sign(dy) * 0.14; p.vx += Math.sign(dx) * 0.16; p.vx = Math.max(-6.5, Math.min(6.5, p.vx)); p.vy = Math.max(-3.5, Math.min(3.5, p.vy)); }
-    p.x += p.vx; p.y += p.vy;
-    if (p.y > GROUND - 8 && (p.grav || p.kind === 'pr')) { p.life = 0; spark(p.x, GROUND - 10, p.kind === 'pr' ? '#58e07a' : '#ffd23f', 6); }
-    if (Math.abs(p.x - tgt.x) < p.r + 24 && Math.abs(p.y - (tgt.y - 80)) < p.r + 70 && tgt.state !== 'ko' && game.phase === 'fight') { if (!p.hit) { tgt.takeHit(p.owner, p.dmg, p.kb, p.stun, p.super ? 'super' : 'hit'); if (p.super) p.hit = true; else p.life = 0; } }
-    if (p.x < -120 || p.x > W + 120) p.life = 0;
-  }
-  for (const p of game.proj) for (const q of game.proj) if (p !== q && p.owner !== q.owner && p.life > 0 && q.life > 0 && !p.super && !q.super && Math.hypot(p.x - q.x, p.y - q.y) < p.r + q.r) { p.life = 0; q.life = 0; spark((p.x + q.x) / 2, (p.y + q.y) / 2, '#ff0'); beep(900, 0.08, 'square', 0.04); }
-  game.proj = game.proj.filter(p => p.life > 0);
-  for (const fx of game.fx) fx.t++; game.fx = game.fx.filter(f => f.t < 80);
+  if (game.phase === 'fight' && ++game.clock % 60 === 0) { game.timer--; if (game.timer <= 0) endRoundTime(); }
+  updateProjectiles();
+  for (const fx of game.fx) { fx.t = (fx.t || 0) + 1; if (fx.update) fx.update(fx); }
+  game.fx = game.fx.filter(f => f.t < (f.life || 80));
 }
+// projectiles follow the moves.js contract: own update/draw, or simple built-in motion (grav, grow, wob, home)
+function updateProjectiles() {
+  for (const p of game.proj) {
+    p.t = (p.t || 0) + 1; if (p.t < 0) continue; p.life--;
+    const tgt = game.f[1 - p.owner.side];
+    if (p.update) p.update(p);
+    else {
+      if (p.grav) p.vy += p.grav; if (p.grow) p.r += p.grow; if (p.wob) p.y += Math.sin(p.t / 6) * 1.5;
+      if (p.home) { const dy = (tgt.y - 90) - p.y, dx = tgt.x - p.x; p.vy += Math.sign(dy) * 0.14; p.vx += Math.sign(dx) * 0.16; p.vx = Math.max(-6.5, Math.min(6.5, p.vx)); p.vy = Math.max(-3.5, Math.min(3.5, p.vy)); }
+      p.x += p.vx; p.y += p.vy;
+      if (p.grav && p.y > GROUND - 8) { p.life = 0; FX.dust(p.x, GROUND); }
+    }
+    if (p.life > 0 && !tgt.hidden && Math.abs(p.x - tgt.x) < p.r + 24 && Math.abs(p.y - (tgt.y - 80)) < p.r + 70 && tgt.state !== 'ko' && (game.phase === 'fight' || game.phase === 'finish')) {
+      if (!p.hit) { tgt.takeHit(p.owner, p.dmg, p.kb, p.stun, p.super ? 'super' : 'hit'); if (p.super) p.hit = true; else p.life = 0; }
+    }
+    if (p.x < -200 || p.x > W + 200 || p.y > H + 120) p.life = 0;
+  }
+  for (const p of game.proj) for (const q of game.proj) if (p !== q && p.owner !== q.owner && p.life > 0 && q.life > 0 && p.t >= 0 && q.t >= 0 && !p.super && !q.super && !p.noClash && !q.noClash && Math.hypot(p.x - q.x, p.y - q.y) < p.r + q.r) { p.life = 0; q.life = 0; FX.sparks((p.x + q.x) / 2, (p.y + q.y) / 2, '#ff0', 12); beep(900, 0.08, 'square', 0.04); }
+  game.proj = game.proj.filter(p => p.life > 0);
+}
+// select: 3 over 2 portrait grid, arena picker (Q/E or the super button), punch confirms, kick goes back
+function updateSelect() {
+  const N = ROSTER.length, COLS = 3, ROWS = Math.ceil(N / COLS);
+  // Up/down keep the column and wrap by row; a short last row clamps to its last cell instead of jumping across the grid.
+  const vert = (c, dir) => { const col = c % COLS, row = (Math.floor(c / COLS) + dir + ROWS) % ROWS; return Math.min(row * COLS + col, N - 1); };
+  const nav = (s, side) => { let c = game.sel[s]; if (hit(side, 'l')) c = (c + N - 1) % N; if (hit(side, 'r')) c = (c + 1) % N; if (hit(side, 'u')) c = vert(c, -1); if (hit(side, 'd')) c = vert(c, 1); if (c !== game.sel[s]) beep(500 - s * 100, 0.04); game.sel[s] = c; };
+  const A = ARENAS.length + 1;   // -1 = random
+  if (tap('KeyE') || hit(0, 'x') || hit(1, 'x')) { game.arenaPick = (game.arenaPick + 2) % A - 1; beep(620, 0.04); }
+  if (tap('KeyQ')) { game.arenaPick = (game.arenaPick + A) % A - 1; beep(620, 0.04); }
+  if (game.mode === 1) {
+    const s = game.ready[0] ? 1 : 0; nav(s, 0);
+    if (hit(0, 'p') || tap('Enter')) { game.ready[s] = true; beep(900, 0.12); }
+    else if (hit(0, 'k') || tap('Escape')) { if (s === 1) game.ready[0] = false; else setPhase('title'); beep(300, 0.06); }
+  } else {
+    for (let s = 0; s < 2; s++) { if (game.ready[s]) { if (hit(s, 'k')) { game.ready[s] = false; beep(300, 0.06); } continue; } nav(s, s); if (hit(s, 'p') || (s === 0 && tap('Enter'))) { game.ready[s] = true; beep(900, 0.12); } }
+    if (tap('Escape')) { setPhase('title'); game.ready = [false, false]; }
+  }
+  if (game.ready[0] && game.ready[1]) { game.ready = [false, false]; startMatch(); }
+}
+// arena roulette: eases out and lands on game.arena at VS_LAND
+function rouletteStep(t) { const S = ARENAS.length * 3, p = 1 - Math.pow(1 - Math.min(1, t / VS_LAND), 2.6); return Math.floor(p * S); }
+function rouletteArena(t) { const S = ARENAS.length * 3, N = ARENAS.length; return ((game.arena - S + rouletteStep(t)) % N + N) % N; }
 
 // ---------- render ----------
-function drawHeadBox(r, x, y, s, flip) { ctx.fillStyle = '#1a1c30'; ctx.fillRect(x, y, s, s); drawHeadIcon(ctx, r.id, x, y, s, flip); }
+function uiText(s, x, y, size, col = '#fff', align = 'center', alpha = 1) { // small UI text: condensed sans with a dark outline
+  ctx.save(); ctx.globalAlpha = alpha; ctx.font = size + 'px Impact, Haettenschweiler, "Arial Narrow", sans-serif'; ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, size / 5); ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.strokeText(s, x, y); ctx.fillStyle = col; ctx.fillText(s, x, y); ctx.restore();
+}
+function shade(a) { ctx.fillStyle = 'rgba(0,0,0,' + a + ')'; ctx.fillRect(0, 0, W, H); }
 function drawTitle() {
-  const t = game.tick; const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b1022'); g.addColorStop(1, '#3b2a7a'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  STAGES[0].deco(t);
-  ptext(ctx, 'AGENT BRAWL', W / 2 + 4, 74 + 4, 8, '#5a3a00', 'center', false); ptext(ctx, 'AGENT BRAWL', W / 2, 74, 8, '#ffd23f', 'center', false);
-  ptext(ctx, 'AN 8-BIT PARODY FIGHTER', W / 2, 150, 2, '#cfe', 'center');
-  ctx.fillStyle = '#1c2238'; ctx.fillRect(0, 352, W, 6);
-  ROSTER.forEach((r, i) => { const f = loopFrame('idle', t + i * 11); drawSprite(ctx, r.id, 'idle', f, W / 2 + (i - (ROSTER.length - 1) / 2) * 128, 352, 1, 3); });
-  const opts = ['1 PLAYER VS CPU', '2 PLAYERS'];
-  opts.forEach((o, i) => ptext(ctx, (game.titleSel === i ? '▶ ' : '  ') + o, W / 2, 400 + i * 34, 3, game.titleSel === i ? '#fff' : '#889', 'center'));
-  ptext(ctx, touch.on ? 'TAP TO START' : 'W/S SELECT · ENTER START · M ' + (muted ? 'UNMUTE' : 'MUTE'), W / 2, 480, 2, '#99a', 'center');
-  ptext(ctx, 'UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 518, 1, '#667', 'center', false);
+  const t = game.tick, ai = Math.floor(t / 480) % ARENAS.length;
+  drawArena(ctx, ai, t, { x: Math.sin(t / 260) * 60, zoom: 1 }); shade(0.5);
+  drawLogo(ctx, W / 2, 112, 1, t);
+  ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
+  ['1 PLAYER VS CPU', '2 PLAYERS'].forEach((o, i) => { const on = game.titleSel === i; drawTitleText(ctx, o, W / 2, 442 + i * 34, on ? 28 : 22, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  uiText(touch.on ? 'TAP TO START' : 'W/S CHOOSE · ENTER START · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
+  uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
+}
+function selectCell(i) {
+  const COLS = 3, cw = 96, ch = 112, gap = 12, row = Math.floor(i / COLS), col = i % COLS, rowCount = Math.min(COLS, ROSTER.length - row * COLS);
+  const gx = W / 2 - (COLS * cw + (COLS - 1) * gap) / 2 + (COLS - rowCount) * (cw + gap) / 2;
+  return { x: gx + col * (cw + gap), y: 78 + row * (ch + 30), w: cw, h: ch };
 }
 function drawSelect() {
-  const t = game.tick; ctx.fillStyle = '#10122a'; ctx.fillRect(0, 0, W, H);
-  for (let i = 0; i < 30; i++) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(0, i * 20 + (t % 20), W, 8); }
-  ptext(ctx, 'SELECT YOUR AGENT', W / 2, 24, 4, '#ffd23f', 'center');
-  const COLS = 3, cs = 92, gap = 14, gx = W / 2 - (COLS * cs + (COLS - 1) * gap) / 2, gy = 118;
+  const t = game.tick;
+  const g = ctx.createRadialGradient(W / 2, H * 0.45, 30, W / 2, H / 2, 620); g.addColorStop(0, '#3a0d0d'); g.addColorStop(0.6, '#140607'); g.addColorStop(1, '#050304'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(255,90,40,0.035)'; ctx.fillRect(0, (i * 97 + t * 0.6) % H, W, 30); }
+  drawTitleText(ctx, 'CHOOSE YOUR AGENT', W / 2, 38, 38, { align: 'center', style: 'gold', glow: true });
   ROSTER.forEach((r, i) => {
-    const row = Math.floor(i / COLS), col = i % COLS; const rowCount = Math.min(COLS, ROSTER.length - row * COLS); const off = (COLS - rowCount) * (cs + gap) / 2;
-    const x = gx + off + col * (cs + gap), y = gy + row * (cs + gap + 22);
-    drawHeadBox(r, x, y, cs); ctx.strokeStyle = r.col; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, cs - 2, cs - 2);
-    ptext(ctx, SHORT(r), x + cs / 2, y + cs + 6, 2, '#fff', 'center');
-    for (let s = 0; s < 2; s++) if (game.sel[s] === i) { const c = s ? '#ff4d6d' : '#4dd2ff'; const blink = game.ready[s] || Math.floor(t / 8) % 2; ctx.strokeStyle = c; ctx.lineWidth = blink ? 5 : 3; const o = s * 5; ctx.strokeRect(x - 4 - o, y - 4 - o, cs + 8 + o * 2, cs + 8 + o * 2); ptext(ctx, s ? (game.mode === 1 ? 'CPU' : 'P2') : 'P1', x + (s ? cs - 4 : 4), y + 4, 1, c, s ? 'right' : 'left'); }
+    const c = selectCell(i);
+    ctx.fillStyle = '#0d0b10'; ctx.fillRect(c.x, c.y, c.w, c.h); drawPortrait(ctx, r.id, c.x, c.y, c.w, c.h);
+    ctx.strokeStyle = '#6b5a3a'; ctx.lineWidth = 2; ctx.strokeRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2);
+    uiText(SHORT(r), c.x + c.w / 2, c.y + c.h + 12, 15, '#e8e0cc');
+    for (let s = 0; s < 2; s++) if (game.sel[s] === i) {
+      const col = s ? '#ff4d4d' : '#4dc3ff', on = game.ready[s] || Math.floor(t / 8) % 2, o = s * 5;
+      ctx.strokeStyle = col; ctx.lineWidth = on ? 5 : 3; ctx.strokeRect(c.x - 4 - o, c.y - 4 - o, c.w + 8 + o * 2, c.h + 8 + o * 2);
+      uiText(s ? (game.mode === 1 ? 'CPU' : 'P2') : 'P1', c.x + (s ? c.w - 6 : 6), c.y + 10, 13, col, s ? 'right' : 'left');
+    }
   });
-  for (let s = 0; s < 2; s++) { // side panels
-    const r = ROSTER[game.sel[s]]; const pw = 244, px = s ? W - 16 - pw : 16, py = 100, cx = px + pw / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(px, py - 10, pw, 340);
-    const anim = game.ready[s] ? 'win' : 'idle'; drawSprite(ctx, r.id, anim, loopFrame(anim, t), cx, py + 205, s ? -1 : 1, 4);
-    ptext(ctx, s ? (game.mode === 1 ? 'CPU' : 'P2') : 'P1', cx, py, 2, s ? '#ff4d6d' : '#4dd2ff', 'center');
-    const fitSize = str => ptextWidth(str, 2) <= pw - 12 ? 2 : 1;
-    ptext(ctx, SHORT(r), cx, py + 222, 2, '#fff', 'center'); ptext(ctx, r.tag, cx, py + 244, fitSize(r.tag), r.col, 'center');
-    ptext(ctx, 'SP ' + r.sp.name, cx, py + 266, fitSize('SP ' + r.sp.name), '#ccd', 'center'); ptext(ctx, 'SU ' + r.su.name, cx, py + 286, fitSize('SU ' + r.su.name), '#ccd', 'center');
-    if (game.ready[s]) ptext(ctx, 'READY!', cx, py + 308, 2, '#7f7', 'center');
+  for (let s = 0; s < 2; s++) { // side panels: fighter, name, move list
+    const r = ROSTER[game.sel[s]], pw = 300, px = s ? W - 12 - pw : 12, cx = px + pw / 2, cpu = s === 1 && game.mode === 1;
+    const anim = game.ready[s] ? 'win' : 'idle';
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(px, 62, pw, 470);
+    uiText(s ? (cpu ? 'CPU' : 'P2') : 'P1', cx, 78, 20, s ? '#ff4d4d' : '#4dc3ff');
+    drawSprite(ctx, r.id, anim, loopFrame(anim, t), cx, 286, s ? -1 : 1);
+    drawTitleText(ctx, SHORT(r), cx, 312, 28, { align: 'center', style: game.ready[s] ? 'gold' : 'steel' });
+    uiText(r.tag, cx, 338, 14, r.col);
+    drawMoveList(ctx, game.ready[s] ? 'READY' : 'MOVES', moveRows(r.id, s, cpu), px + 6, 352, pw - 12, 174);
   }
-  const r = ROSTER[game.sel[game.mode === 1 && game.ready[0] ? 1 : 0]]; ptext(ctx, r.bio, W / 2, H - 74, 2, '#dde', 'center');
-  const hint = touch.on ? (game.ready[0] ? 'PICK THE CPU · P CONFIRM · K BACK' : 'D-PAD MOVE · P CONFIRM') : game.mode === 1 ? (game.ready[0] ? 'NOW PICK THE CPU OPPONENT · WASD + F · G BACK' : 'P1: WASD MOVE · F CONFIRM') : 'P1: WASD + F    P2: ARROWS + K';
-  ptext(ctx, hint, W / 2, H - 44, 2, '#99a', 'center'); ptext(ctx, 'ESC: TITLE', W / 2, H - 20, 2, '#667', 'center');
+  // arena picker
+  const ax = W / 2 - 96, ay = 384, aw = 192, ah = 108, pick = game.arenaPick;
+  uiText('ARENA', W / 2, 370, 16, '#c9a24a');
+  ctx.fillStyle = '#000'; ctx.fillRect(ax - 3, ay - 3, aw + 6, ah + 6);
+  if (pick >= 0) drawArenaThumb(ctx, pick, ax, ay, aw, ah, t);
+  else { drawArenaThumb(ctx, Math.floor(t / 20) % ARENAS.length, ax, ay, aw, ah, t); shade(0); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(ax, ay, aw, ah); drawTitleText(ctx, '?', W / 2, ay + ah / 2, 54, { align: 'center', style: 'gold' }); }
+  ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 2; ctx.strokeRect(ax - 1, ay - 1, aw + 2, ah + 2);
+  uiText((pick >= 0 ? ARENAS[pick].name : 'RANDOM') + '   ‹ Q / E ›', W / 2, ay + ah + 14, 15, '#fff');
+  const hint = touch.on ? 'D-PAD MOVE · P CONFIRM · K BACK · SU ARENA' : game.mode === 1 ? (game.ready[0] ? 'NOW PICK THE CPU · J CONFIRM · K BACK' : 'WASD MOVE · J CONFIRM · ESC TITLE') : 'P1 WASD + J · P2 ARROWS + NUM1';
+  uiText(hint + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 530, 13, '#9a9384');
 }
-function bar(x, y, w, h, v, max, col, rev) {
-  ctx.fillStyle = '#000'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6); ctx.fillStyle = '#401'; ctx.fillRect(x, y, w, h);
-  const ww = Math.round(w * Math.max(0, v) / max); ctx.fillStyle = col; if (rev) ctx.fillRect(x + w - ww, y, ww, h); else ctx.fillRect(x, y, ww, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.25)'; if (rev) ctx.fillRect(x + w - ww, y, ww, Math.ceil(h / 3)); else ctx.fillRect(x, y, ww, Math.ceil(h / 3));
+function drawVs() {
+  const t = game.phaseT, [a, b] = game.f, landed = t >= VS_LAND;
+  const i = landed ? game.arena : rouletteArena(t), aw = 176, ah = 99, ax = W / 2 - aw / 2, ay = 378;
+  drawVersus(ctx, a.d, b.d, t, ARENAS[i].name);   // the strip's arena name spins with the roulette, then lands
+  ctx.fillStyle = '#000'; ctx.fillRect(ax - 4, ay - 4, aw + 8, ah + 8); drawArenaThumb(ctx, i, ax, ay, aw, ah, game.tick);
+  ctx.strokeStyle = landed && t % 16 < 8 ? '#fff' : '#c9a24a'; ctx.lineWidth = 3; ctx.strokeRect(ax - 2, ay - 2, aw + 4, ah + 4);
 }
 function drawProj(p) {
   if (p.t < 0) return;
-  const rot = p.spin ? Math.floor(p.t / 5) % 4 * Math.PI / 2 : 0, flip = p.vx < 0;
-  if (p.kind === 'superbubble') { drawFxMap(ctx, 'bubble', p.x, p.y, 9); ptext(ctx, 'ASI', p.x, p.y - 8, 2, '#fff', 'center'); return; }
-  if (p.kind === 'dot') { drawFxMap(ctx, 'ring', p.x, p.y, Math.max(2, p.r / 6)); return; }
-  drawFxMap(ctx, p.map, p.x, p.y, p.scale || 4, rot, flip);
-}
-function drawFx(fx) {
-  const t = fx.t;
-  if (fx.kind === 'reset') { const y = Math.min(fx.y + t * 16, fx.y + 230); drawFxMap(ctx, 'reset', fx.x, y, 5); ptext(ctx, 'RESET', fx.x, y - 14, 2, '#fff', 'center'); }
-  if (fx.kind === 'dotdrop' && t < 40) { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 - t / 140) + ')'; ctx.fillRect(0, 0, W, H); }
+  if (p.draw) { p.draw(ctx, p); return; }
+  if (p.map) drawFxMap(ctx, p.map, p.x, p.y, p.scale || PX, p.spin ? Math.floor(p.t / 5) % 4 * Math.PI / 2 : 0, p.vx < 0);
 }
 function drawTouch() {
   if (!touch.on) return;
-  for (const b of TBTN) { const held = keys[b.code]; ctx.globalAlpha = held ? 0.65 : 0.3; ctx.fillStyle = b.col || '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); ctx.globalAlpha = 0.9; ptext(ctx, b.lbl, b.x, b.y - 4, b.lbl.length > 2 ? 1 : 2, '#000', 'center', false); }
-  ctx.globalAlpha = 1;
+  for (const b of TBTN) { const on = keys[b.code]; ctx.globalAlpha = on ? 0.65 : 0.3; ctx.fillStyle = b.col || '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); ctx.globalAlpha = 1; uiText(b.lbl, b.x, b.y, b.lbl.length > 2 ? 12 : 18, '#111'); }
+}
+function drawWorld() {
+  const t = game.tick, c = game.cam, AY = GROUND - 60;
+  ctx.save();
+  if (game.shake) ctx.translate(Math.round((Math.random() - 0.5) * game.shake * 2), Math.round((Math.random() - 0.5) * game.shake * 2));
+  ctx.translate(W / 2, AY); ctx.scale(c.zoom, c.zoom); ctx.translate(-(W / 2 + c.x), -AY);
+  drawArena(ctx, game.arena, t, c);
+  if (game.dark > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.55, game.dark / 50) + ')'; ctx.fillRect(-100, -100, W + 200, H + 200); }
+  FX.draw(ctx, 'floor');
+  for (const fx of game.fx) if (!fx.front) fx.draw(ctx, fx);
+  const rank = f => ATTACKS.has(f.state) || f === game.winner ? 1 : 0; [...game.f].sort((x, y) => rank(x) - rank(y)).forEach(f => f.draw());
+  if (game.fin) game.fin.draw(ctx, game.winner, game.loser, game.finT);
+  for (const p of game.proj) drawProj(p);
+  FX.draw(ctx, 'air');
+  for (const fx of game.fx) if (fx.front) fx.draw(ctx, fx);
+  drawArenaFront(ctx, game.arena, t, c);
+  for (const p of game.popups) drawTitleText(ctx, p.txt, p.x, p.y, 20, { align: 'center', style: 'steel', alpha: Math.min(1, p.t / 15) });
+  ctx.restore();
 }
 function drawFight() {
-  const t = game.tick, st = STAGES[game.stage];
-  ctx.save(); if (game.shake) ctx.translate(Math.round((Math.random() - 0.5) * game.shake * 2), Math.round((Math.random() - 0.5) * game.shake * 2));
-  const g = ctx.createLinearGradient(0, 0, 0, GROUND); g.addColorStop(0, st.sky[0]); g.addColorStop(1, st.sky[1]); ctx.fillStyle = g; ctx.fillRect(-20, -20, W + 40, H + 40); st.deco(t);
-  ctx.fillStyle = st.floor; ctx.fillRect(-20, GROUND, W + 40, H); ctx.fillStyle = st.floor2; for (let i = -20; i < W + 20; i += 48) ctx.fillRect(i, GROUND, 24, 6); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-20, GROUND + 28, W + 40, 4);
-  ptext(ctx, st.name, W / 2, GROUND + 40, 2, 'rgba(255,255,255,0.35)', 'center', false);
-  for (const fx of game.fx) drawFx(fx);
-  const order = [...game.f].sort((a, b) => (a.state === 'hurt' || a.state === 'ko' ? 1 : 0) - (b.state === 'hurt' || b.state === 'ko' ? 1 : 0)); order.forEach(f => f.draw());
-  for (const p of game.proj) drawProj(p);
-  for (const q of parts) { ctx.fillStyle = q.c; ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s); }
-  for (const p of game.popups) ptext(ctx, p.txt, p.x, p.y, 2, p.col || '#ffd23f', 'center');
-  ctx.restore();
-  // HUD
-  const [a, b] = game.f;
-  drawHeadBox(a.d, 14, 10, 56); drawHeadBox(b.d, W - 70, 10, 56, true);
-  bar(80, 16, 330, 20, a.hp, a.d.hp, a.hp > a.d.hp * 0.3 ? '#ffd23f' : '#ff5050', false); bar(W - 410, 16, 330, 20, b.hp, b.d.hp, b.hp > b.d.hp * 0.3 ? '#ffd23f' : '#ff5050', true);
-  bar(80, 46, 180, 8, a.meter, 100, a.meter >= 100 ? (t % 10 < 5 ? '#fff' : '#4dd2ff') : '#4dd2ff'); bar(W - 260, 46, 180, 8, b.meter, 100, b.meter >= 100 ? (t % 10 < 5 ? '#fff' : '#ff4d6d') : '#ff4d6d', true);
-  ptext(ctx, SHORT(a.d), 80, 60, 2, "#fff"); ptext(ctx, SHORT(b.d), W - 80, 60, 2, '#fff', 'right');
-  for (let i = 0; i < 2; i++) { ctx.fillStyle = game.wins[0] > i ? '#ffd23f' : '#333'; ctx.fillRect(272 + i * 16, 46, 10, 10); ctx.fillStyle = game.wins[1] > i ? '#ffd23f' : '#333'; ctx.fillRect(W - 292 + i * 16, 46, 10, 10); }
-  ptext(ctx, String(Math.max(0, game.timer)).padStart(2, '0'), W / 2, 14, 5, game.timer <= 10 ? '#ff5050' : '#fff', 'center');
-  if (a.meter >= 100 && !a.cpu) ptext(ctx, 'SUPER READY ' + (touch.on ? '[SU]' : '[R]'), 80, 76, 1, '#4dd2ff'); if (b.meter >= 100 && !b.cpu) ptext(ctx, 'SUPER READY [I]', W - 80, 76, 1, '#ff4d6d', 'right');
-  if (game.flash) { ctx.fillStyle = 'rgba(255,255,255,' + game.flash / 24 + ')'; ctx.fillRect(0, 0, W, H); }
-  if (game.banner) { const bn = game.banner; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, H / 2 - 120, W, 46); ptext(ctx, bn.txt, W / 2, H / 2 - 108, 3, bn.col, 'center'); }
-  if (game.msg) { const big = game.msg.txt.length > 8 ? 4 : 6; ptext(ctx, game.msg.txt, W / 2, H / 2 - 30, big, game.msg.txt === 'K.O.!' ? '#ff4d4d' : '#fff', 'center'); }
-  if (game.sudden && game.phase === 'fight') ptext(ctx, 'SUDDEN DEATH', W / 2, 60, 1, '#ff5050', 'center');
-  if (muted) ptext(ctx, 'MUTED', W - 16, 60, 1, '#99a', 'right');
-  if (game.phase === 'pause') { ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H); ptext(ctx, 'PAUSED', W / 2, H / 2 - 60, 6, '#fff', 'center'); ptext(ctx, 'P / ESC RESUME · Q QUIT TO TITLE · M MUTE', W / 2, H / 2 + 10, 2, '#aaa', 'center'); ptext(ctx, 'P1: WASD · F PUNCH · G KICK · H SPECIAL · R SUPER', W / 2, H / 2 + 50, 1, '#889', 'center'); ptext(ctx, 'P2: ARROWS · K PUNCH · L KICK · J SPECIAL · I SUPER', W / 2, H / 2 + 66, 1, '#889', 'center'); }
-  if (game.phase === 'over') {
-    const gr = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, 520); gr.addColorStop(0, '#2a2350'); gr.addColorStop(1, '#07060f'); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
-    const w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a;
-    ctx.fillStyle = '#1c2238'; ctx.fillRect(0, H - 90, W, 90);
-    drawSprite(ctx, w.d.id, 'win', loopFrame('win', t), W / 2, H - 90, 1, 5); drawSprite(ctx, l.d.id, 'ko', 4, W / 2 + 200, H - 90, -1, 4);
-    ptext(ctx, w.d.name + ' WINS!', W / 2, 50, 4, '#ffd23f', 'center'); ptext(ctx, (w.cpu ? 'CPU' : 'P' + (w.side + 1)) + ' TAKES IT ' + game.wins[w.side] + '-' + game.wins[l.side], W / 2, 100, 2, '#fff', 'center');
-    ptext(ctx, touch.on ? 'TAP: SELECT · SU: REMATCH' : 'ENTER: CHARACTER SELECT · R: REMATCH · ESC: TITLE', W / 2, H - 22, 1, '#ccc', 'center');
+  const t = game.tick, [a, b] = game.f;
+  drawWorld(); drawHUD(ctx, game);
+  if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
+  if (game.phase === 'fight' && game.round === 1 && game.clock < 360 && !touch.on && !(a.cpu && b.cpu))
+    uiText('J PUNCH · K KICK · L SPECIAL (ALSO FWD+L, DOWN+L) · I OR J+K SUPER · HOLD BACK TO BLOCK', W / 2, H - 18, 15, '#fff', 'center', Math.min(1, (360 - game.clock) / 60));
+  if (game.phase === 'finish') uiText((game.winner.cpu ? 'CPU' : LABEL[game.winner.side].x) + ' FOR THE FINISHER · ANY HIT ENDS IT', W / 2, H - 20, 16, '#ff6b5c', 'center', t % 30 < 20 ? 1 : 0.5);
+  if (muted) uiText('MUTED', W - 14, H - 14, 12, '#99a', 'right');
+  if (game.phase === 'pause') {
+    shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
+    for (let s = 0; s < 2; s++) { const f = game.f[s]; drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
+    uiText('P1  WASD MOVE · J PUNCH · K KICK · L SPECIAL · I SUPER · HOLD BACK TO BLOCK', W / 2, 360, 16, '#ddd');
+    uiText('P2  ARROWS · NUM1 PUNCH · NUM2 KICK · NUM3 SPECIAL · NUM0 SUPER  (OR , . / RIGHT SHIFT)', W / 2, 388, 16, '#ddd');
+    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 416, 16, '#ddd');
+    uiText('P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 470, 18, '#c9a24a');
   }
-  if (t < 300 && game.round === 1 && !touch.on && game.phase !== 'over') ptext(ctx, 'P1: WASD · F PUNCH · G KICK · H SPECIAL · R SUPER   |   P2: ARROWS · K · L · J · I', W / 2, H - 16, 2, "rgba(255,255,255,0.8)", "center", false);
+}
+function drawOver() {
+  const t = game.tick, [a, b] = game.f, w = game.wins[0] >= 2 ? a : b, l = w === a ? b : a;
+  drawArena(ctx, game.arena, t, { x: Math.sin(t / 200) * 40, zoom: 1 }); shade(0.55);
+  drawSprite(ctx, l.d.id, 'ko', 4, W / 2 + 230, GROUND, -1);
+  drawSprite(ctx, w.d.id, 'win', loopFrame('win', t), W / 2 - 40, GROUND, 1, 3);
+  drawTitleText(ctx, SHORT(w.d) + ' WINS', W / 2, 64, 56, { align: 'center', style: 'gold', glow: true });
+  uiText((w.cpu ? 'CPU' : 'P' + (w.side + 1)) + ' TAKES IT ' + game.wins[w.side] + '-' + game.wins[l.side] + (game.fin ? ' · ' + game.fin.name : ''), W / 2, 110, 20, '#fff');
+  uiText(touch.on ? 'TAP: SELECT · SU: REMATCH' : 'ENTER CHARACTER SELECT · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
 }
 function drawSheet() { // debug: #sheet=tibo
   ctx.fillStyle = '#3a4370'; ctx.fillRect(0, 0, W, H);
   const id = (location.hash.split('=')[1] || 'tibo').split(',')[0]; const sh = SHEETS[id] || SHEETS.tibo; ctx.imageSmoothingEnabled = false;
   const z = Math.min(W / sh.width, H / sh.height); ctx.drawImage(sh, 0, 0, sh.width * z, sh.height * z);
-  ANIMS.forEach((a, r) => ptext(ctx, a.n, 2, r * FH * z + 2, 1, '#fff'));
+  ANIMS.forEach((a, r) => uiText(a.n, 4, r * FH * z + 8, 11, '#fff', 'left'));
 }
 function render() {
-  if (game.phase === 'sheet') drawSheet(); else if (game.phase === 'title') drawTitle(); else if (game.phase === 'select') drawSelect(); else drawFight();
+  ctx.imageSmoothingEnabled = false;
+  const p = game.phase;
+  if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
+  if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
   drawTouch();
+  if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }
 }
 
 // ---------- main loop: fixed 60 Hz simulation, render once per animation frame ----------
@@ -475,12 +646,15 @@ function frame(now) {
   if (acc >= TICK) acc = 0;
   render(); requestAnimationFrame(frame);
 }
-// debug / test hooks: #select, #demo=i,j (CPU vs CPU), #sheet=id; window.step(n) advances the simulation
+// debug / test hooks: #select, #demo=i,j[&ff=N][&arena=K][&stop] (CPU vs CPU), #sheet=id; window.step(n) advances the simulation
 window.step = n => { for (let i = 0; i < n; i++) update(); };
+window.hold = on => { running = !on; };   // tests freeze the real-time loop so only step() advances the game
+window.hold = on => { running = !on; };   // tests freeze the real-time loop so only step() advances the game
 (function () {
   const h = location.hash;
   if (h.startsWith('#sheet')) game.phase = 'sheet';
   if (h === '#select') { game.mode = 1; game.phase = 'select'; }
+  const ar = h.match(/arena=(\d+)/); if (ar) game.arenaPick = +ar[1] % ARENAS.length;
   const m = h.match(/^#demo=(\d+),(\d+)/); if (m) { game.sel = [+m[1] % ROSTER.length, +m[2] % ROSTER.length]; startMatch(); game.f[0].cpu = true; game.f[1].cpu = true; }
   const ff = h.match(/ff=(\d+)/); if (ff) window.step(+ff[1]);
   if (h.includes('stop')) running = false;

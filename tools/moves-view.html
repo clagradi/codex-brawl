@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>moves viewer</title>
+<style>html,body{margin:0;background:#111;color:#ccc;font:12px monospace}canvas{display:block}</style></head>
+<body><canvas id="c" width="960" height="540"></canvas>
+<script src="../pixelfont.js"></script>
+<script>
+// Viewer + mock engine for moves.js. No game.js, no FX global: moves must work without them.
+//   ?id=tibo&move=sp0|sp1|sp2|su|fin&opp=muse&dist=260&at=20&air=1&block=1&sprites=1&zoom=1
+//   window.MV.step(n) advances n ticks and redraws, window.MV.test() runs every move of every fighter.
+if (/[?&]sprites=1/.test(location.search)) document.write('<script src="../sprites.js"><\/script>');
+</script>
+<script>
+const W = 960, H = 540, GROUND = 468, GRAV = 0.7;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let muted = true; const beepLog = { n: 0 };
+function beep() { beepLog.n++; } function thud() { beepLog.n++; }
+const ROS = {
+  tibo: { id: 'tibo', name: 'TIBO', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100 },
+  poteto: { id: 'poteto', name: 'POTETO', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100 },
+  dot: { id: 'dot', name: 'DOT', col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92 },
+  wang: { id: 'wang', name: 'ALEXANDR WANG', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100 },
+  muse: { id: 'muse', name: 'MUSE', col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100 },
+};
+const IDS = Object.keys(ROS);
+const game = { phase: 'fight', phaseT: 0, proj: [], fx: [], delayed: [], popups: [], shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, tick: 0, f: [], winner: null, loser: null, fin: null, finT: 0,
+  later(t, fn) { this.delayed.push({ t, fn }); } };
+const LOG = { hits: [] };
+
+// stand-in sprite (replaced by the real one with ?sprites=1)
+if (typeof window.drawSprite !== 'function') window.drawSprite = function (c, id, anim, f, x, y, face = 1, scale = 2) {
+  const d = ROS[id], k = scale / 2; c.save(); c.translate(x, y); c.scale(face * k, k);
+  const lie = anim === 'ko' && f >= 3, atk = ['punch', 'kick', 'special', 'super'].includes(anim);
+  if (lie) { c.rotate(-Math.PI / 2); c.translate(0, -30); }
+  const bob = anim === 'idle' || anim === 'walk' ? Math.sin(f * 1.3) * 2 : 0;
+  c.fillStyle = '#17121f'; c.fillRect(-28, -108 + bob, 56, 108); c.fillStyle = d.col; c.fillRect(-25, -105 + bob, 50, 102);
+  c.fillStyle = '#17121f'; c.fillRect(-26, -158 + bob, 52, 52); c.fillStyle = d.col; c.fillRect(-23, -155 + bob, 46, 46);
+  c.fillStyle = '#17121f'; c.fillRect(6, -138 + bob, 6, 10); c.fillRect(-12, -138 + bob, 6, 10);
+  if (atk) { const L = 20 + (f % 6) * 8; c.fillStyle = '#17121f'; c.fillRect(20, -92, L + 6, 18); c.fillStyle = '#ffe0b0'; c.fillRect(22, -90, L + 2, 14); }
+  c.restore();
+  c.save(); c.globalAlpha = 0.8; ptext(c, anim + ' ' + f, x, y - 176, 1, '#fff', 'center', false); c.restore();
+};
+window.loopFrame = window.loopFrame || ((a, t) => Math.floor(t / 6) % 6);
+
+class F {
+  constructor(d, side) { this.d = d; this.side = side; this.reset(); }
+  reset() {
+    this.x = this.side ? 640 : 320; this.y = GROUND; this.vx = this.vy = 0; this.face = this.side ? -1 : 1; this.hp = 9999; this.meter = 0; this.state = 'idle'; this.st = 0; this.t = 0;
+    this.stun = 0; this.cool = 0; this.inv = 0; this.shield = 0; this.mv = null; this.hidden = false; this.dmgTaken = 0; this.combo = 0; this.back = false;
+  }
+  get onGround() { return this.y >= GROUND; }
+  busy() { return ['punch', 'kick', 'special', 'super', 'hurt', 'ko', 'win', 'dizzy'].includes(this.state); }
+  set(s) { this.state = s; this.st = 0; if (s !== 'special' && s !== 'super') this.mv = null; }
+  takeHit(src, dmg, kb, stun, kind = 'hit') {
+    if (this.state === 'ko' || this.state === 'dizzy' || this.inv > 0 || game.phase !== 'fight') return;
+    const facingSrc = (src.x > this.x) === (this.face > 0), guarding = this.state === 'block' && facingSrc;
+    if (this.shield > 0) { dmg *= 0.35; kb *= 0.4; }
+    if (guarding) { dmg *= kind === 'super' ? 0.25 : 0.15; kb *= 0.5; }
+    else {
+      this.set('hurt'); this.stun = stun; this.inv = 6;
+      game.shake = Math.max(game.shake, kind === 'super' ? 14 : 6); game.hitstop = Math.max(game.hitstop, kind === 'super' ? 10 : 5);
+      if (!this.onGround || kb >= 10) this.vy = Math.min(this.vy, -4);
+    }
+    this.hp = Math.max(0, this.hp - dmg); this.dmgTaken += dmg; this.vx = (this.x < src.x ? -1 : 1) * kb; src.meter = Math.min(100, src.meter + dmg * 1.5);
+    LOG.hits.push({ tick: game.tick, by: src.d.id, dmg: +dmg.toFixed(2), kind, blocked: guarding });
+  }
+  startMove(mv, kind, o) {
+    this.set(kind); this.mv = mv;
+    if (kind === 'super') { this.meter = 0; game.flash = 8; game.hitstop = 10; game.dark = 50; }
+    if (mv.start) mv.start(this, o);
+  }
+  update(o) {
+    this.t++; if (this.cool > 0) this.cool--; if (this.inv > 0) this.inv--; if (this.shield > 0) this.shield--;
+    this.st++;
+    if (this.state === 'hurt') { if (this.st > this.stun && (this.onGround || this.st > this.stun + 30)) this.set('idle'); }
+    else if (this.busy()) {
+      const mv = this.mv;
+      if (mv) {
+        if (mv.update) mv.update(this, o, this.st);
+        if (this.st === Math.max(1, mv.hit)) mv.fire(this, o);
+        if (this.st >= mv.len && this.mv === mv) { this.cool = mv.cool ?? 40; this.set('idle'); }
+      } else if (this.state !== 'ko' && this.state !== 'win' && this.state !== 'dizzy' && this.st >= 14) this.set('idle');
+    } else if (this.state === 'block' || this.state === 'idle') this.state = this.onGround ? this.state : 'jump';
+    if (this.state === 'jump' && this.onGround) this.state = 'idle';
+    if (!this.busy() && this.state !== 'block') this.face = o.x > this.x ? 1 : -1;
+    if (['punch', 'kick', 'special', 'super', 'ko', 'win', 'block', 'dizzy'].includes(this.state) && this.onGround) this.vx *= this.mv ? (this.mv.friction ?? 0.7) : 0.7;
+    if (this.state === 'hurt' && this.onGround) this.vx *= 0.86;
+    this.x += this.vx; this.vy += GRAV; this.y += this.vy;
+    if (this.y > GROUND) { this.y = GROUND; this.vy = 0; }
+    this.x = Math.max(46, Math.min(W - 46, this.x));
+    const ov = 56 - Math.abs(this.x - o.x);
+    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && !this.hidden && !o.hidden) { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
+  }
+  frame() {
+    const s = this.state, n = { punch: 5, kick: 5, special: 6, super: 8 };
+    if (n[s] && this.mv) return [this.mv.anim || s, Math.min(n[this.mv.anim || s] - 1, Math.floor(this.st / this.mv.len * n[this.mv.anim || s]))];
+    if (s === 'hurt') return ['hit', Math.min(2, Math.floor(this.st / Math.max(1, this.stun) * 3))];
+    if (s === 'ko') return ['ko', 4]; if (s === 'dizzy') return ['hit', 0]; if (s === 'win') return ['win', Math.floor(this.t / 6) % 6];
+    if (s === 'jump') return ['jump', 2];
+    return ['idle', Math.floor(this.t / 8) % 6];
+  }
+  draw() {
+    if (this.hidden) return; const [a, f] = this.frame();
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(this.x, GROUND + 2, 40, 7, 0, 0, 7); ctx.fill();
+    drawSprite(ctx, this.d.id, a, f, Math.round(this.x), Math.round(this.y), this.face);
+  }
+}
+
+function updateProjectiles() {
+  for (const p of game.proj) {
+    p.t = (p.t || 0) + 1; if (p.t < 0) continue; p.life--;
+    const tgt = game.f[1 - p.owner.side];
+    if (p.update) p.update(p); else { if (p.grav) p.vy += p.grav; p.x += p.vx; p.y += p.vy; }
+    if (p.life > 0 && !tgt.hidden && Math.abs(p.x - tgt.x) < p.r + 24 && Math.abs(p.y - (tgt.y - 80)) < p.r + 70 && tgt.state !== 'ko' && (game.phase === 'fight' || game.phase === 'finish')) {
+      if (!p.hit) { tgt.takeHit(p.owner, p.dmg, p.kb, p.stun, p.super ? 'super' : 'hit'); if (p.super) p.hit = true; else p.life = 0; }
+    }
+    if (p.x < -200 || p.x > W + 200 || p.y > H + 120) p.life = 0;
+  }
+  game.proj = game.proj.filter(p => p.life > 0);
+}
+function tick() {
+  game.tick++; if (game.shake > 0) game.shake--; if (game.flash > 0) game.flash--;
+  if (game.hitstop > 0) { game.hitstop--; return; }
+  if (game.dark > 0) game.dark--;
+  const [a, b] = game.f;
+  if (game.phase === 'finisher') {
+    for (const f of game.f) { f.t++; f.st++; }
+    game.finT++; if (game.fin.update) game.fin.update(game.winner, game.loser, game.finT);
+    if (game.finT >= game.fin.len) { game.phase = 'ko'; game.later(20, () => { if (!game.winner.hidden) game.winner.set('win'); }); }
+  } else { a.update(b); b.update(a); }
+  for (const d of game.delayed) d.t--; for (const d of game.delayed.filter(d => d.t <= 0)) d.fn(); game.delayed = game.delayed.filter(d => d.t > 0);
+  updateProjectiles();
+  for (const fx of game.fx) { fx.t = (fx.t || 0) + 1; if (fx.update) fx.update(fx); }
+  game.fx = game.fx.filter(f => f.t < (f.life || 80));
+}
+
+function setup(id, move, o = {}) {
+  const opp = o.opp || (id === 'muse' ? 'tibo' : 'muse'), dist = o.dist === undefined ? 260 : o.dist;
+  game.phase = 'fight'; game.proj = []; game.fx = []; game.delayed = []; game.fin = null; game.finT = 0; game.shake = game.flash = game.hitstop = game.dark = 0; game.tick = 0; LOG.hits = [];
+  const a = new F(ROS[id], 0), b = new F(ROS[opp], 1);
+  a.x = 480 - dist / 2; b.x = 480 + dist / 2; a.face = 1; b.face = -1;
+  if (o.air) { b.y = GROUND - 150; b.vy = -2; }
+  if (o.block) b.state = 'block';
+  game.f = [a, b]; game.winner = a; game.loser = b; game.cfg = { id, move, opp, dist, zoom: o.zoom };
+  return [a, b];
+}
+function trigger(move) {
+  const [a, b] = game.f, M = MOVES[game.cfg.id];
+  if (move === 'fin') {
+    const fin = M.fin; b.set('dizzy'); b.hp = 0; game.phase = 'finisher'; game.fin = fin; game.finT = 0; game.winner = a; game.loser = b;
+    a.set('idle'); a.vx = 0; b.vx = 0; game.proj = []; game.dark = 30; if (fin.start) fin.start(a, b); return;
+  }
+  const mv = move === 'su' ? M.su : M.sp[+move.slice(2)];
+  a.startMove(mv, move === 'su' ? 'super' : 'special', b);
+}
+function step(n = 1, draw = true) { for (let i = 0; i < n; i++) tick(); if (draw) render(); return game.tick; }
+
+function render() {
+  ctx.imageSmoothingEnabled = false;
+  const g = ctx.createLinearGradient(0, 0, 0, GROUND); g.addColorStop(0, '#1d1a33'); g.addColorStop(1, '#3a2f55'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 1, GROUND);
+  ctx.fillStyle = '#2b2440'; ctx.fillRect(0, GROUND, W, H - GROUND); ctx.fillStyle = '#4b3f6b'; ctx.fillRect(0, GROUND, W, 3);
+  ctx.save();
+  if (game.shake) ctx.translate(Math.round((Math.random() - .5) * game.shake * 2), Math.round((Math.random() - .5) * game.shake * 2));
+  const zoomOn = (game.phase === 'finisher' || game.fin) && game.cfg.zoom !== '0';
+  if (zoomOn) { const z = 1.2, half = W / 2 / z, cx = Math.max(half, Math.min(W - half, game.loser.x)) - W / 2, AY = GROUND - 60; ctx.translate(W / 2, AY); ctx.scale(z, z); ctx.translate(-(W / 2 + cx), -AY); }
+  if (game.dark > 0) { ctx.fillStyle = 'rgba(0,0,0,' + Math.min(.55, game.dark / 50) + ')'; ctx.fillRect(-100, -100, W + 200, H + 200); }
+  for (const fx of game.fx) if (!fx.front) fx.draw(ctx, fx);
+  game.f.forEach(f => f.draw());
+  if (game.fin) game.fin.draw(ctx, game.winner, game.loser, game.finT);
+  for (const p of game.proj) { if (p.t < 0) continue; if (p.draw) p.draw(ctx, p); }
+  for (const fx of game.fx) if (fx.front) fx.draw(ctx, fx);
+  ctx.restore();
+  if (game.flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + Math.min(.6, game.flash / 12) + ')'; ctx.fillRect(0, 0, W, H); }
+  const c = game.cfg || {}, b = game.f[1];
+  ptext(ctx, c.id + ' ' + c.move + ' T' + game.tick + ' ' + game.phase + (game.fin ? ' FIN ' + game.finT + '/' + game.fin.len : ''), 8, 8, 2, '#fff');
+  ptext(ctx, 'DMG ' + b.dmgTaken.toFixed(1) + '  FX ' + game.fx.length + ' PROJ ' + game.proj.length, 8, 28, 2, '#ffd23f');
+}
+
+// ---------- automated pass over every move ----------
+function other(id) { return id === 'muse' ? 'tibo' : 'muse'; }
+function runMove(id, move, dist, air, extra) {
+  const [a, b] = setup(id, move, Object.assign({ dist, air }, extra || {}));
+  trigger(move); const m = move === 'su' ? MOVES[id].su : MOVES[id].sp[+move.slice(2)], total = m.len + 100;
+  let ticks = 0, guard = 0;
+  while (ticks < total && guard++ < 3000) { const before = game.hitstop; step(1, false); if (before <= 0) ticks++; if (ticks % 3 === 0) render(); }
+  render();
+  return { dmg: b.dmgTaken, a, b, hits: LOG.hits.length };
+}
+function test() {
+  const out = { rows: [], fins: [], errors: [], ok: true };
+  const note = (e, where) => { out.ok = false; out.errors.push(where + ': ' + (e && e.message || e) + ' @ ' + String(e && e.stack || '').split('\n')[1]); };
+  for (const id of IDS) {
+    const M = MOVES[id];
+    for (const move of ['sp0', 'sp1', 'sp2', 'su']) {
+      const m = move === 'su' ? M.su : M.sp[+move.slice(2)], hit = [], air = [], miss = [];
+      for (const d of [60, 100, 150, 200, 260, 320, 400, 480]) {
+        for (const ar of [false, true]) {
+          try {
+            const r = runMove(id, move, d, ar);
+            if (r.dmg > 0) (ar ? air : hit).push(d);
+            const a = r.a;
+            if (a.hidden || a.y !== GROUND || a.state === 'special' || a.state === 'super' || a.vy !== 0) miss.push('state@' + d + (ar ? 'a' : '') + ':' + a.state + '/' + a.hidden + '/' + a.y);
+            if (game.fx.length > 60 || game.proj.length) miss.push('leftover@' + d + ':' + game.fx.length + '/' + game.proj.length);
+          } catch (e) { note(e, id + '.' + move + '@' + d + (ar ? 'a' : '')); }
+        }
+      }
+      const inAi = hit.filter(d => d >= m.ai.min && d <= m.ai.max);
+      const row = { id, move, name: m.name, input: m.input || 'SU', len: m.len, hit: m.hit, cool: m.cool, ai: m.ai, hitAt: hit, airHitAt: air, inAi: inAi.length, issues: miss.slice(0, 4) };
+      out.rows.push(row);
+      if (!hit.length && !air.length) { out.ok = false; out.errors.push(id + '.' + move + ' never damaged'); }
+      if (miss.length) out.ok = false;
+    }
+    try {
+      const [a, b] = setup(id, 'fin', { dist: 300 }); trigger('fin'); const fin = MOVES[id].fin;
+      let n = 0; while (game.phase === 'finisher' && n++ < 1000) { step(1, false); if (n % 2 === 0) render(); }
+      const len = fin.len; for (let i = 0; i < 80; i++) { step(1, false); render(); }
+      const row = { id, name: fin.name, len, ticks: n, phase: game.phase, winnerHidden: a.hidden, loserHidden: b.hidden, loserState: b.state, winnerState: a.state, winnerY: a.y, fx: game.fx.length };
+      out.fins.push(row);
+      if (a.hidden || len < 150 || len > 300 || game.phase !== 'ko' || (!b.hidden && b.state !== 'ko') || a.state !== 'win') { out.ok = false; out.errors.push(id + ' finisher end state ' + JSON.stringify(row)); }
+      for (const dist of [60, 600]) { // very close / very far winner
+        setup(id, 'fin', { dist }); trigger('fin'); let k = 0; while (game.phase === 'finisher' && k++ < 1000) { step(1, false); if (k % 4 === 0) render(); }
+        const [a2, b2] = game.f; if (a2.hidden || a2.x < 0 || a2.x > W || b2.x < 0 || b2.x > W) { out.ok = false; out.errors.push(id + ' fin dist ' + dist + ' bad end ' + a2.x + ',' + b2.x); }
+      }
+    } catch (e) { note(e, id + '.fin'); }
+  }
+  return out;
+}
+window.addEventListener('error', e => { (window.__errs = window.__errs || []).push(e.message); });
+window.MV = { step, render, setup, trigger, test, game, LOG };
+
+// ---------- URL entry ----------
+(function init() {
+  const q = new URLSearchParams(location.search), id = q.get('id') || 'tibo', move = q.get('move') || 'sp0';
+  if (typeof buildSheets === 'function' && typeof SHEETS !== 'undefined' && !Object.keys(SHEETS).length) { try { buildSheets(); } catch (e) { } }
+  const s = document.createElement('script'); s.src = '../moves.js'; s.onload = () => {
+    if (q.has('test')) return;
+    setup(id, move, { opp: q.get('opp'), dist: q.has('dist') ? +q.get('dist') : 260, air: q.get('air') === '1', block: q.get('block') === '1', zoom: q.get('zoom') });
+    if (q.get('idle') !== '1') trigger(move);
+    step(+q.get('at') || 0);
+  };
+  document.body.appendChild(s);
+})();
+</script></body></html>

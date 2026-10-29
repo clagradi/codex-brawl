@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pet export</title>
+<!-- Renders every fighter into a Codex pet v2 atlas (8 x 11 cells of 192x208, transparent background).
+     Used by tools/export-pets.mjs; open directly to preview. window.atlas = { id: pngDataURL }. -->
+<style>body { background: #333; margin: 0 } canvas { display: block; margin: 8px 0; max-width: 100% }</style>
+<body>
+<script src="../sprites.js"></script>
+<script>
+const CW = 192, CH = 208, COLS = 8, ROWS = 11;
+// pet row -> list of [anim, frame, face, dx, dy] built from the fight animations
+const lift = [0, -8, -14, -6, 0];
+const PET_ROWS = [
+  [0, 1, 2, 3, 4, 5, 0].map(f => ['idle', f]),                                 // idle (v2 also wants a neutral look frame in column 6)
+  [0, 1, 2, 3, 4, 5, 6, 7].map(f => ['walk', f, 1]),                           // running-right
+  [0, 1, 2, 3, 4, 5, 6, 7].map(f => ['walk', f, -1]),                          // running-left
+  [0, 1, 2, 3].map(f => ['win', f]),                                           // waving
+  [['jump', 0], ['jump', 1], ['jump', 2], ['jump', 3], ['idle', 0]].map((a, i) => [...a, 1, 0, lift[i]]), // jumping
+  [['hit', 0], ['hit', 1], ['hit', 2], ['ko', 0], ['ko', 1], ['ko', 2], ['ko', 3], ['ko', 4]], // failed
+  [0, 0, 1, 1, 0, 1].map(f => ['block', f]),                                   // waiting
+  [0, 1, 2, 3, 4, 5].map(f => ['special', f]),                                 // running (working)
+  [['punch', 0], ['punch', 1], ['punch', 2], ['punch', 3], ['punch', 4], ['idle', 0]], // review
+  ...[0, 1].map(r => [0, 1, 2, 3, 4, 5, 6, 7].map(i => {                      // look directions, 22.5 degree steps clockwise from up
+    const a = (r * 8 + i) * Math.PI / 8, s = Math.sin(a);
+    return ['idle', 0, s < -0.01 ? -1 : 1, Math.round(s * 8), Math.round(-Math.cos(a) * 6)];
+  })),
+];
+buildSheets();
+window.atlas = {};
+for (const id in LOOK) {
+  const cv = document.createElement('canvas'); cv.width = CW * COLS; cv.height = CH * ROWS;
+  const c = cv.getContext('2d');
+  PET_ROWS.forEach((cells, row) => cells.forEach(([anim, f, face = 1, dx = 0, dy = 0], col) => {
+    c.save(); c.beginPath(); c.rect(col * CW, row * CH, CW, CH); c.clip();   // never bleed into a neighbour cell
+    drawSprite(c, id, anim, f, col * CW + CW / 2 + dx, row * CH + 202 + dy, face, 2);
+    c.restore();
+  }));
+  window.atlas[id] = cv.toDataURL('image/png');
+  document.body.appendChild(cv);
+}
+</script>
