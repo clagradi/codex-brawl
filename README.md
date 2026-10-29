@@ -2,7 +2,7 @@
 
 Open `index.html` in any modern browser. It is one self-contained file (about 80 KB): the pixel heads, the sprite generator, the bitmap font and the engine are all inlined, no network requests, no build step needed to play.
 
-Seven fighters, 1 player vs CPU or 2 players on one keyboard, best of 3 rounds, specials and supers, full 8-bit pixel-art sprite sheets generated at load time.
+Five fighters, 1 player vs CPU or 2 players on one keyboard, best of 3 rounds, specials and supers, full 8-bit pixel-art sprite sheets generated at load time.
 
 ## Roster
 
@@ -10,8 +10,6 @@ Seven fighters, 1 player vs CPU or 2 players on one keyboard, best of 3 rounds, 
 |---|---|---|---|---|---|
 | Tibo (Codex @ OpenAI) | 3.2 | 1.00 | 100 | Codex Bolt | Rate Limit Reset (drops a reset box on the opponent, heals a bit) |
 | Poteto | 3.4 | 0.95 | 100 | Sweet Potato (lobbed) | Hundreds of PRs (rain of PRs) |
-| Potato | 2.6 | 1.20 | 115 | Fry Toss (3 fries) | Mashed (ground quake, hits grounded foes) |
-| News | 3.0 | 1.00 | 100 | Headline (fast paper) | Breaking News (huge banner) |
 | Dot | 3.7 | 0.90 | 92 | Puff Ring (grows) | Big Bounce (leap and slam) |
 | Alexandr Wang | 3.1 | 1.05 | 100 | Scale Bubble (wobbly) | Superintelligence (giant bubble) |
 | Muse (Meta's agent) | 3.3 | 0.95 | 100 | Sentinel (homing drone) | Secure VM (shield + 3 drones, small heal) |
@@ -57,6 +55,6 @@ All sprites are generated programmatically in `sprites.js` from pose rigs and sm
 
 - Tibo, Poteto and Alexandr Wang: heads are their public X profile pictures downscaled to about 20 pixels and palette-reduced, on original pixel bodies.
 - Muse: an original pixel take on Meta's fluffy pale-pink mascot (hooded fur body, cream face, two black eyes, rosy cheeks, stubby arms). The X avatar is only used as a small badge.
-- Potato, News and Dot: original pixel characters.
+- Dot: an original pixel character.
 
 This is an unofficial fan parody. It is not affiliated with or endorsed by OpenAI, Meta, xAI or any of the people depicted. No third-party game trademarks or assets are used.

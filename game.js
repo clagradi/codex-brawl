@@ -76,8 +76,6 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 const ROSTER = [
   { id: 'tibo', name: 'TIBO', tag: 'CODEX @ OPENAI', col: '#7cc7ff', spd: 3.2, pow: 1.0, hp: 100, sp: { name: 'CODEX BOLT', col: '#7cc7ff' }, su: { name: 'RATE LIMIT RESET', col: '#ff4d4d' }, bio: 'SHIPS CODEX. GRINS THROUGH EVERY OUTAGE. SUPER HITS RESET.' },
   { id: 'poteto', name: 'POTETO', tag: 'GROK BOT', col: '#f6c544', spd: 3.4, pow: 0.95, hp: 100, sp: { name: 'SWEET POTATO', col: '#c25a3a' }, su: { name: 'HUNDREDS OF PRS', col: '#58e07a' }, bio: 'REACT COMPILER ALUM. THROWS HOT SWEET POTATOES. SUPER: A PR STORM.' },
-  { id: 'potato', name: 'POTATO', tag: 'STARCH BRAWLER', col: '#d9a648', spd: 2.6, pow: 1.2, hp: 115, sp: { name: 'FRY TOSS', col: '#ffd23f' }, su: { name: 'MASHED', col: '#ffe08a' }, bio: 'LUMPY, STURDY, HITS LIKE A SACK OF SPUDS. SLOW BUT TANKY.' },
-  { id: 'news', name: 'NEWS', tag: 'BREAKING DAILY', col: '#f4efe1', spd: 3.0, pow: 1.0, hp: 100, sp: { name: 'HEADLINE', col: '#ffffff' }, su: { name: 'BREAKING NEWS', col: '#ff3b3b' }, bio: 'FOLDS, ROLLS, AND HITS YOU WITH THE FRONT PAGE.' },
   { id: 'dot', name: 'DOT', tag: 'TWO-DOT BLOB', col: '#f8f6f1', spd: 3.7, pow: 0.9, hp: 92, sp: { name: 'PUFF RING', col: '#e9e6de' }, su: { name: 'BIG BOUNCE', col: '#ffffff' }, bio: 'SOFT, ROUND, AND SURPRISINGLY FAST. FRAGILE THOUGH.' },
   { id: 'wang', name: 'ALEXANDR WANG', tag: 'META SUPERINTELLIGENCE', col: '#b98cff', spd: 3.1, pow: 1.05, hp: 100, sp: { name: 'SCALE BUBBLE', col: '#b98cff' }, su: { name: 'SUPERINTELLIGENCE', col: '#4f7dff' }, bio: 'CALM. IRIDESCENT BUBBLES. SUPER SUMMONS THE LAB.' },
   { id: 'muse', name: 'MUSE', tag: "META'S AGENT", col: '#f2a9ab', spd: 3.3, pow: 0.95, hp: 100, sp: { name: 'SENTINEL', col: '#7ef0ff' }, su: { name: 'SECURE VM', col: '#7ef0ff' }, bio: 'FLUFFY PERSONAL AGENT. RUNS ON ITS OWN VM. WAVES BEFORE IT HITS.' },
@@ -213,8 +211,6 @@ class Fighter {
     const P = o2 => game.proj.push(Object.assign({ owner: this, x, y, vx: f * 7, vy: 0, dmg: 9 * d.pow, kb: 6, stun: 16, r: 16, life: 140, kind: id, t: 0 }, o2));
     if (id === 'tibo') P({ vx: f * 10, map: 'bolt', dmg: 9 * d.pow });
     else if (id === 'poteto') P({ vy: -7.5, grav: 0.32, vx: f * 7.5, r: 18, map: 'spud', spin: 1, dmg: 10 * d.pow });
-    else if (id === 'potato') for (let k = 0; k < 3; k++) P({ vy: -3 - k * 2.2, grav: 0.3, vx: f * (6 + k), dmg: 4.5 * d.pow, r: 10, stun: 10, map: 'fry', spin: 1, kb: 3 });
-    else if (id === 'news') P({ vx: f * 9.5, r: 20, map: 'paper', spin: 1 });
     else if (id === 'dot') P({ vx: f * 4.5, r: 20, grow: 0.12, map: 'ring', dmg: 8 * d.pow, kb: 8 });
     else if (id === 'wang') P({ vx: f * 4.5, r: 20, wob: true, map: 'bubble', dmg: 10 * d.pow, life: 160 });
     else if (id === 'muse') P({ vx: f * 3.5, home: true, r: 14, life: 200, map: 'drone', dmg: 8 * d.pow, stun: 14 });
@@ -223,8 +219,6 @@ class Fighter {
     const d = this.d, id = d.id, f = this.face; game.shake = 10;
     if (id === 'tibo') { const fx = { kind: 'reset', x: o.x, y: o.y - 300, t: 0 }; game.fx.push(fx); game.later(24, () => { if (o.state !== 'ko' && Math.abs(o.x - fx.x) < 80) o.takeHit(this, 24 * d.pow, 12, 40, 'super'); }); this.hp = Math.min(this.d.hp, this.hp + 6); }
     else if (id === 'poteto') { for (let k = 0; k < 11; k++) game.proj.push({ owner: this, x: o.x + (k - 5) * 38 + (Math.random() - 0.5) * 30, y: -40 - k * 42, vx: 0, vy: 6.5, dmg: 3 * d.pow, kb: 3, stun: 12, r: 18, life: 220, kind: 'pr', map: 'pr', t: 0 }); }
-    else if (id === 'potato') { game.fx.push({ kind: 'quake', x: this.x, y: GROUND, t: 0 }); game.later(6, () => { if (o.onGround && o.state !== 'ko') o.takeHit(this, 22 * d.pow, 10, 40, 'super'); }); }
-    else if (id === 'news') { game.proj.push({ owner: this, x: this.x + f * 70, y: this.y - 85, vx: f * 12, vy: 0, dmg: 22 * d.pow, kb: 14, stun: 40, r: 70, life: 120, kind: 'breaking', t: 0, super: true }); }
     else if (id === 'dot') { this.vy = -19; this.vx = Math.sign(o.x - this.x) * Math.min(12, Math.abs(o.x - this.x) / 24); game.fx.push({ kind: 'dotdrop', t: 0 }); game.later(44, () => { game.shake = 14; thud(0.2, 0.2); if (Math.abs(o.x - this.x) < 190 && o.state !== 'ko') o.takeHit(this, 21 * d.pow, 12, 40, 'super'); game.fx.push({ kind: 'quake', x: this.x, y: GROUND, t: 30 }); }); }
     else if (id === 'wang') { game.proj.push({ owner: this, x: this.x + f * 60, y: this.y - 95, vx: f * 5.5, vy: 0, dmg: 24 * d.pow, kb: 12, stun: 40, r: 56, life: 200, kind: 'superbubble', map: 'bubble', scale: 10, t: 0, super: true }); }
     else if (id === 'muse') { this.shield = 240; this.hp = Math.min(this.d.hp, this.hp + 8); for (let k = 0; k < 3; k++) game.proj.push({ owner: this, x: this.x, y: this.y - 130 - k * 30, vx: f * (3 + k), vy: 0, home: true, dmg: 6 * d.pow, kb: 5, stun: 16, r: 14, life: 260, kind: 'muse', map: 'drone', t: -k * 8 }); }
@@ -270,7 +264,7 @@ const STAGES = [
 
 // ---------- game state ----------
 const game = {
-  phase: 'title', mode: 1, sel: [0, 6], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, tick: 0,
+  phase: 'title', mode: 1, sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, tick: 0,
   shake: 0, flash: 0, hitstop: 0, banner: null, stage: 0, msg: null, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
   later(t, fn) { this.delayed.push({ t, fn }); },
 };
@@ -312,7 +306,7 @@ function update() {
     return;
   }
   if (game.phase === 'select') {
-    const N = ROSTER.length, COLS = 4;
+    const N = ROSTER.length, COLS = 3;
     const nav = (s, m) => { let c = game.sel[s]; if (tap(m.l)) c = (c + N - 1) % N; if (tap(m.r)) c = (c + 1) % N; if (tap(m.u)) c = (c - COLS + N) % N; if (tap(m.d)) c = (c + COLS) % N; if (c !== game.sel[s]) beep(500 - s * 100, 0.04); game.sel[s] = c; };
     if (game.mode === 1) {
       const m = MAP[0], s = game.ready[0] ? 1 : 0; nav(s, m);
@@ -366,7 +360,7 @@ function drawTitle() {
   ptext(ctx, 'AGENT BRAWL', W / 2 + 4, 74 + 4, 8, '#5a3a00', 'center', false); ptext(ctx, 'AGENT BRAWL', W / 2, 74, 8, '#ffd23f', 'center', false);
   ptext(ctx, 'AN 8-BIT PARODY FIGHTER', W / 2, 150, 2, '#cfe', 'center');
   ctx.fillStyle = '#1c2238'; ctx.fillRect(0, 352, W, 6);
-  ROSTER.forEach((r, i) => { const f = loopFrame('idle', t + i * 11); drawSprite(ctx, r.id, 'idle', f, 95 + i * 128, 352, 1, 3); });
+  ROSTER.forEach((r, i) => { const f = loopFrame('idle', t + i * 11); drawSprite(ctx, r.id, 'idle', f, W / 2 + (i - (ROSTER.length - 1) / 2) * 128, 352, 1, 3); });
   const opts = ['1 PLAYER VS CPU', '2 PLAYERS'];
   opts.forEach((o, i) => ptext(ctx, (game.titleSel === i ? '▶ ' : '  ') + o, W / 2, 400 + i * 34, 3, game.titleSel === i ? '#fff' : '#889', 'center'));
   ptext(ctx, touch.on ? 'TAP TO START' : 'W/S SELECT · ENTER START · M MUTE', W / 2, 480, 2, '#99a', 'center');
@@ -376,7 +370,7 @@ function drawSelect() {
   const t = game.tick; ctx.fillStyle = '#10122a'; ctx.fillRect(0, 0, W, H);
   for (let i = 0; i < 30; i++) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(0, i * 20 + (t % 20), W, 8); }
   ptext(ctx, 'SELECT YOUR AGENT', W / 2, 24, 4, '#ffd23f', 'center');
-  const COLS = 4, cs = 92, gap = 14, gx = W / 2 - (COLS * cs + (COLS - 1) * gap) / 2, gy = 118;
+  const COLS = 3, cs = 92, gap = 14, gx = W / 2 - (COLS * cs + (COLS - 1) * gap) / 2, gy = 118;
   ROSTER.forEach((r, i) => {
     const row = Math.floor(i / COLS), col = i % COLS; const rowCount = Math.min(COLS, ROSTER.length - row * COLS); const off = (COLS - rowCount) * (cs + gap) / 2;
     const x = gx + off + col * (cs + gap), y = gy + row * (cs + gap + 22);
@@ -406,7 +400,6 @@ function bar(x, y, w, h, v, max, col, rev) {
 function drawProj(p) {
   if (p.t < 0) return;
   const rot = p.spin ? Math.floor(p.t / 5) % 4 * Math.PI / 2 : 0, flip = p.vx < 0;
-  if (p.kind === 'breaking') { ctx.fillStyle = '#c0141c'; ctx.fillRect(p.x - 90, p.y - 40, 180, 80); ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 90, p.y - 40, 180, 6); ptext(ctx, 'BREAKING', p.x, p.y - 30, 2, '#fff', 'center', false); ptext(ctx, 'NEWS', p.x, p.y + 4, 3, '#ffd23f', 'center', false); return; }
   if (p.kind === 'superbubble') { drawFxMap(ctx, 'bubble', p.x, p.y, 9); ptext(ctx, 'ASI', p.x, p.y - 8, 2, '#fff', 'center'); return; }
   if (p.kind === 'dot') { drawFxMap(ctx, 'ring', p.x, p.y, Math.max(2, p.r / 6)); return; }
   drawFxMap(ctx, p.map, p.x, p.y, p.scale || 4, rot, flip);
@@ -414,7 +407,6 @@ function drawProj(p) {
 function drawFx(fx) {
   const t = fx.t;
   if (fx.kind === 'reset') { const y = Math.min(fx.y + t * 16, fx.y + 230); drawFxMap(ctx, 'reset', fx.x, y, 5); ptext(ctx, 'RESET', fx.x, y - 14, 2, '#fff', 'center'); }
-  if (fx.kind === 'quake' && t < 50) { ctx.fillStyle = 'rgba(255,224,138,' + (1 - t / 50) + ')'; for (let i = 0; i < 12; i++) ctx.fillRect(fx.x + (i - 6) * 70, GROUND - 10 - Math.abs(Math.sin(t / 4 + i)) * 40, 50, 14); }
   if (fx.kind === 'dotdrop' && t < 40) { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 - t / 140) + ')'; ctx.fillRect(0, 0, W, H); }
 }
 function drawTouch() {

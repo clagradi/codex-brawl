@@ -95,48 +95,6 @@ const MUSE_HEAD = { pal: ['#f2d5cf', '#dcb8b1', '#f9e8e3', '#fff5ec', '#f1d9c8',
   '...aaabeeeeeeeeaaa..',
   '....aaaabbbbbaaaa...',
   '......aaaaaaaaa.....'] };
-// Potato: lumpy brown spud with a sprout.
-const POTATO_BODY = { pal: ['#c48a3f', '#9c6a2c', '#e2b56a', K, WH, '#6cc04a', '#3b7d2a'], rows: [
-  '.......ff.......',
-  '......gf.ff.....',
-  '.....ccaaa......',
-  '...cccaaaaaa....',
-  '..ccaaaaaaaaa...',
-  '.ccaaaaaaaaaaa..',
-  '.caaaddaaaddaab.',
-  '.caaadeaaadeaab.',
-  '.caaaaaaaaaaaab.',
-  '.caaaadaaadaaab.',
-  '..aaaaaddddaaab.',
-  '..aaabaaaaaaabb.',
-  '..aaaaaaaabaabb.',
-  '..aaaaaaaaaabb..',
-  '...aabaaaaabb...',
-  '....aaaaabbb....',
-  '......bbbb......'] };
-// News: a folded newspaper with a paper hat.
-const NEWS_BODY = { pal: ['#f4efe1', '#d9d2bf', K, '#c0141c', '#8c8678', WH, '#f2a39a'], rows: [
-  '.....aaaa.....',
-  '....abbbba....',
-  '...abbaabba...',
-  '..aaaaaaaaaa..',
-  '.aaaaaaaaaaab.',
-  'accccccccccabb',
-  'aaaaaaaaaaaaab',
-  'aaaccaaaaccaab',
-  'aaacfaaaacfaab',
-  'aaaaaaaaaaaaab',
-  'aaaagaaaaaagab',
-  'aaaaaccccaaaab',
-  'aaaaaaaaaaaaab',
-  'aeeeaeeeaeeeab',
-  'aeeeaeeeaeeeab',
-  'aeeaaeeaaeeaab',
-  'aeeeaeeeaeeeab',
-  'aeeaaeeaaeeaab',
-  'aeeeaeeeaeeeab',
-  'aaaaaaaaaaaaab',
-  'abbbbbbbbbbbbb'] };
 // Dot: a soft white blob with two dots.
 const DOT_BODY = { pal: ['#f6f3ea', '#d8d3c6', WH, K, '#f0b4b4'], rows: [
   '......aaaaaa......',
@@ -162,8 +120,6 @@ const DOT_BODY = { pal: ['#f6f3ea', '#d8d3c6', WH, K, '#f0b4b4'], rows: [
 const FXMAPS = {
   bolt: { pal: ['#0b1a2a', '#7cc7ff', WH], rows: ['aaaaaaaaaaaa', 'abbaaaaaaaaa', 'aabbaaaaaaaa', 'aaabbaaaaaaa', 'aabbaabbbbaa', 'abbaaabbbbaa', 'aaaaaaaaaaaa'] },
   spud: { pal: ['#8a2f3c', '#b23f4c', '#f6c544', '#ffe08a'], rows: ['..aaaaaa..', '.abbbbbba.', 'abbbccccba', 'abbccddcba', '.abbcccba.', '..aaaaaa..'] },
-  fry: { pal: ['#ffd23f', '#b8832e'], rows: ['aaaaaaa', 'abbbbba'] },
-  paper: { pal: ['#f4efe1', '#222222', '#999999'], rows: ['aaaaaaaaaa', 'abbbbbbbba', 'aaaaaaaaaa', 'acccacccaa', 'acccacccaa', 'aaaaaaaaaa'] },
   ring: { pal: ['#f0eee6', WH], rows: ['....bbbb....', '..bbaaaabb..', '.baa....aab.', '.ba......ab.', 'ba........ab', 'ba........ab', 'ba........ab', 'ba........ab', '.ba......ab.', '.baa....aab.', '..bbaaaabb..', '....bbbb....'] },
   bubble: { pal: ['#b98cff', '#7ef0ff', WH, '#ffaa5a'], rows: ['....aaaa....', '..aaccbbaa..', '.acc..bbbba.', '.ac....bbba.', 'ac......bbda', 'ab......bbda', 'ab......bdda', 'ab......bdda', '.ab....ddda.', '.abb..dddda.', '..aabbddaa..', '....aaaa....'] },
   drone: { pal: ['#7ef0ff', '#1d2f8f', WH, '#2f6bff'], rows: ['.aaa...aaa.', 'a...aaa...a', '.aaaaaaaaa.', '..acccccca.', '..acdddcca.', '..acddddca.', '..acdddcca.', '..acccccca.', '...aaaaa...', '....bbb....'] },
@@ -180,8 +136,6 @@ const LOOK = {
   poteto: { kind: 'human', head: 'poteto', skin: '#f7e8cb', shirt: '#35323b', sleeve: 'long', pants: '#2e2b35', shoe: '#5a3d2c', eyes: [[6, 9], [12, 9]], face: '#f7e8cb', eyeW: 3 },
   wang: { kind: 'human', head: 'wang', skin: '#ffd6b1', shirt: '#c3c5cc', sleeve: 'long', pants: '#323744', shoe: '#f0f0f5', knit: true, eyes: [[5, 10], [10, 10]], face: '#ffd6b1' },
   muse: { kind: 'plush', headMap: MUSE_HEAD, fur: '#f2d5cf', furDark: '#dcb8b1', face: '#fff5ec', eyes: [[7, 7], [13, 7]], mouth: [10, 10] },
-  potato: { kind: 'blob', body: POTATO_BODY, limb: '#9c6a2c', hand: WH, shoe: '#e0463e', face: '#c48a3f', eyes: [[5, 6], [10, 6]], mouth: [7, 9], shoulder: [-6, -16], hip: [-3, -5], bodyY: -19 },
-  news: { kind: 'blob', body: NEWS_BODY, limb: '#222222', hand: WH, shoe: '#e0463e', face: '#f4efe1', eyes: [[3, 7], [9, 7]], mouth: [5, 10], shoulder: [-6, -16], hip: [-3, -3], bodyY: -23 },
   dot: { kind: 'blob', body: DOT_BODY, limb: '#e6e2d8', hand: '#f6f3ea', shoe: '#e6e2d8', face: '#f6f3ea', eyes: [[6, 6], [12, 6]], mouth: null, shoulder: [-7, -12], hip: [-4, -3], bodyY: -20 },
 };
 
@@ -312,7 +266,7 @@ function drawPlush(g, L, P) { // Muse
   drawFx(g, P, h2, [legs[1][0] + 4, -1 + oy], oy);
 }
 
-function drawBlob(g, L, P) { // Potato, News, Dot
+function drawBlob(g, L, P) { // Dot
   const body = L.body, bw = body.rows[0].length, bh = body.rows.length;
   const lean = P.lean || 0; const oy = Math.round(P.bob || 0) - (P.hop || 0);
   const [shx, shy] = L.shoulder, [hpx, hpy] = L.hip;

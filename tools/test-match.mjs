@@ -41,7 +41,7 @@ export async function runTests(p) {
 
   // 2. full CPU vs CPU matches for every pairing of a few rosters, fast-forwarded
   const N = await p.eval('ROSTER.length');
-  const pairs = []; for (let i = 0; i < N; i++) pairs.push([i, (i + 3) % N]); pairs.push([6, 6], [0, 2]);
+  const pairs = []; for (let i = 0; i < N; i++) pairs.push([i, (i + 3) % N]); pairs.push([N - 1, N - 1], [0, 2]);
   for (const [i, j] of pairs) {
     await p.goto(`${URL_BASE}#demo=${i},${j}&stop`); await p.wait(250);
     const r = await p.eval(`(() => { let n = 0; while (game.phase !== 'over' && n < 60000) { step(60); n += 60; }
