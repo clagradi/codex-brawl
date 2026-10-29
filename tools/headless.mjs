@@ -53,7 +53,7 @@ export async function withPage(fn, opts = {}) {
     on(m => {
       if (m.method === 'Runtime.consoleAPICalled' && (m.params.type === 'error' || m.params.type === 'warning')) errors.push('console.' + m.params.type + ': ' + m.params.args.map(a => a.value ?? a.description).join(' '));
       if (m.method === 'Runtime.exceptionThrown') errors.push('exception: ' + (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text));
-      if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push('log: ' + m.params.entry.text);
+      if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error' && !/manifest\.webmanifest/.test(m.params.entry.url || '') && !/^Access to manifest at 'file:/.test(m.params.entry.text)) errors.push('log: ' + m.params.entry.text);   // Chrome refuses a manifest on file:// (fine on http)
     });
     const api = {
       send, errors,

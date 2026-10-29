@@ -18,6 +18,14 @@
 <meta name="twitter:title" content="Agent Brawl: AI agents fight it out">
 <meta name="twitter:description" content="A dark arcade parody fighter starring AI agents: Tibo, Poteto, Dot, Alexandr Wang and Muse. Specials, supers, finishers, random arenas. Free in your browser.">
 <meta name="twitter:image" content="https://clagradi.github.io/codex-brawl/og.png">
+<!-- PWA basics (options feature): installable and full screen on phones, no service worker, so nothing is cached or fetched behind your back. Icons come from tools/make-icons.mjs. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#050304">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Agent Brawl">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
   html, body { margin: 0; height: 100%; background: #050304; overflow: hidden; overscroll-behavior: none; }
   body { position: fixed; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
