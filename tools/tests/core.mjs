@@ -27,7 +27,7 @@ export async function run(t) {
   check(fs.existsSync(path.join(ROOT, 'docs', 'features', '.gitkeep')) && /^tools\/shots\/$/m.test(fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8')), 'docs/features/ exists and tools/shots/ is git-ignored');
   check(FEATURES.every(f => fs.existsSync(path.join(ROOT, f + '.js')) && fs.existsSync(path.join(ROOT, 'tools', 'tests', f + '.mjs'))), 'every feature file has its test file');
   check(await ev("['COMBAT', 'ARCADE', 'TRAINING', 'ARENAS2', 'MUSIC2', 'OPTIONS', 'TOUCH'].every(n => window['STUB_' + n] === 1)"), 'all seven feature files load (marker globals)');
-  check(await ev("ARENAS.length === 9 && typeof ARENAS.make === 'function' && ['R', 'grad', 'disc', 'fogDraw', 'motes', 'floorBase'].every(n => typeof ARENAS.kit[n] === 'function') && ARENAS.kit.AW === 480 && ARENAS.kit.AG === 234"), 'ARENAS.make and ARENAS.kit are there for arenas2.js; the shipped list has nine stages');
+  check(await ev("ARENAS.length >= 9 && typeof ARENAS.make === 'function' && ['R', 'grad', 'disc', 'fogDraw', 'motes', 'floorBase'].every(n => typeof ARENAS.kit[n] === 'function') && ARENAS.kit.AW === 480 && ARENAS.kit.AG === 234"), 'ARENAS.make and ARENAS.kit are there for arenas2.js; the shipped list starts with nine stages');
   check(await ev("typeof MUSIC.define === 'function' && typeof MUSIC.instrument === 'function' && MUSIC.themes().length >= 12"), 'MUSIC.define, MUSIC.instrument and MUSIC.themes are there for music2.js');
 
   // ---- BUS and HOOKS ----
