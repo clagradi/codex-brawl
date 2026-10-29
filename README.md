@@ -58,11 +58,11 @@ Finishers are cartoon gags, nothing gory. The fighters are parody caricatures dr
 
 ## Arenas
 
-GPU Pit, Datacenter Cathedral, Rate-Limit Bridge, Token Furnace, Deprecated Forest, Merge-Conflict Temple, Server Graveyard, Launch-Night Rooftop, Potato Wasteland. Each has parallax layers, lighting and a foreground layer. The match picks one at random and reveals it with a short roulette on the versus screen.
+GPU Pit, Datacenter Cathedral, Rate-Limit Bridge, Token Furnace, Deprecated Forest, Merge-Conflict Temple, Server Graveyard, Launch-Night Rooftop, Potato Wasteland. Each has parallax layers, lighting and a foreground layer. Pick one on the select screen or leave it on RANDOM: the versus screen reveals the arena with a short roulette.
 
 ## Music
 
-Every arena has its own chiptune theme, synthesised live with WebAudio (oscillators, a shared noise buffer for drums, one compressor, no audio files): electro arpeggios in the GPU Pit, a dark organ in the Cathedral, a chromatic riff on the Bridge, a sawtooth gallop in the Furnace, a mellow pentatonic tune in the Forest, an eastern-flavoured beat in the Temple, eerie long notes in the Graveyard, synthwave on the Rooftop and a shuffling western twang in the Wasteland, plus a title fanfare, a versus riff and a victory jingle. The music ducks while paused, stops when muted (`M`) and never plays before the first key press or tap, as browsers require.
+Every arena has its own chiptune theme, synthesised live with WebAudio (oscillators, a shared noise buffer for drums, a compressor and an output limiter, no audio files): electro arpeggios in the GPU Pit, a dark organ in the Cathedral, a chromatic riff on the Bridge, a sawtooth gallop in the Furnace, a mellow pentatonic tune in the Forest, an eastern-flavoured beat in the Temple, eerie long notes in the Graveyard, synthwave on the Rooftop and a shuffling western twang in the Wasteland, plus a title fanfare, a versus riff and a victory jingle. The music ducks while paused, stops when muted (`M`) and never plays before the first key press or tap, as browsers require.
 
 ## Codex desktop pets
 
@@ -80,7 +80,7 @@ node tools/export-pets.mjs        # render the Codex pets into pets/ (--install 
 Source files (loaded in this order by `dev.html`, which you can open directly while developing):
 
 - `pixelfont.js`: 5x7 bitmap font, `ptext()`.
-- `sprites.js`: the chibi fighters. Procedural pose rigs rasterised into sprite sheets at load time (11 animation rows: idle, walk, jump, punch, kick, special, super, block, hit, KO, win), plus portraits, head icons and effect sprites.
+- `sprites.js`: the chibi fighters. Procedural pose rigs rasterised into sprite sheets at load time (11 animation rows: idle, walk, jump, punch, kick, special, super, block, hit, KO, win), plus a few extra pose strips for the throw, the low jab and the sweep (used in the game only, not in the pet atlas), portraits, head icons and effect sprites.
 - `arenas.js`: the nine arenas, their thumbnails and foreground layers.
 - `hud.js`: health bars, timer, meters, banners, versus screen, logo, move list panel, post-processing, announcer (speech synthesis plus WebAudio stingers) and the particle system (sparks, dust, blood).
 - `music.js`: the procedural chiptune player, one theme per arena plus the menu themes. It polls the game state, so it needs no hooks in the engine.

@@ -124,8 +124,6 @@ function pollPads() {
 // A DOM layer for touch devices (it also appears after the first touch anywhere): an 8-way d-pad, P / K / SP / SU buttons and a few menu buttons.
 // It drives the same keys{} / pressed{} as the keyboard, so every move works unchanged: a diagonal jumps forward or back, tapping a direction twice
 // dashes, DOWN + K sweeps and FWD + P throws (left thumb on the d-pad, right thumb on the buttons). Taps on the canvas pick title rows, fighters and arenas.
-// Browsers only count pointerup / touchend / click (never pointerdown) as the gesture that may start audio, so those unlock it too.
-for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, audioInit, { passive: true });
 (function () {
   const FIGHT = new Set(['intro', 'fight', 'finish', 'finisher', 'ko', 'outro']);
   const BTN = [{ code: 'KeyL', lbl: 'SP', col: '#7cc7ff' }, { code: 'KeyI', lbl: 'SU', col: '#ff4d6d' }, { code: 'KeyJ', lbl: 'P', col: '#ffd23f' }, { code: 'KeyK', lbl: 'K', col: '#ff7a5c' }];
