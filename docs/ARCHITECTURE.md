@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-achievements.js` | OKRS: 30 parody achievements, an unlock toast, the OKRS screen, saved in `SETTINGS` (`window.OKRS`) | p-achievements agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -86,6 +87,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `special` | `{ fighter, foe, move }` | a special move starts; `move` is the entry in `MOVES[id].sp` |
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
+| `okr:unlock` | `{ id, name, desc, count, total }` | `p-achievements.js`: an OKRS objective was reached (once per objective; `count` is how many are done now) |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
 
 ### HOOKS points
@@ -142,6 +144,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `okrs` | any, `null` | `null` or `{ v, got, n, best, cur, fx, ar, md }` | `p-achievements.js`: the OKRS progress (done objectives, counters, best combo and win streak, fighters, arenas and modes won with); a junk value is cleaned on load, and the live object is stored once at load so that saving later emits no `settings` event during a match |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
@@ -163,6 +166,7 @@ The title menu is `MODES.list()` plus whatever `HOOKS` `titleItems` collects, so
 - `MUSIC` (in `music.js`) is the public music object. `MUSIC.define(name, theme, { trim?, arena? })` adds or replaces a theme (`trim` is a level correction, `arena: true` also uses it for the arena whose `id` equals `name`), `MUSIC.instrument(name, spec)` adds an instrument, `MUSIC.themes()` lists the names. Every theme must stay inside the loudness limits that the tests measure.
 - `game` (in `game.js`) is the shared state. Read it freely; write to it only through the functions and hooks above. Useful fields: `phase`, `modeId`, `mode`, `f` (the two fighters), `round`, `wins`, `timer`, `sudden`, `cpuLevel`, `sel`, `arena`, `winner`, `loser`, `tick`. A fighter has `side`, `d` (its roster entry, `d.id`), `hp`, `meter`, `state`, `x`, `y`, `face`, `combo`, `cpu`. Helpers: `startMatch()`, `startRound()`, `setPhase(p)`, `roundsToWin()`, `suddenRound()`, `setMuted(v)`, `titleItems()`.
 - Name collision warning: everything is one global scope, and `game.js` already has globals such as `hit`, `tap`, `held`, `keys`, `pressed`, `ctx`, `muted`. Wrap each feature file in an IIFE and expose at most one global named after the feature.
+- Hooks in use by `p-achievements.js`: `update` (order -20, keeps the OKRS screen's keys away from the title and pause menu), `drawTop` (order 100, the toast and the screen), `titleItems` (`okrs`, order 880) and `pauseItems` (`KeyG`). Details in `docs/features/p-achievements.md`.
 
 ## How to add things
 
