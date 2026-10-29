@@ -94,13 +94,16 @@ function pollPads() {
     const m = MAP[side], ax = gp.axes || [], b = n => !!(gp.buttons[n] && gp.buttons[n].pressed);
     const now = { [m.l[0]]: b(14) || ax[0] < -0.5, [m.r[0]]: b(15) || ax[0] > 0.5, [m.u[0]]: b(12) || ax[1] < -0.6, [m.d[0]]: b(13) || ax[1] > 0.6, [m.p[0]]: b(0), [m.k[0]]: b(1), [m.s[0]]: b(2), [m.x[0]]: b(3) || b(5), Start: b(9), Back: b(8) };
     for (const c in now) {
-      if (now[c] === !!padPrev[side][c]) continue;
+      // engine: still held but the key was dropped behind our back (window blur clears every key) -> hold it again, without a fresh press
+      if (now[c] === !!padPrev[side][c]) { if (now[c] && c !== 'Start' && c !== 'Back') keys[c] = true; continue; }
       padPrev[side][c] = now[c];
       if (c === 'Start') { if (now[c]) pressed[game.phase === 'fight' || game.phase === 'pause' ? 'KeyP' : 'Enter'] = true; continue; }
       if (c === 'Back') { if (now[c]) pressed.Escape = true; continue; }
       if (now[c] && !keys[c]) pressed[c] = true; keys[c] = now[c];
     }
   });
+  // engine: a pad that vanishes (unplugged, asleep) while holding something used to leave that key stuck down for good
+  for (let side = pads.length; side < 2; side++) { for (const c in padPrev[side]) if (padPrev[side][c] && c !== 'Start' && c !== 'Back') keys[c] = false; padPrev[side] = {}; }
 }
 
 // ---------- touch controls (appear after the first touch) ----------
@@ -307,7 +310,7 @@ class Fighter {
     const v = this.thr, f = this.face;
     if (v && (v.state !== 'grabbed' || v.grabber !== this)) { this.thr = null; this.set('idle'); this.cool = Math.max(this.cool, 8); return; }   // teched or broken
     if (v) {
-      const u = Math.min(1, this.st / THROW_T); v.x = this.x + f * (-9 + 51 * Math.cos(Math.PI * u)); v.y = GROUND - 92 * Math.sin(Math.PI * u);   // lifted over the shoulder
+      const u = Math.min(1, this.st / THROW_T); v.x = Math.max(46, Math.min(W - 46, this.x + f * (-9 + 51 * Math.cos(Math.PI * u)))); v.y = GROUND - 92 * Math.sin(Math.PI * u);   // lifted over the shoulder (engine: kept inside the arena when the thrower stands at the wall)
       if (this.st === THROW_T) { // release: lands behind, knocked down
         v.grabber = null; v.inv = 0; v.x = Math.max(46, Math.min(W - 46, this.x - f * 62)); v.y = GROUND - 20; this.thr = null; FX.dust(v.x, GROUND);
         v.takeHit(this, 12 * this.d.pow, 4, 0, 'kick', { knock: true, unblock: true, force: true }); if (v.state === 'grabbed') v.set('idle');
@@ -348,6 +351,7 @@ class Fighter {
     if (i.p) this.lastP = this.t; if (i.k) this.lastK = this.t;
     // input buffer: a press is remembered for 10 ticks (8 for specials) until an action uses it
     this.bufP = i.p ? 10 : Math.max(0, this.bufP - 1); this.bufK = i.k ? 10 : Math.max(0, this.bufK - 1); this.bufS = i.s ? 8 : Math.max(0, this.bufS - 1);
+    if (!active) this.bufP = this.bufK = this.bufS = 0;   // engine: nobody holds the controls in the KO, the finisher or the outro; a press buffered before it (frozen through the finisher) used to fire a move afterwards
     // dash: a second fresh press of the same direction within 14 ticks (the CPU asks for it with i.dash)
     let dash = i.dash || 0;
     for (const d of ['l', 'r']) { const now = !!i[d], was = this.prevDir[d]; this.prevDir[d] = now; if (now && !was && !this.cpu) { if (this.t - this.tapT[d] <= TAP_WIN) { dash = d === 'r' ? 1 : -1; this.tapT[d] = -99; } else this.tapT[d] = this.t; } }
@@ -403,14 +407,19 @@ class Fighter {
     }
     this.x = Math.max(46, Math.min(W - 46, this.x));
     const ov = 56 - Math.abs(this.x - o.x); // push apart
-    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && this.state !== 'grabbed' && o.state !== 'grabbed' && !this.hidden && !o.hidden) { const s = this.x < o.x ? -1 : 1; this.x += s * ov / 2; if (this.x < 46 || this.x > W - 46) o.x -= s * ov / 2; }
+    if (ov > 0 && Math.abs(this.y - o.y) < 100 && this.state !== 'ko' && o.state !== 'ko' && this.state !== 'grabbed' && o.state !== 'grabbed' && !this.hidden && !o.hidden) {
+      // engine: a fighter pinned against the wall used to be shoved up to 28 px out of the arena; it now stays inside and the foe takes the rest of the push
+      const s = this.x < o.x ? -1 : 1, nx = Math.max(46, Math.min(W - 46, this.x + s * ov / 2)), moved = (nx - this.x) * s;
+      this.x = nx; if (moved < ov / 2 - 0.001) o.x = Math.max(46, Math.min(W - 46, o.x - s * (ov - moved)));
+    }
   }
   doHit(o, A) {
     this.hitDone = true;
     const [x0, x1, y0, y1] = A.box; const f = this.face;
     const ax0 = this.x + Math.min(x0 * f, x1 * f), ax1 = this.x + Math.max(x0 * f, x1 * f);
     const bx0 = o.x - 26, bx1 = o.x + 26, by0 = o.y - 150, by1 = o.y;
-    if (ax1 > bx0 && ax0 < bx1 && this.y + y1 > by0 && this.y + y0 < by1) { this.contact = true; o.takeHit(this, A.dmg * this.d.pow, A.kb, A.stun, A.kind || (A.st === 'kick' ? 'kick' : 'punch'), A); }
+    // engine: a vanished fighter (Dot mid POP IN) is untargetable for normals too, as it already is for shots, specials and throws
+    if (!o.hidden && ax1 > bx0 && ax0 < bx1 && this.y + y1 > by0 && this.y + y0 < by1) { this.contact = true; o.takeHit(this, A.dmg * this.d.pow, A.kb, A.stun, A.kind || (A.st === 'kick' ? 'kick' : 'punch'), A); }
     else if (o.state !== 'ko') beep(140, 0.03, 'triangle', 0.02); // whiff
   }
   // opt: launch (pops the target up), knock (knockdown), unblock (throws), force (ignores i-frames), tag (popup text)
@@ -608,6 +617,9 @@ function update() {
 }
 // projectiles follow the moves.js contract: own update/draw, or simple built-in motion (grav, grow, wob, home)
 function updateProjectiles() {
+  // engine: shots exist only while the fight (or the finish window) is on. A move still running at the bell, at a KO or after a finisher used to fire one more shot
+  // that then crossed the arena through the whole outro; it is dropped here before it is ever drawn.
+  if (game.phase !== 'fight' && game.phase !== 'finish') { game.proj = []; return; }
   for (const p of game.proj) {
     p.t = (p.t || 0) + 1; if (p.t < 0) continue; p.life--;
     const tgt = game.f[1 - p.owner.side];
