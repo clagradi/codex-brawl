@@ -39,6 +39,7 @@ Universal moves (P = punch, K = kick, L = special; P2 uses its own keys the same
 - Title: `W`/`S` (or up/down) choose the mode, `Enter`, `Space` or punch starts.
 - Select: move with your d-pad, punch confirms (`Enter` too), kick un-confirms (`Esc` goes back), `Q`/`E` (or the super key) pick an arena or leave it on RANDOM. In 1P mode you pick your fighter first, then the CPU's; in 2P both players pick at the same time and `Esc` goes back to the title. Each player's panel shows the move list of the highlighted fighter, and 2P also shows the P2 keys.
 - `P` or `Esc` pauses; the pause screen shows both move lists, the controls and the sudden-death rule. `P`, `Esc` or `Enter` resumes, `Q` quits to the title.
+- Photo mode: `C` on the pause screen (or its PHOTO MODE button) keeps the match frozen behind a free camera. Drag or the arrow keys pan, the wheel, a pinch or `Q`/`E` zoom, `H` hides the HUD, `G` or `1` to `6` pick a filter (CRT, SEPIA, NOIR, VAPORWAVE, PIXEL BIG, NONE), `B` picks a frame, and `Enter` (or the SAVE PNG button) saves a PNG. Nothing is saved until you ask; `Esc` goes back to the pause screen.
 - End screen: `Enter`, `Space` or punch goes back to select, `R` (or P1's super key) is a rematch with the same fighters and the same arena (an arena left on RANDOM is rolled again), `Esc` goes to the title, `T` or the SHARE ON X button opens a post on X with the result.
 - `M` mutes (music and effects), `B` turns the stylised blood on or off. Both are remembered between visits.
 
