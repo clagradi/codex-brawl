@@ -1,7 +1,7 @@
 {
   "id": "brawl-tibo",
   "displayName": "Tibo",
-  "description": "Codex engineer in a hoodie who grins through every outage and ships anyway.",
+  "description": "Hoodie-wearing parody of Tibo from Codex at OpenAI. Fights with commits, hotfixes and reverts.",
   "spriteVersionNumber": 2,
   "spritesheetPath": "spritesheet.png"
 }

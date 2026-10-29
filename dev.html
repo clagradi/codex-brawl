@@ -19,18 +19,44 @@
 <meta name="twitter:description" content="A dark arcade parody fighter starring AI agents: Tibo, Poteto, Dot, Alexandr Wang and Muse. Specials, supers, finishers, random arenas. Free in your browser.">
 <meta name="twitter:image" content="https://clagradi.github.io/codex-brawl/og.png">
 <style>
-  html, body { margin: 0; height: 100%; background: #050304; overflow: hidden; }
-  body { display: flex; align-items: center; justify-content: center; touch-action: none; -webkit-user-select: none; user-select: none; }
-  #share { position: fixed; left: 50%; transform: translateX(-50%); padding: 0.45em 1.1em; background: #111; color: #fff; border: 2px solid #c9a24a; border-radius: 6px;
-    font: bold 18px Impact, Haettenschweiler, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-decoration: none; box-shadow: 0 0 18px rgba(201,162,74,0.45); }
+  html, body { margin: 0; height: 100%; background: #050304; overflow: hidden; overscroll-behavior: none; }
+  body { position: fixed; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  /* game.js sizes and places the canvas (and lays the touch pad out around it), so the page never scrolls or zooms */
+  canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; display: block; background: #000; touch-action: none; }
+  #share { position: fixed; z-index: 10; left: 50%; top: 0; transform: translateX(-50%); box-sizing: border-box; min-width: 132px; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0 1.1em; white-space: nowrap;
+    background: #111; color: #fff; border: 2px solid #c9a24a; border-radius: 6px; font: bold 18px Impact, Haettenschweiler, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-decoration: none; box-shadow: 0 0 18px rgba(201,162,74,0.45); }
   #share:hover, #share:focus { background: #c9a24a; color: #111; }
   #share[hidden] { display: none; }
-  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; background: #000; touch-action: none; }
+  /* on-screen touch controls (built by game.js): solid in their own block under the game in portrait (.stk), faint over the playfield in landscape (.ovl) */
+  #pad { position: fixed; inset: 0; z-index: 5; pointer-events: none; touch-action: none; --o: 0.95; font: bold 20px Impact, Haettenschweiler, "Arial Narrow", sans-serif; letter-spacing: 0.04em; }
+  #pad.ovl { --o: 0.55; }
+  #pad[hidden], #pad [hidden] { display: none !important; }
+  #pad .tb, #dpad, #pills .mb { pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; }
+  #pad .tb { position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid rgba(255,255,255,0.8); background: var(--c); color: #111; font-size: 26px; opacity: var(--o); }
+  #pad .tb.on { opacity: 1; transform: scale(0.92); }
+  #dpad { position: absolute; box-sizing: border-box; border-radius: 50%; background: rgba(255,255,255,0.14); border: 3px solid rgba(255,255,255,0.45); opacity: var(--o); }
+  #dpad i { position: absolute; width: 26%; height: 26%; background: rgba(255,255,255,0.65); pointer-events: none; }
+  #dpad i.on { background: #ffd23f; }
+  #dpad .u { left: 37%; top: 8%; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  #dpad .d { left: 37%; bottom: 8%; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  #dpad .l { left: 8%; top: 37%; clip-path: polygon(0 50%, 100% 0, 100% 100%); }
+  #dpad .r { right: 8%; top: 37%; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+  #pills { position: absolute; display: flex; gap: 8px; pointer-events: none; }
+  #pad.stk #pills { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  #pad.ovl #pills { flex-direction: column; }
+  #pills .mb { box-sizing: border-box; flex: 1 1 0; min-width: 64px; max-width: 170px; height: 46px; display: flex; align-items: center; justify-content: center; padding: 0 8px; white-space: nowrap; border: 3px solid #c9a24a; border-radius: 10px; background: rgba(17,17,17,0.92); color: #fff; font-size: 17px; }
+  #pad.ovl #pills .mb { flex: none; max-width: none; height: 40px; padding: 0 2px; font-size: 15px; }
+  #pills .mb.on { background: #c9a24a; color: #111; }
+  #pad .hint { position: absolute; left: 12px; right: 12px; text-align: center; color: #8d8576; font-size: 14px; font-weight: normal; letter-spacing: 0.06em; line-height: 1.3; pointer-events: none; }
+  #pad .hint.tip { color: #e8e0cc; }   /* the fight tips under the game in portrait are real instructions: brighter than the "turn your phone" nudge */
+  /* SHARE ON X when the touch layout owns the screen: sized and placed by game.js next to the menu buttons (which also shrinks any label that would overflow) */
+  #share.tp { transform: none; min-width: 0; min-height: 46px; padding: 0 6px; border-width: 3px; border-radius: 10px; font-size: 17px; background: rgba(17,17,17,0.92); box-shadow: none; }
+  #share.tp.ovl { min-height: 40px; padding: 0 2px; font-size: 15px; }
 </style>
 </head>
 <body>
 <canvas id="c" width="960" height="540"></canvas>
-<a id="share" hidden target="_blank" rel="noopener" href="https://x.com/intent/post">SHARE ON X</a>
+<a id="share" hidden target="_blank" rel="noopener" aria-label="Share the match result on X" href="https://x.com/intent/post">SHARE ON X</a>
 <!-- build.mjs inlines these scripts into index.html. Load order: pixelfont, sprites, arenas, hud, music (procedural chiptune, no audio files), moves, game. -->
 <script>const W = 960, H = 540, GROUND = 468; // canvas size and feet line, shared by every script below</script>
 <script src="pixelfont.js"></script>
