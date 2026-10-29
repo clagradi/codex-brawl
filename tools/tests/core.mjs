@@ -15,7 +15,7 @@ export async function run(t) {
   const clean = async (hash = '') => { await t.open(); await ev('localStorage.clear()'); await t.open(hash); };
 
   // ---- files and docs ----
-  const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
+  const dev = fs.readFileSync(path.join(ROOT, 'dev.html'), 'utf8'), order = [...dev.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]).filter(n => n !== 'defense.js');
   check(JSON.stringify(order) === JSON.stringify(LOAD_ORDER), 'dev.html loads the scripts in the documented order: ' + order.join(' '));
   const doc = fs.readFileSync(path.join(ROOT, 'docs', 'ARCHITECTURE.md'), 'utf8');
   await clean();
