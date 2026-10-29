@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-a11y.js` | accessibility options (colour filters, high contrast HUD, larger text, reduced motion, screen reader announcements, simple specials) and `A11Y`; loads after `vfx.js` | a11y agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-a11y.js`, `tools/tests/x-p-a11y.mjs` | a11y agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -112,6 +114,8 @@ With nothing registered a call returns at once, so the engine calls them from ho
 | `pauseItems` | collect | no arguments; items `{ key, label, run(game) }`: while paused, pressing `key` (a `KeyboardEvent.code`) calls `run`; the labels are drawn under the pause text |
 | `musicTheme` | filter | `(themeName, game)`; return the name of any defined theme to replace the one the engine picked |
 
+Order notes: `vfx.js` plays the KO slow motion from an `update` handler at order 50. `p-a11y.js` reads `game.hitstop` at order 49 and, with reduced motion on, removes the extra 1-tick hit-stop at order 51. In `drawTop`, `p-a11y.js` draws at 8000 (the high contrast HUD), 9000 (its screen) and 10000 (the colour filter, last of all).
+
 ### SETTINGS keys
 
 One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocked or corrupt store means the defaults. Never read `localStorage` for options anywhere else. API: `SETTINGS.get(key)`, `set(key, value)` (validates, stores, persists, emits `settings`, returns the stored value), `toggle(key)`, `reset(key)` (no key: all), `all()`, `list()` (definitions in registration order, for an options screen), and `SETTINGS.define(key, spec)`.
@@ -142,6 +146,12 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `a11y.cb` | enum, `'off'` | `'off'`, `'protan'`, `'deutan'`, `'tritan'` | `p-a11y.js`: the colour filter applied to the whole frame |
+| `a11y.contrast` | bool, `prefers-contrast: more` | | `p-a11y.js`: the high contrast HUD drawn over the normal one |
+| `a11y.bigText` | bool, `false` | | `p-a11y.js`: larger `uiText` and `ptext` text where it fits |
+| `a11y.motion` | bool, `prefers-reduced-motion: reduce` | | `p-a11y.js`: no screen shake, white flash or KO slow motion; while it is on, `SETTINGS.get('reducedFlash')` reads `true` for `vfx.js` |
+| `a11y.live` | bool, `true` | | `p-a11y.js`: announcements in the `#a11y-live` region |
+| `a11y.simpleSp` | bool, `false` | | `p-a11y.js`: specials by direction plus the special button, for human players |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
