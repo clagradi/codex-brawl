@@ -61,6 +61,7 @@ Read this first, then read only the files you own.
 | 19 | `p-observability.js` | OBSERVABILITY: the post-match dashboard (damage-over-time chart, KPI scorecard, incident log), public `OBS`; loads last in `dev.html` | observability agent |
 | 19 | `p-watch.js` | attract demo after 20 s idle on the title, the WATCH entry, live commentary captions | p-watch agent |
 | last | `p-perf.js` | frame-time overlay (F3), adaptive quality, arena snapshot cache and `PERF`; it loads after every other feature file because it wraps the functions they may have wrapped | perf agent |
+| 26 | `p-clips.js` | KO clips: rolling canvas capture, the KO CLIP panel and SAVE CLIP on the end screen (`CLIPS`); last script in `dev.html` | clips agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -93,6 +94,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-observability.js`, `tools/tests/x-p-observability.mjs` | observability agent | uses `update`, `fighterUpdate`, `drawTop` and the BUS events `match:start`, `round:start`, `round:end`, `hit`, `block`, `special`, `super`, `throw`, `match:end`, `phase`, `settings`; one pointerdown listener on `#c` |
 | `p-watch.js`, `tools/tests/x-p-watch.mjs` | p-watch agent | |
 | `p-perf.js`, `tools/tests/x-p-perf.mjs` | perf agent | wraps `frame`, `update`, `render`, `drawArena`, `drawPost`, `FX.blood/sparks/dust/ring` and `ARENAS2.react`; at HIGH every wrapper passes straight through |
+| `p-clips.js`, `tools/tests/x-p-clips.mjs`, `docs/features/p-clips.md` | clips agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -222,6 +224,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `watch.level` | enum, `normal` | `easy`, `normal`, `hard`, `nightmare` | `p-watch.js`: the CPU level of a WATCH match (it sets `game.cpuLevel`) |
 | `watch.pick` | any, `{}` | `{ a, b, arena }` | `p-watch.js`: the two fighters and the arena (-1 random) last picked in WATCH |
 | `perf.quality` | enum, `'auto'` | `'auto'`, `'high'`, `'low'` | `p-perf.js`: AUTO steps down to MEDIUM or LOW when the average frame costs over 12 ms; `Shift`+`F3` cycles it |
+| `clips.on` | bool, `true` | | `p-clips.js`: record the canvas during a match and offer the KO clip on the end screen (no effect where recording is unsupported) |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
