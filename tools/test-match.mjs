@@ -439,7 +439,8 @@ export async function runTests(p) {
     eval: expr => p.eval(expr),
   };
   const testDir = path.join(ROOT, 'tools', 'tests');
-  const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.mjs')).sort((a, b) => (a === 'core.mjs' ? -1 : b === 'core.mjs' ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  const only = (process.env.TEST_ONLY || '').split(',').filter(Boolean);   // TEST_ONLY=p-replays,p-watch runs core.mjs plus the matching files (for quick local checks)
+  const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.mjs') && (!only.length || f === 'core.mjs' || only.some(o => f.includes(o)))).sort((a, b) => (a === 'core.mjs' ? -1 : b === 'core.mjs' ? 1 : a < b ? -1 : a > b ? 1 : 0));
   for (const f of testFiles) {
     try { await (await import(pathToFileURL(path.join(testDir, f)).href)).run(t); }
     catch (e) { check(false, 'tools/tests/' + f + ' threw: ' + String(e && e.message || e).split('\n')[0]); }
