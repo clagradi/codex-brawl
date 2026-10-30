@@ -47,6 +47,7 @@ Read this first, then read only the files you own.
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
 | last | `p-strings.js` | named combo strings, chase jump, air chains, juggle scaling; loads after `vfx.js` so its `tryCancel` wrapper is the outermost | p-strings agent |
 | last | `p-voice.js` | VS banter, win quotes and announcer callouts with captions (`VOICE`); after `vfx.js` in `dev.html` | p-voice agent |
+| 19 | `p-tutorial.js` | TUTORIAL mode: ten lessons against a scripted dummy, last in `dev.html` | p-tutorial agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -66,6 +67,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
 | `p-strings.js`, `tools/tests/x-p-strings.mjs` | p-strings agent | |
 | `p-voice.js`, `tools/tests/x-p-voice.mjs` | p-voice agent | |
+| `p-tutorial.js`, `tools/tests/x-p-tutorial.mjs`, `docs/features/p-tutorial.md` | p-tutorial agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -94,6 +96,8 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `strings:land` | `{ fighter, foe, name, hits, kind, combo }` | `p-strings.js`: a named combo string landed; `kind` is `'AIR'`, `'JUGGLE'` or `'CANCEL'` |
 | `strings:chase` | `{ fighter, foe }` | `p-strings.js`: a chase jump after a launcher |
 | `strings:juggle` | `{ src, victim }` | `p-strings.js`: a launch started a juggle owned by `src` |
+| `tutorial:step` | `{ lesson, id, step }` | `p-tutorial.js`: a step of a TUTORIAL lesson is done; `lesson` is the lesson index (0 to 9), `id` its name (`move`, `attack`, ... `getup`), `step` the index of the step |
+| `tutorial:done` | `{ lesson, id, cleared, total }` | `p-tutorial.js`: a TUTORIAL lesson is cleared (LESSON CLEAR); `cleared` is how many of the `total` lessons are now cleared |
 
 ### HOOKS points
 
@@ -154,6 +158,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `strings.on` | bool, `true` | | `p-strings.js`: combo strings, the chase jump, air chains, juggle scaling and the STRINGS page; off is the game without them |
 | `strings.callouts` | bool, `true` | | `p-strings.js`: the on-screen string name and its sting (detection and `strings:land` stay on) |
 | `voice.speech` | bool, `true` | | `p-voice.js`: the banter, callouts and win quotes are spoken (captions stay on either way); N in the pause menu toggles it |
+| `tutorial.done` | num, `0` | 0..1023 | `p-tutorial.js`: the cleared TUTORIAL lessons as a bit mask (bit k = lesson k + 1) |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
