@@ -60,6 +60,7 @@ Read this first, then read only the files you own.
 | 19 | `p-a11y.js` | accessibility options (colour filters, high contrast HUD, larger text, reduced motion, screen reader announcements, simple specials) and `A11Y`; loads after `vfx.js` | a11y agent |
 | 19 | `p-observability.js` | OBSERVABILITY: the post-match dashboard (damage-over-time chart, KPI scorecard, incident log), public `OBS`; loads last in `dev.html` | observability agent |
 | 19 | `p-watch.js` | attract demo after 20 s idle on the title, the WATCH entry, live commentary captions | p-watch agent |
+| last | `p-perf.js` | frame-time overlay (F3), adaptive quality, arena snapshot cache and `PERF`; it loads after every other feature file because it wraps the functions they may have wrapped | perf agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -91,6 +92,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-a11y.js`, `tools/tests/x-p-a11y.mjs` | a11y agent | |
 | `p-observability.js`, `tools/tests/x-p-observability.mjs` | observability agent | uses `update`, `fighterUpdate`, `drawTop` and the BUS events `match:start`, `round:start`, `round:end`, `hit`, `block`, `special`, `super`, `throw`, `match:end`, `phase`, `settings`; one pointerdown listener on `#c` |
 | `p-watch.js`, `tools/tests/x-p-watch.mjs` | p-watch agent | |
+| `p-perf.js`, `tools/tests/x-p-perf.mjs` | perf agent | wraps `frame`, `update`, `render`, `drawArena`, `drawPost`, `FX.blood/sparks/dust/ring` and `ARENAS2.react`; at HIGH every wrapper passes straight through |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -124,6 +126,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `tutorial:done` | `{ lesson, id, cleared, total }` | `p-tutorial.js`: a TUTORIAL lesson is cleared (LESSON CLEAR); `cleared` is how many of the `total` lessons are now cleared |
 | `ranked:result` | `{ won, forfeit, before, after, delta, ... }` | `p-ranked.js` (not the engine): a rated RANKED match was settled, at `match:end` or when a live match is left; the payload is the same object as `RANKED.last()` |
 | `photo` | `{ open: true }`, `{ open: false }` or `{ saved: name }` | `p-photomode.js`: photo mode opened or closed; a PNG was written (the file name is in `saved`) |
+| `perf:level` | `{ level, name }` | `p-perf.js`: the adaptive quality level changed (`0` HIGH, `1` MEDIUM, `2` LOW) |
 
 ### HOOKS points
 
@@ -218,6 +221,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `watch.captions` | bool, `true` | | `p-watch.js`: the live commentary captions in the demo and in WATCH |
 | `watch.level` | enum, `normal` | `easy`, `normal`, `hard`, `nightmare` | `p-watch.js`: the CPU level of a WATCH match (it sets `game.cpuLevel`) |
 | `watch.pick` | any, `{}` | `{ a, b, arena }` | `p-watch.js`: the two fighters and the arena (-1 random) last picked in WATCH |
+| `perf.quality` | enum, `'auto'` | `'auto'`, `'high'`, `'low'` | `p-perf.js`: AUTO steps down to MEDIUM or LOW when the average frame costs over 12 ms; `Shift`+`F3` cycles it |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
