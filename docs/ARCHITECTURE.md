@@ -56,6 +56,7 @@ Read this first, then read only the files you own.
 | 19 | `p-ranked.js` | RANKED: the PERFORMANCE REVIEW rating against the CPU (last script in `dev.html`, after `vfx.js`) | p-ranked agent |
 | 19 | `p-daily.js` | SPRINT OF THE DAY: the daily challenge, streak and result card | p-daily agent |
 | 19 | `p-mutators.js` | match mutators picked on the select screen (G): BIG HEADS, LOW GRAVITY, TURBO 1.5X, RATE LIMITED, LEGACY MODE, GLASS CANNON; public `MUTATORS` | p-mutators agent |
+| 19 | `p-photomode.js` | photo mode from the pause screen: free camera, six filters, frames, PNG save (`PHOTO`) | p-photomode agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -83,6 +84,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-ranked.js`, `tools/tests/x-p-ranked.mjs` | p-ranked agent | uses `match:start`, `round:start`, `match:end`, `phase`, the `update` and `drawTop` hooks, `MODES.register` and two `SETTINGS` keys; wraps `SETTINGS.get('difficulty')` while a rated match is on screen |
 | `p-daily.js`, `tools/tests/x-p-daily.mjs` | p-daily agent | |
 | `p-mutators.js`, `tools/tests/x-p-mutators.mjs` | p-mutators agent | |
+| `p-photomode.js`, `tools/tests/x-p-photomode.mjs` | p-photomode agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -115,6 +117,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `tutorial:step` | `{ lesson, id, step }` | `p-tutorial.js`: a step of a TUTORIAL lesson is done; `lesson` is the lesson index (0 to 9), `id` its name (`move`, `attack`, ... `getup`), `step` the index of the step |
 | `tutorial:done` | `{ lesson, id, cleared, total }` | `p-tutorial.js`: a TUTORIAL lesson is cleared (LESSON CLEAR); `cleared` is how many of the `total` lessons are now cleared |
 | `ranked:result` | `{ won, forfeit, before, after, delta, ... }` | `p-ranked.js` (not the engine): a rated RANKED match was settled, at `match:end` or when a live match is left; the payload is the same object as `RANKED.last()` |
+| `photo` | `{ open: true }`, `{ open: false }` or `{ saved: name }` | `p-photomode.js`: photo mode opened or closed; a PNG was written (the file name is in `saved`) |
 
 ### HOOKS points
 
@@ -191,6 +194,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `ranked.rating` | num, `1000` | 0 to 5000 | `p-ranked.js`: the RANKED rating (INTERN below 1100, then JUNIOR, SENIOR, STAFF, PRINCIPAL, DISTINGUISHED from 1700) |
 | `ranked.record` | any, an empty record | `{ games, wins, losses, streak, best, peak, forfeits, hist }` | `p-ranked.js`: the RANKED record; sanitised on every read, `hist` keeps the last 12 ratings |
 | `mutators.on` | any, `{}` | `{ mutatorId: true }` | `p-mutators.js`: the match mutators that are on (`bigheads`, `lowgrav`, `turbo`, `rate`, `legacy`, `glass`); all off by default; read and written through `window.MUTATORS` |
+| `photo.filter` | enum, `'none'` | `'crt'`, `'sepia'`, `'noir'`, `'vapor'`, `'pixel'`, `'none'` | `p-photomode.js`: the last filter used in photo mode |
+| `photo.frame` | enum, `'none'` | `'none'`, `'cinema'`, `'polaroid'`, `'arcade'`, `'film'` | `p-photomode.js`: the last frame used in photo mode |
+| `photo.hud` | bool, `true` | | `p-photomode.js`: whether photo mode shows the HUD in the picture |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
