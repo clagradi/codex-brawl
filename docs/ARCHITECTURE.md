@@ -49,6 +49,7 @@ Read this first, then read only the files you own.
 | last | `p-voice.js` | VS banter, win quotes and announcer callouts with captions (`VOICE`); after `vfx.js` in `dev.html` | p-voice agent |
 | 19 | `p-tutorial.js` | TUTORIAL mode: ten lessons against a scripted dummy, last in `dev.html` | p-tutorial agent |
 | 19 | `p-vault.js` | EXTRAS title screen: fighter and arena galleries, colourways, lifetime stats (`VAULT`) | p-vault agent |
+| 19 | `p-jukebox.js` | SOUND TEST screen, five fighter themes (`fight_<id>`), visualiser bars; global `JUKEBOX` | jukebox agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -70,6 +71,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-voice.js`, `tools/tests/x-p-voice.mjs` | p-voice agent | |
 | `p-tutorial.js`, `tools/tests/x-p-tutorial.mjs`, `docs/features/p-tutorial.md` | p-tutorial agent | |
 | `p-vault.js`, `tools/tests/x-p-vault.mjs` | p-vault agent | |
+| `p-jukebox.js`, `tools/tests/x-p-jukebox.mjs` | jukebox agent | its one engine edit is the read-only `MUSIC.info` / `MUSIC.hits` / `MUSIC.clock` block at the end of `music.js` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -162,6 +164,8 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `voice.speech` | bool, `true` | | `p-voice.js`: the banter, callouts and win quotes are spoken (captions stay on either way); N in the pause menu toggles it |
 | `tutorial.done` | num, `0` | 0..1023 | `p-tutorial.js`: the cleared TUTORIAL lessons as a bit mask (bit k = lesson k + 1) |
 | `vault.stats` | any, `{}` | `{ v, m, r, ko, sp, su, fi, combo, comboBy, f: { fighterId: { w, l, c } }, ar: { arenaId: plays } }` | `p-vault.js`: lifetime stats counted from `BUS` events (matches, rounds, KOs, specials, supers, finishers, longest combo, wins and losses per fighter, plays per arena); only human fighters outside training count, the mirror boss never does; shown on the EXTRAS screen next to the arcade stats |
+| `jukebox.vs` | bool, `false` | | `p-jukebox.js`: the VS screen (and the round 1 intro) plays the first fighter's own theme `fight_<id>` instead of the classic `vs` track; off by default because the match test expects `vs` |
+| `jukebox.last` | string, `''` | any theme name | `p-jukebox.js`: the track last played on the SOUND TEST, where the cursor starts next time |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
@@ -180,7 +184,7 @@ The title menu is `MODES.list()` plus whatever `HOOKS` `titleItems` collects, so
 ### Other extension points
 
 - `ARENAS` (in `arenas.js`) is a plain array that can be pushed to; `game.arena` indexes it modulo its length. `ARENAS.make(o)` builds an entry from the description the nine shipped stages use (`{ id, name, tagline, accent, build(A), paint(g, t, cam, A), front?(g, t, cam, A) }`, painted on a half-resolution 480x270 canvas and built once on first use). `ARENAS.kit` holds the painter's kit they share: sizes `AW`, `AH`, `AG` (the walking line) and `TAU`, plus the helpers `R`, `grad`, `disc`, `fogDraw`, `motes`, `floorBase` and the rest of the list in `arenas.js`.
-- `MUSIC` (in `music.js`) is the public music object. `MUSIC.define(name, theme, { trim?, arena? })` adds or replaces a theme (`trim` is a level correction, `arena: true` also uses it for the arena whose `id` equals `name`), `MUSIC.instrument(name, spec)` adds an instrument, `MUSIC.themes()` lists the names. Every theme must stay inside the loudness limits that the tests measure.
+- `MUSIC` (in `music.js`) is the public music object. `MUSIC.define(name, theme, { trim?, arena? })` adds or replaces a theme (`trim` is a level correction, `arena: true` also uses it for the arena whose `id` equals `name`), `MUSIC.instrument(name, spec)` adds an instrument, `MUSIC.themes()` lists the names. Every theme must stay inside the loudness limits that the tests measure. Read-only peeks for visualisers and tools (they schedule and change nothing): `MUSIC.info(name)` returns `{ bpm, len, from, root, voices }` (`len` in 16th steps, `from` the step a loop restarts at, `voices` the instrument of each of `l`, `b`, `a` that the theme has) or `null`; `MUSIC.hits(name, step, rep)` returns what starts on one 16th step, `{ k, s, t, h, l, b, a }` (drums as 0, 0.4, 1 or 1.3 for a ghost, normal or accented hit; `l`, `b`, `a` as a MIDI pitch or 0), or `null`; `MUSIC.clock()` returns `{ name, step, rep, sd, len }` (`sd` is the seconds of one step, `rep` counts the passes of the loop) for the theme that is sounding right now (`step` is fractional, the audio position) or `null` when nothing sounds.
 - `game` (in `game.js`) is the shared state. Read it freely; write to it only through the functions and hooks above. Useful fields: `phase`, `modeId`, `mode`, `f` (the two fighters), `round`, `wins`, `timer`, `sudden`, `cpuLevel`, `sel`, `arena`, `winner`, `loser`, `tick`. A fighter has `side`, `d` (its roster entry, `d.id`), `hp`, `meter`, `state`, `x`, `y`, `face`, `combo`, `cpu`. Helpers: `startMatch()`, `startRound()`, `setPhase(p)`, `roundsToWin()`, `suddenRound()`, `setMuted(v)`, `titleItems()`.
 - `ANNOUNCER` (in `hud.js`) speaks the announcer phrases. `ANNOUNCER.define(key, mk)` adds a phrase, where `mk(arg)` returns `{ text, pitch, rate, st? }` (`st` names a stinger); `ANNOUNCER.say(key, arg)` speaks it and `ANNOUNCER.stop()` cuts the current line. `p-voice.js` adds the `voice.*` phrases this way and holds its own lines while an engine phrase plays.
 - Name collision warning: everything is one global scope, and `game.js` already has globals such as `hit`, `tap`, `held`, `keys`, `pressed`, `ctx`, `muted`. Wrap each feature file in an IIFE and expose at most one global named after the feature.

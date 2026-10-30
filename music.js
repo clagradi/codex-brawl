@@ -203,5 +203,18 @@
   M.define = (name, theme, opt) => { opt = opt || {}; T[name] = theme; if (opt.trim) TRIM[name] = opt.trim; if (opt.arena && !AR.includes(name)) AR.push(name); };
   M.instrument = (name, spec) => { INS[name] = spec; };
   M.themes = () => Object.keys(T);
+  // read-only peeks for the SOUND TEST (p-jukebox.js): they schedule and change nothing. info: facts of a theme; hits: what starts on one 16th step (drums k s t h: 0 none, .4 ghost, 1 hit, 1.3 accent; notes l b a: MIDI pitch, 0 none); clock: where the live player is now
+  M.info = name => { const th = T[name]; if (!th) return null; const c = comp(th); return { bpm: th.bpm, len: c.len, from: (th.lf || 0) * 16, root: th.root, voices: Object.fromEntries('lba'.split('').filter(k => th[k]).map(k => [k, th[k][0]])) }; };
+  M.hits = (name, step, rep) => {
+    const th = T[name]; if (!th) return null; const c = comp(th), n = mod(Math.floor(step), c.len), o = { k: 0, s: 0, t: 0, h: 0, l: 0, b: 0, a: 0 };
+    for (const k of ['k', 's', 't', 'h']) { const r = c.d[k], x = r && r[n % r.length]; o[k] = !x ? 0 : x === 'X' ? 1.3 : x === 'g' ? .4 : 1; }
+    for (const k of 'lba') { const vs = c[k]; if (!vs.length) continue; const arr = vs[(rep | 0) & 1 ? vs.length - 1 : 0], e = arr[n % arr.length]; if (e) o[k] = pitch(th, e[0], th[k][1]); }
+    return o;
+  };
+  M.clock = () => {   // null while nothing sounds; step is fractional, rep counts the passes of the loop
+    if (!S) return null; const th = T[S.name], len = comp(th).len, sd = 15 / th.bpm, lo = S.rep ? (th.lf || 0) * 16 : 0; let p = S.n + (S.ac.currentTime - S.t) / sd, rep = S.rep;
+    if (p < lo) { if (S.rep) { p += len - lo; rep--; } else p = 0; }   // still inside the end of the previous pass (steps are scheduled ahead of the sound)
+    return { name: S.name, step: Math.min(p, len - 1e-6), rep, sd, len };
+  };
   setInterval(tick, 80);
 })();

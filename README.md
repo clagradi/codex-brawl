@@ -71,6 +71,8 @@ Every arena has its own chiptune theme, synthesised live with WebAudio (oscillat
 
 EXTRAS on the title menu (or `V` on the title) opens the vault: a fighter gallery with a big sprite viewer and a picker for every animation, an arena gallery, the colourways you have unlocked, and your lifetime stats (matches, wins per fighter, longest combo, most played arenas). `Q`/`E` or `1` to `4` switch tabs, the arrows pick, `Esc` goes back, and the mouse or touch works too. The counters are saved in this browser only.
 
+SOUND TEST (in the title menu) lists every track by name and plays it while 24 bars dance to the music clock: the menu tracks, one per arena, and five fighter themes (Tibo SHIP IT, Poteto SWEET HEAT, Dot ROUND TRIP, Wang IRIDESCENT, Muse UNDO SWARM) that are generated in code. `W`/`S` choose, `Enter` plays, `Backspace` stops, `V` lets the versus screen play the first fighter's own theme (off by default), `Esc` leaves; the mouse and touch work too.
+
 ## Codex desktop pets
 
 `pets/<id>/` holds each fighter as a Codex desktop pet (v2 atlas: 8 x 11 cells of 192x208, `pet.json` + `spritesheet.png`), rendered from the same sprites as the game and checked with the `hatch-pet` atlas validator. To use them, copy a folder to `~/.codex/pets/brawl-<id>/`, or run `node tools/export-pets.mjs --install`, which regenerates and installs all five. The `description` in each `pet.json` comes from the `INFO` table at the top of `tools/export-pets.mjs`, so edit it there (and keep it in step with the roster in `game.js`).
