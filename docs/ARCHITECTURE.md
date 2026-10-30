@@ -53,6 +53,7 @@ Read this first, then read only the files you own.
 | last | `p-training2.js` | the TRAINING mode: dummy behaviours, record and playback, input display, frame advantage, hitboxes, reset (loaded after every other feature file, so its `training` mode wins over the `training.js` stub) | p-training2 agent |
 | 25 | `p-replays.js` | input-based match replays and the REPLAYS title screen; loaded last in `dev.html`, after `vfx.js` | p-replays agent |
 | 19 | `p-achievements.js` | OKRS: 30 parody achievements, an unlock toast, the OKRS screen, saved in `SETTINGS` (`window.OKRS`) | p-achievements agent |
+| 19 | `p-ranked.js` | RANKED: the PERFORMANCE REVIEW rating against the CPU (last script in `dev.html`, after `vfx.js`) | p-ranked agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -77,6 +78,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-jukebox.js`, `tools/tests/x-p-jukebox.mjs` | jukebox agent | its one engine edit is the read-only `MUSIC.info` / `MUSIC.hits` / `MUSIC.clock` block at the end of `music.js` |
 | `p-training2.js`, `tools/tests/x-p-training2.mjs`, `docs/features/p-training2.md` | p-training2 agent | no engine edit: MODES, SETTINGS, BUS `hit`/`block` and HOOKS `input` (order -1000), `update`, `fighterUpdate`, `damage` (order 1e9), `drawWorld`, `drawHud`, `pauseItems` |
 | `p-replays.js`, `tools/tests/x-p-replays.mjs` | p-replays agent | hooks `update` (order -1e9), `titleItems`, `drawTop` (order 40); listens to the BUS `phase`, `match:start` and `match:end`; pins `Math.random` to a seeded generator only while a recorded or replayed match runs; while a replay plays it wraps `BUS.emit` to keep that match's `match:end` from the other listeners; reads the engine globals `keys`, `pressed`, `NOISE` and `thud`; see `docs/features/p-replays.md` |
+| `p-ranked.js`, `tools/tests/x-p-ranked.mjs` | p-ranked agent | uses `match:start`, `round:start`, `match:end`, `phase`, the `update` and `drawTop` hooks, `MODES.register` and two `SETTINGS` keys; wraps `SETTINGS.get('difficulty')` while a rated match is on screen |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -108,6 +110,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `strings:juggle` | `{ src, victim }` | `p-strings.js`: a launch started a juggle owned by `src` |
 | `tutorial:step` | `{ lesson, id, step }` | `p-tutorial.js`: a step of a TUTORIAL lesson is done; `lesson` is the lesson index (0 to 9), `id` its name (`move`, `attack`, ... `getup`), `step` the index of the step |
 | `tutorial:done` | `{ lesson, id, cleared, total }` | `p-tutorial.js`: a TUTORIAL lesson is cleared (LESSON CLEAR); `cleared` is how many of the `total` lessons are now cleared |
+| `ranked:result` | `{ won, forfeit, before, after, delta, ... }` | `p-ranked.js` (not the engine): a rated RANKED match was settled, at `match:end` or when a live match is left; the payload is the same object as `RANKED.last()` |
 
 ### HOOKS points
 
@@ -179,6 +182,8 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `replays.list` | any, `[]` | up to five replay entries, newest first | `p-replays.js`: the last five VERSUS matches (seed, settings snapshot, input events, checksums, result); see `docs/features/p-replays.md` for the entry format |
 | `replays.restore` | any, `null` | `null` or the viewer's settings | `p-replays.js`: a crash guard; set while a replay plays with the recorded match settings, and put back on the next load if the page closed mid-replay |
 | `okrs` | any, `null` | `null` or `{ v, got, n, best, cur, fx, ar, md }` | `p-achievements.js`: the OKRS progress (done objectives, counters, best combo and win streak, fighters, arenas and modes won with); a junk value is cleaned on load, and the live object is stored once at load so that saving later emits no `settings` event during a match |
+| `ranked.rating` | num, `1000` | 0 to 5000 | `p-ranked.js`: the RANKED rating (INTERN below 1100, then JUNIOR, SENIOR, STAFF, PRINCIPAL, DISTINGUISHED from 1700) |
+| `ranked.record` | any, an empty record | `{ games, wins, losses, streak, best, peak, forfeits, hist }` | `p-ranked.js`: the RANKED record; sanitised on every read, `hist` keeps the last 12 ratings |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
