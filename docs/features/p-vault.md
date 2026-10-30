@@ -4,7 +4,7 @@ Owner: the p-vault agent. Code: `p-vault.js`. Tests: `tools/tests/x-p-vault.mjs`
 
 ## What the player sees
 
-EXTRAS is a title menu entry (order 850, between the game entries and OPTIONS), and `V` on the title opens it too. It opens a screen with four tabs. The engine stays in the `title` phase the whole time; the screen is drawn by a `drawTop` hook over an opaque backdrop and reads its own input in an `update` hook.
+EXTRAS is a title menu entry (order 850, between the game entries and OPTIONS), and `V` on the title opens it too (not while another title overlay, such as the WATCH picker, is open, so typing in that screen never opens this one). It opens a screen with four tabs. The engine stays in the `title` phase the whole time; the screen is drawn by a `drawTop` hook over an opaque backdrop and reads its own input in an `update` hook.
 
 | Tab | What it shows |
 | --- | --- |
@@ -36,8 +36,8 @@ Counted from `BUS` events and kept in the setting `vault.stats` (type `any`, def
 
 `m` matches, `r` rounds, `ko`, `sp`, `su` and `fi` the KOs, specials, supers and finishers a human fighter landed, `combo` the longest chain a human made with `comboBy` the fighter id, `f` the wins, losses and best combo per roster fighter and `ar` the plays per arena id.
 
-- Only human fighters (not `cpu`) count for the combo, KO, special, super and finisher numbers. Training counts for nothing. The overclocked mirror boss is not a roster fighter and gets no wins or losses.
-- Wins and losses are credited to the fighters of every finished match, whoever controlled them. Arena plays are counted when a match starts.
+- Only human fighters (not `cpu`) count for the combo, KO, special, super and finisher numbers. Training counts for nothing, and so does a replay: while `REPLAYS.state().active` is true no round, hit, KO, special, super, finisher, arena play, match, win or loss is added. The attract demo (`WATCH.state().kind === 'demo'`) adds no arena play and no round either. The overclocked mirror boss is not a roster fighter and gets no wins or losses.
+- Wins and losses are credited to the fighters of every finished match, whoever controlled them, so a finished WATCH match counts as a match, a win and a loss (its hits, KOs and specials do not, both fighters are CPU). Arena plays are counted when a match starts, except for the attract demo and for replays.
 - Nothing is written per hit, per round or while a match is on. Saving fires a `settings` event on the bus and the engine events test counts those during a match, so the record is saved when the game leaves the end screen, pauses, goes back to the title or the selection, and when the page is hidden or closed. The numbers of a match are therefore on disk by the time the next one starts, and a crash in the middle of the end screen is the only way to lose them.
 - Whatever is stored is cleaned on load and on every outside write: whole numbers capped at a billion, the five roster ids only, arena ids matching `[a-z0-9_-]` (at most 64 of them), unknown keys dropped. `SETTINGS.reset('vault.stats')` zeroes the live record.
 - The STATS tab shows our record raised to the arcade record where that is higher (matches, longest combo, wins and losses per fighter): both count the same matches, so the larger value is used, never the sum. The arcade badges, ladder clears and survival score are read from `ARCADE.stats()` when `arcade.js` is loaded.

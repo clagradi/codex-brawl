@@ -281,6 +281,25 @@ async function body(t) {
   const A = await runDemo(21), B = await runDemo(21);
   check(A.log.length >= 5 && same(A, B), 'one seed gives one demo, line for line, twice (' + A.log.length + ' lines, ' + A.n + ' ticks)');
 
+  // ---- nobody plays the demo or a WATCH match: OKRS count neither, the VAULT counts the finished WATCH match but not the demo ----
+  if (await ev('!!(window.OKRS && window.VAULT)')) {
+    await fresh(5);
+    const dm = await ev(`(() => {
+      OKRS.reset(); VAULT.reset(); const n0 = JSON.stringify(OKRS.state.n); pwc.roundEnd = 0; WATCH.demo(0, 2, 3);
+      let n = 0; while (WATCH.state().kind && n++ < 6000) { if (game.phase === 'fight' && game.f[1].hp > 1) game.f[1].hp = 1; pwstep(1); }
+      const s = VAULT.stats();
+      return { rounds: pwc.roundEnd, same: JSON.stringify(OKRS.state.n) === n0, md: OKRS.state.md.join(), r: s.r, m: s.m, ar: Object.keys(s.ar).length };
+    })()`);
+    check(dm.rounds >= 1 && dm.r === 0 && dm.m === 0 && dm.ar === 0 && dm.same && dm.md === '', 'a whole attract demo (' + dm.rounds + ' round ended) adds nothing to the VAULT or to OKRS: ' + JSON.stringify(dm));
+    await ev('WATCH.match(0, 2, 3, "normal"); pwto("over", 40000); 1');
+    const wm = await ev(`(() => {
+      const s = VAULT.stats(), v = Object.values(s.f);
+      return { n: OKRS.state.n, md: OKRS.state.md.join(), m: s.m, w: v.reduce((a, x) => a + x.w, 0), l: v.reduce((a, x) => a + x.l, 0), ar: Object.keys(s.ar).length, ko: s.ko, sp: s.sp };
+    })()`);
+    check(wm.md === '' && !wm.n.wins && !wm.n.losses && !wm.n.matches, 'a WATCH match adds no mode, win, loss or match to OKRS: ' + JSON.stringify([wm.md, wm.n]));
+    check(wm.m === 1 && wm.w === 1 && wm.l === 1 && wm.ar === 1 && wm.ko === 0 && wm.sp === 0, 'the VAULT counts the finished WATCH match as a match, a win, a loss and an arena play, and no human feat: ' + JSON.stringify(wm));
+  }
+
   // ---- the source: nothing banned, plain characters ----
   const srcs = ['p-watch.js', 'docs/features/p-watch.md', 'tools/tests/x-p-watch.mjs'].map(f => [f, fs.readFileSync(path.join(ROOT, f), 'utf8')]);
   const hit = srcs.flatMap(([f, s]) => NOPE.filter(w => new RegExp(w.replace(/[ -]/g, '[-_\\s]?'), 'i').test(s)).map(w => f + ': ' + w));

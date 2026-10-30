@@ -47,11 +47,13 @@
   addEventListener('pagehide', flush);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });   // phones often skip pagehide
 
-  const human = f => !!f && !f.cpu && !!f.d && game.modeId !== 'training';   // training is practice: it counts for nothing
+  const replaying = () => { try { return !!(window.REPLAYS && REPLAYS.state().active); } catch (e) { return false; } };   // watching a replay re-runs a match that already counted
+  const demo = () => { try { return game.modeId === 'watch' && !!(window.WATCH && WATCH.state().kind === 'demo'); } catch (e) { return false; } };   // the title attract demo is nobody's play (a WATCH match still counts as a match)
+  const human = f => !!f && !f.cpu && !!f.d && game.modeId !== 'training' && !replaying();   // training is practice: it counts for nothing
   const rosterId = f => (f && f.d && !f.d.oc && S.f[f.d.id] ? f.d.id : null);   // the overclocked mirror boss is no roster fighter
   const bump = k => { S[k] = Math.min(CAP, S[k] + 1); dirty = true; };
   BUS.on('match:start', e => {
-    if (!e || e.modeId === 'training') return;
+    if (!e || e.modeId === 'training' || replaying() || demo()) return;
     const a = ARENAS[e.arena | 0]; if (!a) return;
     if (!S.ar[a.id] && Object.keys(S.ar).length >= MAX_ARENAS) return;
     S.ar[a.id] = Math.min(CAP, (S.ar[a.id] | 0) + 1); dirty = true;
@@ -62,7 +64,7 @@
     if (c > S.combo) { S.combo = c; S.comboBy = id || ''; dirty = true; }
     if (id && c > S.f[id].c) { S.f[id].c = c; dirty = true; }
   });
-  BUS.on('round:end', () => { bump('r'); });
+  BUS.on('round:end', () => { if (!replaying() && !demo()) bump('r'); });
   BUS.on('ko', e => { if (e && human(e.winner)) bump('ko'); });
   BUS.on('special', e => { if (e && human(e.fighter)) bump('sp'); });
   BUS.on('super', e => { if (e && human(e.fighter)) bump('su'); });
@@ -151,7 +153,7 @@
     }
   }
   HOOKS.add('update', g => {
-    if (!V.open) { if (g.phase === 'title' && tap('KeyV')) { open(); clearPressed(); } return; }   // V on the title opens it too: a crowded title menu can push the entry off the screen
+    if (!V.open) { if (g.phase === 'title' && !(typeof titleOverlayOpen === 'function' && titleOverlayOpen()) && tap('KeyV')) { open(); clearPressed(); } return; }   // V on the title opens it too: a crowded title menu can push the entry off the screen
     if (g.phase !== 'title') { V.open = false; V.hit.length = 0; return; }   // something else took the game over
     V.st++;
     const k = readKeys();

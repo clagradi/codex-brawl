@@ -318,6 +318,21 @@ async function body(t) {
   await ev(`game.phase = 'fight'; step(2); 1`);
   check(await ev('OKRS.screen') === false, 'the screen closes by itself if the game leaves the title or pause phase');
 
+  // ---- WATCH counts for nothing: the demo and the CPU matches start with human flags and WATCH flips them a moment later ----
+  if (await ev('!!window.WATCH')) {
+    await open();
+    const wt = await ev(`(() => {
+      OKRS.reset(); const md = () => OKRS.state.md.join();
+      WATCH.demo(0, 2, 3); const demo = { kind: WATCH.state().kind, md: md(), cpu: game.f.every(f => f.cpu) }; WATCH.leave();
+      WATCH.match(0, 2, 3); const match = { kind: WATCH.state().kind, md: md() }; WATCH.leave();
+      const pivot = OKRS.state.md.length;
+      Z.start(0, 1, 2); const real = md();   // a real one player match still counts its mode
+      return { demo, match, pivot, real };
+    })()`);
+    check(wt.demo.kind === 'demo' && wt.demo.cpu && wt.demo.md === '' && wt.match.kind === 'match' && wt.match.md === '' && wt.pivot === 0, 'the attract demo and a WATCH match add no mode to the modes played (PIVOT): ' + JSON.stringify([wt.demo, wt.match]));
+    check(wt.real === 'versus', 'a real match still adds its mode: ' + wt.real);
+  }
+
   // ---- no console errors, clean up ----
   check(t.p.errors.length === errors0, 'no console errors from OKRS' + (t.p.errors.length > errors0 ? ': ' + t.p.errors.slice(errors0).join(' | ').slice(0, 300) : ''));
   await ev('localStorage.clear()');

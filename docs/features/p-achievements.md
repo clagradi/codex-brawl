@@ -26,7 +26,7 @@ While the screen is open every pressed key is cleared each tick, so the title me
 
 ## The objectives
 
-Only human fighters count (`cpu === false` when the event arrives); in a 2 player match both players count. Training mode (`game.modeId === 'training'`) never counts, and neither does an automated fuzz match: `tools/fuzz.mjs` sets `window.__qa.cur` while it plays, and while that is set no event is counted, so replaying a seed keeps giving the same events whatever progress is saved.
+Only human fighters count (`cpu === false` when the event arrives); in a 2 player match both players count. Training mode (`game.modeId === 'training'`) never counts, a replay never counts (`REPLAYS.state().active`), the WATCH feature never counts (the title attract demo and the CPU against CPU matches of the WATCH picker, `game.modeId === 'watch'`), and neither does an automated fuzz match: `tools/fuzz.mjs` sets `window.__qa.cur` while it plays, and while that is set no event is counted, so replaying a seed keeps giving the same events whatever progress is saved.
 
 | Id | Name | Goal |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ The word that the engine's `flawless` flag carries is not used anywhere on scree
 | `special`, `super`, `ex`, `breaker`, `taunt` | `specials`, `supers`, `ex`, `breakers`, `taunts` when `fighter` is human |
 | `hazard` | `hazards` when `user` is human |
 | `stagefinish`, `finisher` | `stagefinish`, `finishers` when `winner` is human |
-| `match:start` | the mode id goes into `md` if any fighter is human |
+| `match:start` | the mode id goes into `md` if any fighter is human; a WATCH match never adds `watch` |
 | `round:end` | untouched, comeback, quick, clock and sudden-death rounds when the winner is human and the reason is `ko` or `time` |
 | `match:end` | wins, losses, win streak, fighters and arenas won with, matches won without losing a round |
 

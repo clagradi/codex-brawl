@@ -14,7 +14,8 @@
 //       'drawTop' (list screen and the playback bar); SETTINGS 'replays.list' and 'replays.restore' (the viewer's settings while a replay runs,
 //       put back on the next load if the page closes mid-replay). Engine globals read: keys, pressed, tap, clearPressed, pollPads, startMatch,
 //       setPhase, running, hold, step, TICK, ROSTER, ARENAS, NOISE / thud (warms the impact noise buffer before a match so its one-time fill never
-//       lands inside a recorded tick). No engine file is edited.
+//       lands inside a recorded tick). No engine file is edited. The match mutators ('mutators.on') are part of the snapshot; a viewer with REDUCED MOTION
+//       keeps a calm picture (wraps drawWorld, drawPost and the 'reducedFlash' alias) while the recorded value still drives the simulation.
 // Public: window.REPLAYS (see the bottom of this file and docs/features/p-replays.md).
 'use strict';
 (() => {
@@ -22,8 +23,9 @@
 
   const KEEP = 5, CK_EVERY = 30, TAIL = 90, LATE = 600, MAX_TICKS = 216000, MAX_CHARS = 400000;
   const REC_MODES = ['versus', 'versus2'];
-  // settings that only change how the match looks or sounds: the viewer keeps their own while watching
-  const VIEWER_ONLY = ['musicVol', 'sfxVol', 'voiceVol', 'muted', 'gore', 'shake', 'reduceFlash', 'crt', 'announcer', 'trackToast'];
+  // settings that only change how the match looks or sounds: the viewer keeps their own while watching (a11y.motion and a11y.simpleSp are not here: they change the simulation)
+  const VIEWER_ONLY = ['musicVol', 'sfxVol', 'voiceVol', 'muted', 'gore', 'shake', 'reduceFlash', 'crt', 'announcer', 'trackToast',
+    'a11y.cb', 'a11y.contrast', 'a11y.bigText', 'a11y.live', 'gamepad.rumble', 'gamepad.hints', 'gamepad.glyphs', 'perf.quality', 'photo.filter', 'photo.frame', 'photo.hud', 'voice.speech'];
   const NATIVE = Math.random;
   const GOLD = '#f5c542', STEEL = '#9aa3b5', DIM = '#6b7184', GREEN = '#5ad16a', RED = '#ff5a4f', INK = '#0b0a12';
 
@@ -68,11 +70,11 @@
     for (const c in obj) if (obj[c]) { n++; const i = idx[c]; if (i === undefined || prev.indexOf(i) < 0) return false; }
     return n === prev.length;
   }
-  function settingsSnapshot() {   // what the simulation reads: every plain setting except the look-and-sound ones, plus the key bindings
+  function settingsSnapshot() {   // what the simulation reads: every plain setting except the look-and-sound ones, plus the key bindings and the match mutators
     const o = {};
     for (const d of SETTINGS.list()) {
       const k = d.key; if (k.startsWith('replays.') || VIEWER_ONLY.includes(k)) continue;
-      if (d.type === 'bool' || d.type === 'num' || d.type === 'enum' || k === 'binds') o[k] = JSON.parse(JSON.stringify(SETTINGS.get(k) === undefined ? null : SETTINGS.get(k)));
+      if (d.type === 'bool' || d.type === 'num' || d.type === 'enum' || k === 'binds' || k === 'mutators.on') o[k] = JSON.parse(JSON.stringify(SETTINGS.get(k) === undefined ? null : SETTINGS.get(k)));
     }
     return o;
   }
@@ -81,6 +83,16 @@
 
   // ---------- sessions: one recording or one playback at a time ----------
   let S = null, PEND = null, VIEW = null, BUSY = false, raf = 0, lastT = 0, boot = true;
+
+  // REDUCED MOTION also trims slow motion and the KO hit-stop, so the recorded value stays pinned while a replay runs (the checksums need it). The viewer who
+  // has it on still gets no shake and no full-screen flash: these three wrappers calm the picture only (p-a11y.js loads after this file and wraps them again).
+  const calmView = () => !!(VIEW && VIEW.set && VIEW.set['a11y.motion'] === true);
+  const drawWorld1 = window.drawWorld;
+  if (typeof drawWorld1 === 'function') window.drawWorld = function () { if (game.shake && calmView()) game.shake = 0; return drawWorld1.apply(this, arguments); };
+  const drawPost1 = window.drawPost;
+  if (typeof drawPost1 === 'function') window.drawPost = function (c, tick, opts) { if (opts && opts.flash && calmView()) opts.flash = 0; return drawPost1.apply(this, arguments); };
+  const get1 = SETTINGS.get;
+  SETTINGS.get = function (key) { if (key === 'reducedFlash' && calmView()) return true; return get1.apply(this, arguments); };   // vfx.js turns its flashes into a soft tint on this alias
 
   function startRecording() {
     warm(); pin((NATIVE() * 4294967296) >>> 0);
@@ -163,6 +175,7 @@
         SETTINGS.set('replays.restore', VIEW.set);
       }
       for (const k in e.set || {}) if (!same(SETTINGS.get(k), e.set[k])) SETTINGS.set(k, e.set[k]);
+      if ((!e.set || !('mutators.on' in e.set)) && !same(SETTINGS.get('mutators.on'), {})) SETTINGS.set('mutators.on', {});   // an entry from before the mutators were kept played without any
       offAll();
       if (game.phase === 'vs') game.phase = 'title';   // the switch to 'vs' must fire again
       game.sel = [fighterIdx(e.ids[0]), fighterIdx(e.ids[1])];
@@ -283,8 +296,8 @@
   function listTick(g) {
     if (g.phase !== 'title') { UI.open = false; return; }
     const L = entries(), n = L.length;
-    const up = anyTap(['KeyW', 'ArrowUp']), dn = anyTap(['KeyS', 'ArrowDown']), ok = anyTap(['Enter', 'Space', 'KeyJ', 'Numpad1']);
-    const del = anyTap(['Delete', 'KeyX']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'Numpad2']);
+    const up = anyTap(['KeyW', 'ArrowUp']), dn = anyTap(['KeyS', 'ArrowDown']), ok = anyTap(['Enter', 'Space', 'KeyJ', 'KeyZ', 'Numpad1']);
+    const del = anyTap(['Delete', 'KeyD']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'KeyX', 'Numpad2']);   // X is the 1P back key everywhere, so it never erases
     clearPressed();   // the title menu underneath sees nothing while this screen is open
     if (back) { UI.open = false; UI.arm = -1; snd(300, 0.06); return; }
     if (!n) return;
@@ -346,7 +359,7 @@
       ptext(c, modeName(e), W - 86, y + 42, 2, DIM, 'right');
       if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
     }
-    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
+    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/D ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
     ptext(c, 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
     c.restore();
   }
@@ -396,6 +409,7 @@
     open() { UI.open = game.phase === 'title'; UI.sel = 0; UI.arm = -1; return UI.open; },
     close() { UI.open = false; },
     screen: () => ({ open: UI.open, sel: UI.sel, armed: UI.arm }),
+    calm: calmView,   // true while a replay recorded with REDUCED MOTION plays: the picture stays calm, the simulation stays pinned
     state: () => S ? (S.play
       ? { active: true, rec: false, rt: S.rt, len: S.len, paused: S.paused, speed: S.speed, done: S.done, verified: S.verified, bad: S.bad, got: S.got, index: S.i }
       : { active: false, rec: true, rt: S.rt, events: S.ev.length, seed: R.seed })

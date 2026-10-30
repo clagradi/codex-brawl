@@ -270,5 +270,34 @@ async function body(t) {
   const saved = await ev("JSON.parse(localStorage.getItem('brawl.settings'))['vault.stats']");
   check(saved && saved.m === 1 && saved.f && Object.keys(saved.ar).length === 1 && (await ev('window.__vs')) === 1, 'leaving the end screen saved it, with a single settings event, without waiting for the page to close');
 
+  // ---- the title demo is nobody's play; V waits while another title screen is open ----
+  if (await ev('!!(window.WATCH && window.REPLAYS)')) {
+    await fresh();
+    const dm = await ev(`(() => {
+      VAULT.reset(); const round = () => BUS.emit('round:end', { round: 1, reason: 'ko', winner: game.f[0], loser: game.f[1], wins: [1, 0] }), s = () => VAULT.stats();
+      WATCH.demo(0, 2, 3); const kind = WATCH.state().kind; round(); const demo = { kind, ar: Object.keys(s().ar).length, r: s().r, m: s().m }; WATCH.leave();
+      WATCH.match(0, 2, 3); round(); const match = { kind: WATCH.state().kind, ar: Object.keys(s().ar).length, r: s().r }; WATCH.leave();
+      return { demo, match };
+    })()`);
+    check(dm.demo.kind === 'demo' && dm.demo.ar === 0 && dm.demo.r === 0 && dm.demo.m === 0, 'the attract demo adds no arena play and no round to the record: ' + JSON.stringify(dm.demo));
+    check(dm.match.kind === 'match' && dm.match.ar === 1 && dm.match.r === 1, 'a WATCH match still counts its arena play and its rounds (the demo is the only exception): ' + JSON.stringify(dm.match));
+    await fresh();
+    await ev('WATCH.open(); step(1); 1');
+    const w0 = await ev("WATCH.screen() === 'pick'");
+    await press('KeyV');
+    const wv = await ev('VAULT.isOpen()');
+    await ev('WATCH.close(); step(1); 1');
+    await press('KeyV');
+    const wv2 = await ev('VAULT.isOpen()');
+    await ev('VAULT.close(); step(1); 1');
+    await ev('REPLAYS.open(); step(1); 1');
+    const r0 = await ev('REPLAYS.screen().open');
+    await press('KeyV');
+    const rv = await ev('VAULT.isOpen()');
+    await ev('REPLAYS.close(); 1');
+    check(w0 && !wv && r0 && !rv, 'V does not open EXTRAS while the WATCH picker or the REPLAYS list is open');
+    check(wv2 === true, 'V on the plain title still opens EXTRAS');
+  }
+
   check(t.p.errors.length === errors0, 'no console errors from the vault' + (t.p.errors.length > errors0 ? ': ' + t.p.errors.slice(errors0, errors0 + 3).join(' | ') : ''));
 }

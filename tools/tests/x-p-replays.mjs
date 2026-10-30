@@ -221,6 +221,102 @@ export async function run(t) {
   const back = await ev("({ rounds: SETTINGS.get('rounds'), guard: SETTINGS.get('replays.restore'), active: REPLAYS.state().active })");
   check(mid.rounds === 1 && mid.guard === 4 && back.rounds === 4 && back.guard === null && !back.active, "settings changed by a replay that never ended are put back from 'replays.restore' on the next load");
 
+  // ---- 11. the match mutators are part of the recording and are pinned while it plays ----
+  if (await ev('!!window.MUTATORS')) {
+    await open(); await ev(short);
+    const mu = await ev(`(() => {
+      const act = () => MUTATORS.active().join(), out = {};
+      SETTINGS.set('replays.list', []); MUTATORS.clear(); MUTATORS.set('glass', true); MUTATORS.set('turbo', true);
+      __cpu(0, 2); __run();   // recorded with TURBO and GLASS CANNON on
+      MUTATORS.clear(); __cpu(1, 3); __run();   // recorded with none: this one is entry 0, the first one entry 1
+      const key = i => { const m = (SETTINGS.get('replays.list')[i].set || {})['mutators.on']; return m ? Object.keys(m).filter(k => m[k]).sort().join() : m; };
+      out.rec = [key(0), key(1)];
+      const watchOne = (i, viewer) => {   // the viewer has a mutator of their own on; the recording says what plays
+        MUTATORS.clear(); if (viewer) MUTATORS.set(viewer, true);
+        REPLAYS.play(i); const during = act(); __watch(); const chk = SETTINGS.get('replays.list')[i].chk; REPLAYS.exit();
+        return { during, chk, after: act() };
+      };
+      out.a = watchOne(1, 'lowgrav'); out.b = watchOne(0, 'turbo');
+      const l = JSON.parse(JSON.stringify(SETTINGS.get('replays.list'))); delete l[0].set['mutators.on']; delete l[0].chk; SETTINGS.set('replays.list', l);   // an entry from before the mutators were kept
+      out.c = watchOne(0, 'glass'); MUTATORS.clear();
+      return out;
+    })()`);
+    check(mu.rec[1] === 'glass,turbo' && mu.rec[0] === '', 'the snapshot keeps the mutators that were on: ' + JSON.stringify(mu.rec));
+    check(mu.a.during === 'turbo,glass' && mu.a.chk === 1 && mu.a.after === 'lowgrav', "a replay recorded with TURBO and GLASS CANNON plays with them (VERIFIED) whatever the viewer picked, and the viewer's own come back: " + JSON.stringify(mu.a));
+    check(mu.b.during === '' && mu.b.chk === 1 && mu.b.after === 'turbo', 'a replay recorded with none plays with none even when the viewer has TURBO on, and is still VERIFIED: ' + JSON.stringify(mu.b));
+    check(mu.c.during === '' && mu.c.chk === 1 && mu.c.after === 'glass', 'an entry saved before the mutators were kept plays with none: ' + JSON.stringify(mu.c));
+  }
+
+  // ---- 12. the viewer's accessibility choices survive a replay; REDUCED MOTION gets a calm picture and the replay still verifies ----
+  if (await ev("!!(window.A11Y && SETTINGS.get('a11y.motion') !== undefined)")) {
+    await open(); await ev(short);
+    const ac = await ev(`(() => {
+      SETTINGS.set('replays.list', []); SETTINGS.set('a11y.motion', false); SETTINGS.set('a11y.simpleSp', false); __cpu(0, 2); __run();   // recorded at full motion
+      const mine = mo => { SETTINGS.set('a11y.cb', 'protan'); SETTINGS.set('a11y.contrast', true); SETTINGS.set('a11y.bigText', true); SETTINGS.set('a11y.motion', mo); };
+      const now = () => ({ cb: SETTINGS.get('a11y.cb'), hc: SETTINGS.get('a11y.contrast'), big: SETTINGS.get('a11y.bigText'), motion: SETTINGS.get('a11y.motion') });
+      const draw = () => {   // one real frame with a big shake and a full flash: how many full-screen flashes were painted, and what is left of the shake
+        let n = 0; const fr = ctx.fillRect; ctx.fillRect = function () { if (/^rgba\\(255,\\s*255,\\s*255,\\s*0\\.85\\d*\\)$/.test(String(this.fillStyle))) n++; return fr.apply(this, arguments); };
+        game.shake = 6; game.flash = 10; try { render(); } finally { delete ctx.fillRect; }
+        return { flashes: n, shake: game.shake };
+      };
+      const play = mo => {
+        mine(mo); REPLAYS.play(0); let k = 0; while (game.phase !== 'fight' && k++ < 900) step(1);
+        const during = now(), calm = REPLAYS.calm(), alias = SETTINGS.get('reducedFlash'), pic = draw();
+        __watch(); const chk = SETTINGS.get('replays.list')[0].chk; REPLAYS.exit();
+        return { during, calm, alias, pic, chk, after: now(), calmAfter: REPLAYS.calm() };
+      };
+      return { calm: play(true), plain: play(false) };
+    })()`);
+    check(ac.calm.during.cb === 'protan' && ac.calm.during.hc === true && ac.calm.during.big === true && ac.plain.during.cb === 'protan' && ac.plain.during.hc === true && ac.plain.during.big === true,
+      "the viewer's colour filter, high contrast and larger text stay on while the replay plays: " + JSON.stringify([ac.calm.during, ac.plain.during]));
+    check(ac.calm.during.motion === false && ac.calm.chk === 1 && ac.plain.chk === 1, 'REDUCED MOTION follows the recording while it plays (the simulation depends on it), so the replay is VERIFIED for both kinds of viewer');
+    check(ac.calm.calm === true && ac.calm.alias === true && ac.calm.pic.flashes === 0 && ac.calm.pic.shake === 0, 'a viewer with REDUCED MOTION still gets no shake and no full-screen flash: ' + JSON.stringify(ac.calm.pic));
+    check(ac.plain.calm === false && ac.plain.pic.flashes > 0 && ac.plain.pic.shake > 0, 'a viewer without it sees the shake and the flash (so the check above can fail): ' + JSON.stringify(ac.plain.pic));
+    check(ac.calm.after.cb === 'protan' && ac.calm.after.hc === true && ac.calm.after.big === true && ac.calm.after.motion === true && ac.calm.calmAfter === false && ac.plain.after.motion === false,
+      "after the replay every accessibility choice is the viewer's again and the calm picture is off: " + JSON.stringify([ac.calm.after, ac.calm.calmAfter]));
+  }
+
+  // ---- 13. a replay feeds no counters: not the VAULT, not OKRS ----
+  if (await ev('!!(window.VAULT && window.OKRS)')) {
+    await open(); await ev(short);
+    const cn = await ev(`(() => {
+      const snap = () => JSON.stringify([VAULT.stats(), OKRS.state.n, OKRS.state.md]);
+      const hit = (a, b) => BUS.emit('hit', { src: a, victim: b, dmg: 5, kind: 'punch', combo: 7, hp: b.hp });   // what a person's punch sends
+      SETTINGS.set('replays.list', []); MODES.pick('versus'); game.mode = 2; game.sel = [0, 2]; startMatch(); __run();   // two people who never press a key: the match runs out the clock
+      const cpu = JSON.stringify(SETTINGS.get('replays.list')[0].cpu);
+      VAULT.reset(); OKRS.reset(); const base = snap();
+      REPLAYS.play(0); const [a, b] = game.f; let k = 0; while (game.phase !== 'fight' && k++ < 900) step(1);
+      hit(a, b); __watch(); const mid = snap(); REPLAYS.exit();
+      hit(a, b); const post = snap();   // the same hit counts again once the replay is over
+      return { cpu, same: mid === base, back: post !== base };
+    })()`);
+    check(cn.cpu === '[0,0]', 'the recorded match had two human sides, so the counters would count it: ' + cn.cpu);
+    check(cn.same, 'while a replay plays and ends, the VAULT (rounds, arena plays, hits) and OKRS (hits, modes played) stay exactly as they were');
+    check(cn.back, 'the same hit counts again once the replay is left');
+  }
+
+  // ---- 14. the list keys: X goes back and never erases, D erases on the second press, Z opens ----
+  await open(); await ev(short);
+  await ev("SETTINGS.set('replays.list', []); __cpu(0, 2); __run(); __cpu(1, 3); __run(); setPhase('title'); 1");
+  const k0 = await len();
+  await ev('REPLAYS.open()');
+  await press('KeyX');
+  const kx = await ev('REPLAYS.screen()');
+  check(k0 === 2 && !kx.open && kx.armed === -1 && await len() === k0, 'X on the list goes back: it neither arms nor erases');
+  await ev('REPLAYS.open()'); await press('Delete');
+  const ka = await ev('REPLAYS.screen().armed');
+  await press('KeyX');
+  const kb = await ev('REPLAYS.screen()');
+  check(ka === 0 && !kb.open && kb.armed === -1 && await len() === k0, 'X leaves a row that was armed for erasing and erases nothing');
+  await ev('REPLAYS.open()'); await press('KeyD');
+  const kd = await len();
+  await press('KeyD');
+  check(kd === k0 && await len() === k0 - 1, 'D asks once and erases on the second press (' + k0 + ' then ' + (k0 - 1) + ')');
+  await press('KeyZ');
+  const kz = await ev('REPLAYS.state()');
+  check(kz.active && kz.rt === 0, 'Z (punch for player one) watches the picked replay');
+  await ev('REPLAYS.exit()');
+
   check(t.p.errors.length === errors0, 'no console errors from the replays');
   await t.open();
   await ev(`(s => { if (s === null) localStorage.removeItem('brawl.settings'); else localStorage.setItem('brawl.settings', s); })(${JSON.stringify(savedStore)})`);

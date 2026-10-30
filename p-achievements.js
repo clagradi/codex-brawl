@@ -16,7 +16,9 @@
   const blip = (f, d) => { try { beep(f, d || 0.04, 'square', 0.05); } catch (e) { /* audio is optional */ } };
   const human = f => !!f && f.cpu === false;   // read at event time: the demo routes set the cpu flags after startMatch
   const qaRun = () => !!(window.__qa && window.__qa.cur);   // tools/fuzz.mjs sets __qa.cur while it plays an automated match: those never count, so a replay of the same seed stays identical
-  const counting = () => game.modeId !== 'training' && !qaRun();
+  const replaying = () => { try { return !!(window.REPLAYS && REPLAYS.state().active); } catch (e) { return false; } };   // a replay re-runs a match that already counted
+  const watching = () => { try { return game.modeId === 'watch' && !!(window.WATCH && WATCH.state().kind); } catch (e) { return false; } };   // the title demo and the WATCH matches are CPU against CPU: they count for nothing here
+  const counting = () => game.modeId !== 'training' && !qaRun() && !replaying() && !watching();
 
   // ---------- the 30 objectives: id, parody name, text, goal, and how to read the progress from the saved counters ----------
   const N = k => s => s.n[k] || 0;

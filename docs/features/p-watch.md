@@ -10,7 +10,7 @@ Leave the title screen alone for 20 seconds and a CPU versus CPU round starts by
 - The demo pairs rotate through ten matchups of the five fighters and through every arena, so two demos in a row never look the same. The CPU level is HARD so the round is lively.
 - A gold PRESS START banner blinks at the bottom of the screen with ANY KEY FOR THE MENU under it. It sits in the gap between the two super meters and covers neither.
 - Any key, click, tap or pad button ends the demo and returns to the title. That input is used up by leaving, so it does not also pick a menu entry.
-- The demo lasts one round at most. It also ends 90 ticks after a KO, which is before the engine would start the next round. It never reaches the match end, so it adds nothing to the arcade stats.
+- The demo lasts one round at most. It also ends 90 ticks after a KO, which is before the engine would start the next round. It never reaches the match end, so it adds no match, win or loss to the arcade stats; the VAULT skips its rounds and arena play and OKRS ignore it altogether.
 - Everything the demo touches (banners, projectiles, effects, camera, slow motion) is cleared when it ends, and the title comes back exactly as it was.
 
 ## Live commentary captions
@@ -57,7 +57,7 @@ All of them show up in the OPTIONS screen through the settings registry.
 ## Notes for integrators
 
 - The demo trigger is an `update` hook that reads the engine phase and counts ticks on the title. There is no timer and no `setTimeout`.
-- A WATCH match uses `game.mode = 2` with both fighters flagged as CPU when the match starts, which keeps the engine's share text on its ordinary path. The arcade stats still count a finished WATCH match, because it is a normal match as far as the BUS is concerned; the attract demo never reaches `match:end` and never counts.
+- A WATCH match uses `game.mode = 2` with both fighters flagged as CPU when the match starts, which keeps the engine's share text on its ordinary path. The arcade stats and the VAULT totals (matches, wins, losses) still count a finished WATCH match, because it is a normal match as far as the BUS is concerned; OKRS leave it out, so a WATCH match never adds `watch` to the modes played and never feeds PIVOT. The attract demo never reaches `match:end`; the VAULT and OKRS ignore its rounds and arena play. Both read `WATCH.state().kind` when the event arrives.
 - Other overlays that should stop the idle clock can register through `WATCH.guard(fn)`; the function returns true while the overlay is open. OPTIONS, the controls screen, the arcade screens, the bonus overlay and the modes2 setup screens are already covered. On the release branch the demo also waits while the screens of JUKEBOX, VAULT, OBS, GAMEPAD, MUTATORS, OKRS, TUTORIAL (lesson list), A11Y, REPLAYS and DAILY are open.
 - The title menu now holds twelve entries when every feature is loaded, which is more than the screen shows comfortably. Whoever owns the title layout should look at the spacing.
 - The idle clock counts game ticks, not wall time. A test that sits on the title for 20 real seconds will see the demo start. Use `hold(true)` or change `watch.idle` in such a test.
