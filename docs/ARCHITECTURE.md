@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| last | `p-perf.js` | frame-time overlay (F3), adaptive quality, arena snapshot cache and `PERF`; it loads after every other feature file because it wraps the functions they may have wrapped | perf agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-perf.js`, `tools/tests/x-p-perf.mjs` | perf agent | wraps `frame`, `update`, `render`, `drawArena`, `drawPost`, `FX.blood/sparks/dust/ring` and `ARENAS2.react`; at HIGH every wrapper passes straight through |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -87,6 +89,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
+| `perf:level` | `{ level, name }` | `p-perf.js`: the adaptive quality level changed (`0` HIGH, `1` MEDIUM, `2` LOW) |
 
 ### HOOKS points
 
@@ -142,6 +145,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `perf.quality` | enum, `'auto'` | `'auto'`, `'high'`, `'low'` | `p-perf.js`: AUTO steps down to MEDIUM or LOW when the average frame costs over 12 ms; `Shift`+`F3` cycles it |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
