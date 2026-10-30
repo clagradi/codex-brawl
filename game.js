@@ -114,6 +114,7 @@ function pollPads() {
   if (!navigator.getGamepads) return;
   let pads; try { pads = [...navigator.getGamepads()].filter(Boolean).slice(0, 2); } catch (e) { return; }
   pads.forEach((gp, side) => {
+    gp = HOOKS.filter('pad', gp, side);   // hook: a feature may hand back another pad-like object (remapped buttons, or nothing pressed)
     const m = MAP[side], ax = gp.axes || [], b = n => !!(gp.buttons[n] && gp.buttons[n].pressed);
     const now = { [m.l[0]]: b(14) || ax[0] < -0.5, [m.r[0]]: b(15) || ax[0] > 0.5, [m.u[0]]: b(12) || ax[1] < -0.6, [m.d[0]]: b(13) || ax[1] > 0.6, [m.p[0]]: b(0), [m.k[0]]: b(1), [m.s[0]]: b(2), [m.x[0]]: b(3) || b(5), Start: b(9), Back: b(8) };
     for (const c in now) {
@@ -860,6 +861,7 @@ function drawTitle() {
   const keysHint = twoP ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
   uiText(touch.on ? 'TAP 1 PLAYER TO FIGHT · 2 PLAYERS NEEDS A KEYBOARD OR TWO GAMEPADS'
     : 'W/S + ENTER · ' + keysHint + ' · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, 506, 15, '#c9c3b8');
+  HOOKS.run('menuHint', ctx, game);   // hook: a feature may draw over the key hint line (gamepad glyphs)
   uiText('UNOFFICIAL FAN PARODY. NOT AFFILIATED WITH OPENAI, META OR XAI.', W / 2, 528, 11, '#7d7668');
   if (!muted && !audioFail && !(AC && AC.state === 'running')) {   // browsers keep a page silent until the first key press / tap
     const s = (touch.on ? 'TAP' : 'PRESS ANY KEY OR TAP') + ' FOR SOUND';
@@ -912,6 +914,7 @@ function drawSelect() {
     : game.mode === 1 ? (game.ready[0] ? 'NOW PICK THE CPU · J OR ENTER PICKS · K OR ESC UNDOES YOURS · Q / E ARENA' : 'WASD OR ARROWS MOVE · J OR ENTER PICKS · ESC TITLE · Q / E ARENA')
     : 'P1 WASD + J PICKS, K UNDOES · P2 ARROWS + NUM1 PICKS, NUM2 UNDOES · Q / E ARENA · ESC TITLE';
   uiText(hint + (touch.on ? '' : ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF')), W / 2, 530, 13, '#9a9384');
+  HOOKS.run('menuHint', ctx, game);
 }
 function drawVs() {
   const t = game.phaseT, [a, b] = game.f, landed = t >= VS_LAND;
@@ -995,6 +998,7 @@ function drawOver() {
   drawTitleText(ctx, SHORT(w.d) + ' WINS', W / 2, 64, 56, { align: 'center', style: 'gold', glow: true });
   uiText((w.cpu ? 'CPU' : 'P' + (w.side + 1)) + ' TAKES IT ' + game.wins[w.side] + '-' + game.wins[l.side] + (game.fin ? ' · ' + game.fin.name : ''), W / 2, 110, 20, '#fff');
   uiText(touch.on ? 'TAP SELECT, REMATCH OR TITLE · SHARE ON X POSTS THE RESULT' : 'ENTER CHARACTER SELECT · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
+  HOOKS.run('menuHint', ctx, game);
 }
 function drawSheet() { // debug: #sheet=tibo
   ctx.fillStyle = '#3a4370'; ctx.fillRect(0, 0, W, H);
