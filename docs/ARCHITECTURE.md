@@ -54,6 +54,7 @@ Read this first, then read only the files you own.
 | 25 | `p-replays.js` | input-based match replays and the REPLAYS title screen; loaded last in `dev.html`, after `vfx.js` | p-replays agent |
 | 19 | `p-achievements.js` | OKRS: 30 parody achievements, an unlock toast, the OKRS screen, saved in `SETTINGS` (`window.OKRS`) | p-achievements agent |
 | 19 | `p-ranked.js` | RANKED: the PERFORMANCE REVIEW rating against the CPU (last script in `dev.html`, after `vfx.js`) | p-ranked agent |
+| 19 | `p-daily.js` | SPRINT OF THE DAY: the daily challenge, streak and result card | p-daily agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -79,6 +80,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-training2.js`, `tools/tests/x-p-training2.mjs`, `docs/features/p-training2.md` | p-training2 agent | no engine edit: MODES, SETTINGS, BUS `hit`/`block` and HOOKS `input` (order -1000), `update`, `fighterUpdate`, `damage` (order 1e9), `drawWorld`, `drawHud`, `pauseItems` |
 | `p-replays.js`, `tools/tests/x-p-replays.mjs` | p-replays agent | hooks `update` (order -1e9), `titleItems`, `drawTop` (order 40); listens to the BUS `phase`, `match:start` and `match:end`; pins `Math.random` to a seeded generator only while a recorded or replayed match runs; while a replay plays it wraps `BUS.emit` to keep that match's `match:end` from the other listeners; reads the engine globals `keys`, `pressed`, `NOISE` and `thud`; see `docs/features/p-replays.md` |
 | `p-ranked.js`, `tools/tests/x-p-ranked.mjs` | p-ranked agent | uses `match:start`, `round:start`, `match:end`, `phase`, the `update` and `drawTop` hooks, `MODES.register` and two `SETTINGS` keys; wraps `SETTINGS.get('difficulty')` while a rated match is on screen |
+| `p-daily.js`, `tools/tests/x-p-daily.mjs` | p-daily agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -166,6 +168,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `palettes.p2` | any, `{}` | `{ fighterId: index }` | `palettes.js`: the same for player 2 |
 | `palettes.unlocked` | any, `{}` | `{ fighterId: true }` | `palettes.js`: the star colourways opened by winning a match as a human player |
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
+| `daily.state` | any, `null` | `{ v, last, streak, best, cleared, won, played, h }` | `p-daily.js`: the streak, the totals and the last 30 days of SPRINT OF THE DAY |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
 | `strings.on` | bool, `true` | | `p-strings.js`: combo strings, the chase jump, air chains, juggle scaling and the STRINGS page; off is the game without them |

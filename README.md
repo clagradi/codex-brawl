@@ -8,6 +8,8 @@ Five fighters, 1 player vs CPU or 2 players on one keyboard (or two gamepads), b
 
 RANKED (`p-ranked.js`) is a title menu entry: a PERFORMANCE REVIEW against the CPU. Every match is rated like Elo, the rating climbs the ranks INTERN, JUNIOR, SENIOR, STAFF, PRINCIPAL and DISTINGUISHED, the end screen shows a rank card with the rating change, and the CPU level follows your rating. The rating and the record are saved in the settings. Details: `docs/features/p-ranked.md`.
 
+SPRINT OF THE DAY (title menu): one challenge per calendar day, the same fighter, opponent, arena, modifier and goal for everyone who plays that date, worked out on your own computer from the date alone. Clear it on consecutive days to build a streak, then share the result card. See `docs/features/p-daily.md`.
+
 Source: https://github.com/clagradi/codex-brawl
 
 ## Controls
