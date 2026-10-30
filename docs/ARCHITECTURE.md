@@ -64,6 +64,7 @@ Read this first, then read only the files you own.
 | 26 | `p-clips.js` | KO clips: rolling canvas capture, the KO CLIP panel and SAVE CLIP on the end screen (`CLIPS`); last script in `dev.html` | clips agent |
 | 19 | `p-gamepad.js` | gamepad extras: rumble, button glyphs on the menus, per-pad remapping screen, hot-plug toast | p-gamepad agent |
 | 26 | `p-events.js` | seasonal events by local date (Halloween, winter lights, New Year confetti, April 1 silly announcer), public `EVENTS`; loads after `vfx.js` (the position in `dev.html`) | p-events agent |
+| 26 | `p-review.js` | parody code review of a 1P match over the end screen, public `REVIEW` | review agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -99,6 +100,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-clips.js`, `tools/tests/x-p-clips.mjs`, `docs/features/p-clips.md` | clips agent | |
 | `p-gamepad.js`, `tools/tests/x-p-gamepad.mjs` | p-gamepad agent | adds two hook points to `game.js` (`pad` in `pollPads`, `menuHint` in the title, select and end screens) |
 | `p-events.js`, `tools/tests/x-p-events.mjs`, `docs/features/p-events.md` | p-events agent | draw-only; wraps instead of engine edits |
+| `p-review.js`, `tools/tests/x-p-review.mjs`, `docs/features/p-review.md` | review agent | hooks: `update` order -40, `drawTop` order 150 |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -236,6 +238,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `gamepad.glyphs` | enum, `'auto'` | `'auto'`, `'letters'`, `'swapped'`, `'shapes'` | `p-gamepad.js`: the glyph set; `auto` picks from the controller id (a pad without the standard layout shows plain numbers) |
 | `gamepad.maps` | any, `null` | `null` or `{ controllerId: { l, r, u, d, p, k, s, x, st, bk: [button numbers] } }` | `p-gamepad.js`: the remapping screen's result, per controller id; a pad on the default layout stores nothing, at most six pads are kept |
 | `events.mode` | enum, `'auto'` | `auto`, `off`, `halloween`, `winter`, `newyear`, `april` | `p-events.js`: `auto` follows the local date (Halloween 20 Oct to 2 Nov, winter 15 Dec to 6 Jan, New Year 30 Dec to 2 Jan, April 1); `off` disables every event; an event name forces it on any date. Also settable for one visit with `#events=<mode>` and cycled with N in the pause screen |
+| `review.on` | bool, `true` | | `p-review.js`: the code review (comments and an APPROVED or CHANGES REQUESTED verdict) after a 1P match against the CPU |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
