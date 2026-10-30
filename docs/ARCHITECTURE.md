@@ -59,6 +59,7 @@ Read this first, then read only the files you own.
 | 19 | `p-photomode.js` | photo mode from the pause screen: free camera, six filters, frames, PNG save (`PHOTO`) | p-photomode agent |
 | 19 | `p-a11y.js` | accessibility options (colour filters, high contrast HUD, larger text, reduced motion, screen reader announcements, simple specials) and `A11Y`; loads after `vfx.js` | a11y agent |
 | 19 | `p-observability.js` | OBSERVABILITY: the post-match dashboard (damage-over-time chart, KPI scorecard, incident log), public `OBS`; loads last in `dev.html` | observability agent |
+| 19 | `p-watch.js` | attract demo after 20 s idle on the title, the WATCH entry, live commentary captions | p-watch agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -89,6 +90,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-photomode.js`, `tools/tests/x-p-photomode.mjs` | p-photomode agent | |
 | `p-a11y.js`, `tools/tests/x-p-a11y.mjs` | a11y agent | |
 | `p-observability.js`, `tools/tests/x-p-observability.mjs` | observability agent | uses `update`, `fighterUpdate`, `drawTop` and the BUS events `match:start`, `round:start`, `round:end`, `hit`, `block`, `special`, `super`, `throw`, `match:end`, `phase`, `settings`; one pointerdown listener on `#c` |
+| `p-watch.js`, `tools/tests/x-p-watch.mjs` | p-watch agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -211,6 +213,11 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `observability.enabled` | bool, `true` | | `p-observability.js`: records the match and offers the OBSERVABILITY report (O key or tap) on the end screen |
 | `observability.auto` | bool, `false` | | `p-observability.js`: open the report by itself when the end screen appears |
 | `observability.fleet` | any, `{ m: 0, d: 0, h: 0 }` | matches, damage and hits ever logged | `p-observability.js`: the lifetime totals shown in the footer of the report |
+| `watch.attract` | bool, `true` | | `p-watch.js`: the attract demo after the idle time on the title |
+| `watch.idle` | num, `20` | 5 to 120 seconds | `p-watch.js`: seconds without input on the title before the attract demo starts |
+| `watch.captions` | bool, `true` | | `p-watch.js`: the live commentary captions in the demo and in WATCH |
+| `watch.level` | enum, `normal` | `easy`, `normal`, `hard`, `nightmare` | `p-watch.js`: the CPU level of a WATCH match (it sets `game.cpuLevel`) |
+| `watch.pick` | any, `{}` | `{ a, b, arena }` | `p-watch.js`: the two fighters and the arena (-1 random) last picked in WATCH |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
