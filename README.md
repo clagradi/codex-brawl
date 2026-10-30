@@ -41,6 +41,7 @@ Universal moves (P = punch, K = kick, L = special; P2 uses its own keys the same
 - `P` or `Esc` pauses; the pause screen shows both move lists, the controls and the sudden-death rule. `P`, `Esc` or `Enter` resumes, `Q` quits to the title.
 - End screen: `Enter`, `Space` or punch goes back to select, `R` (or P1's super key) is a rematch with the same fighters and the same arena (an arena left on RANDOM is rolled again), `Esc` goes to the title, `T` or the SHARE ON X button opens a post on X with the result.
 - `M` mutes (music and effects), `B` turns the stylised blood on or off. Both are remembered between visits.
+- Seasonal events (drawing only, never the fight itself): Halloween from 20 Oct to 2 Nov, winter lights from 15 Dec to 6 Jan, New Year fireworks and confetti from 30 Dec to 2 Jan, and a silly announcer on 1 April, all by your local date. `N` in the pause screen cycles AUTO, OFF and each event so you can see one on any day; the choice is remembered. Add `#events=winter` (or `halloween`, `newyear`, `april`, `off`) to the address to try one for a single visit.
 
 Rules: 99-second rounds, best of 3. A timed-out round goes to whoever has more health left (by percentage), and an exact tie in rounds 1 to 3 is a draw that nobody wins. If nobody has two wins after round 3, round 4 and any later round is sudden death: 30 seconds, both fighters start at a quarter of their health, and a time-out tie goes to whoever has more super meter. The sudden-death round spells the rule out at the start, and the pause screen repeats it.
 

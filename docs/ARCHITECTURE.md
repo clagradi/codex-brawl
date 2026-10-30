@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 26 | `p-events.js` | seasonal events by local date (Halloween, winter lights, New Year confetti, April 1 silly announcer), public `EVENTS`; loads after `vfx.js` (the position in `dev.html`) | p-events agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-events.js`, `tools/tests/x-p-events.mjs`, `docs/features/p-events.md` | p-events agent | draw-only; wraps instead of engine edits |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -142,6 +144,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `events.mode` | enum, `'auto'` | `auto`, `off`, `halloween`, `winter`, `newyear`, `april` | `p-events.js`: `auto` follows the local date (Halloween 20 Oct to 2 Nov, winter 15 Dec to 6 Jan, New Year 30 Dec to 2 Jan, April 1); `off` disables every event; an event name forces it on any date. Also settable for one visit with `#events=<mode>` and cycled with N in the pause screen |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
@@ -162,6 +165,7 @@ The title menu is `MODES.list()` plus whatever `HOOKS` `titleItems` collects, so
 - `ARENAS` (in `arenas.js`) is a plain array that can be pushed to; `game.arena` indexes it modulo its length. `ARENAS.make(o)` builds an entry from the description the nine shipped stages use (`{ id, name, tagline, accent, build(A), paint(g, t, cam, A), front?(g, t, cam, A) }`, painted on a half-resolution 480x270 canvas and built once on first use). `ARENAS.kit` holds the painter's kit they share: sizes `AW`, `AH`, `AG` (the walking line) and `TAU`, plus the helpers `R`, `grad`, `disc`, `fogDraw`, `motes`, `floorBase` and the rest of the list in `arenas.js`.
 - `MUSIC` (in `music.js`) is the public music object. `MUSIC.define(name, theme, { trim?, arena? })` adds or replaces a theme (`trim` is a level correction, `arena: true` also uses it for the arena whose `id` equals `name`), `MUSIC.instrument(name, spec)` adds an instrument, `MUSIC.themes()` lists the names. Every theme must stay inside the loudness limits that the tests measure.
 - `game` (in `game.js`) is the shared state. Read it freely; write to it only through the functions and hooks above. Useful fields: `phase`, `modeId`, `mode`, `f` (the two fighters), `round`, `wins`, `timer`, `sudden`, `cpuLevel`, `sel`, `arena`, `winner`, `loser`, `tick`. A fighter has `side`, `d` (its roster entry, `d.id`), `hp`, `meter`, `state`, `x`, `y`, `face`, `combo`, `cpu`. Helpers: `startMatch()`, `startRound()`, `setPhase(p)`, `roundsToWin()`, `suddenRound()`, `setMuted(v)`, `titleItems()`.
+- `p-events.js` uses the hooks `update`, `drawWorld`, `drawTop` and `pauseItems` (key `KeyN`, label `N EVENTS <mode>`) and the BUS events `ko`, `match:start`, `round:start`, `phase` and `settings`. It wraps four globals without editing the engine: `drawArena` and `drawArenaFront` (the season is painted around the stage, so the title and pause screens get it too), `ANNOUNCER.say` (April 1 only: silly caption and slide whistle) and `speechSynthesis.speak` (April 1 only: swaps the spoken text). A later file that wraps the same functions must call the previous version. Public `window.EVENTS` (`active()`, `has(id)`, `activeOn(month, day)`, `setDate(month, day)`, `setMode(mode)`, `cycle()`, `silly(key, arg)`, `burst(x, y, n)`, `state()`) is for tests and other files.
 - Name collision warning: everything is one global scope, and `game.js` already has globals such as `hit`, `tap`, `held`, `keys`, `pressed`, `ctx`, `muted`. Wrap each feature file in an IIFE and expose at most one global named after the feature.
 
 ## How to add things
