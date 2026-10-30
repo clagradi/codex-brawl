@@ -56,7 +56,7 @@ export async function run(t) {
     const out = {};
     try {
       render(); render(); render(); out.held = calls;
-      step(1); render(); render(); out.tick = calls;
+      step(1); game.shake = 0; render(); render(); out.tick = calls;   // a hit in this one tick would start a shake, and its random jitter changes the cache key between the two renders
       dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyZ' })); dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyZ' })); render(); out.input = calls;
       SETTINGS.set('perf.quality', 'high'); render(); out.setting = calls;
       PERF.cache = 'off'; render(); render(); out.off = calls;

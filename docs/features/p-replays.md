@@ -61,7 +61,7 @@ A recording stops (and is dropped) after an hour of play or 400 000 characters o
 - A replay recorded by an older version of the game can show DESYNC after the fight code changes. That is the check doing its job; the match itself still plays.
 - A replay is not a new match. While one plays, `p-replays.js` keeps its `match:end` event from the other features (it wraps `BUS.emit` for that one event only), so the STATS counters and the colourway unlocks do not count it twice. Hits, KOs and rounds still send their events, so effects and sounds play as usual; OKRS and the VAULT look at `REPLAYS.state().active` and count nothing from a replay (no round, hit, special, arena play, match, win or loss). Every setting is put back when the replay is left.
 - The REPLAYS item uses the title menu registry. On a build with many modes the title can list more items than fit on screen; `W`/`S` still reach REPLAYS.
-- The list and the viewer controls need a keyboard or a gamepad; there are no touch buttons for them.
+- Touch: the list has UP, DOWN, WATCH, ERASE (ERASE AGAIN on the second press) and BACK buttons, a tap on a row selects it and a second tap watches it; the viewer has PAUSE or RESUME, SPEED, STEP, RESTART and EXIT (LIST and AGAIN after the end). Real-device use was not tried.
 
 ## Settings keys
 

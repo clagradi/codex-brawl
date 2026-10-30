@@ -136,6 +136,17 @@ export async function run(t) {
   check(op.shareHidden === 'hidden' && op.shareBefore === '', 'the engine SHARE ON X anchor is hidden while the report is open (inline visibility)');
   check(V_near(op.back, [7, 10, 21], 14) && V_near(op.panel, [16, 22, 43], 3), 'the report paints its dark backdrop and the chart panel: ' + JSON.stringify([op.back, op.panel]));
 
+  // a mode with its own card on the left (RANKED: x 18 to 364, y 132 to 424; the sprint of the day: x 24 to 356, y 128 to 424) gets the button on the right, clear of the card, the toast and the clip panel
+  const rk = await ev(`(() => {
+    OBS.close(); step(1); const m = game.modeId, out = { v: OBS.button() }, hit = id => { game.modeId = id; render(); const b = OBS.button(); return { b, left: V.px(b.x + 1, b.y + b.h / 2), tap: OBS.tap(b.x + b.w / 2, b.y + b.h / 2, 1) && OBS.isOpen() }; };
+    out.r = hit('ranked'); OBS.close(); out.d = hit('daily'); OBS.close(); game.modeId = m; render(); out.p = CLIPS.consts.PANEL_R; out.l = CLIPS.consts.PANEL;
+    return out;
+  })()`);
+  const clear = (b, c) => b.x >= c[2] || b.x + b.w <= c[0] || b.y >= c[3] || b.y + b.h <= c[1];
+  check(clear(rk.r.b, [18, 132, 364, 424]) && clear(rk.d.b, [24, 128, 356, 424]) && rk.r.b.x > 540 && rk.r.b.x + rk.r.b.w <= 936 && rk.r.b.y + rk.r.b.h <= rk.p.y, 'the O button keeps clear of the RANKED card and the sprint card (right side, above the clip panel): ' + JSON.stringify([rk.r.b, rk.d.b, rk.p]));
+  check(rk.r.tap && rk.d.tap && rk.v.x < 100, 'the right-hand O button opens the report on a tap, and a plain match keeps it on the left: ' + JSON.stringify([rk.r.tap, rk.d.tap, rk.v]));
+  check(clear(rk.p, [18, 132, 364, 424]) && clear(rk.p, [24, 128, 356, 424]) && rk.p.x + rk.p.w <= 936 && rk.l.x < 100, 'the KO CLIP panel moves right for those modes too: ' + JSON.stringify([rk.p, rk.l]));
+
   const dr = await ev(`(() => {
     const out = {}; OBS.close(); OBS.open(); step(1); render(); const lay = OBS.layout(), ch = lay.chart, ser = OBS.series(0);
     const x0 = ch.x + 54, x1 = ch.x + ch.w - 20, y0 = ch.y + 60, y1 = ch.y + ch.h - 32, dom = Math.max(10, ser.T), ymax = OBS.niceMax(ser.max);

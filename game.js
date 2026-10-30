@@ -191,8 +191,11 @@ function pollPads() {
   const chooser = () => game.ready[0] ? 1 : 0;   // select: whose fighter the next tap sets (1P: you, then the CPU)
   const selectOk = () => key(game.mode === 2 ? MAP[chooser()].p[0] : 'Enter');
   const selectBack = () => key(game.mode === 2 && (game.ready[0] || game.ready[1]) ? MAP[game.ready[1] ? 1 : 0].k[0] : 'Escape');
-  function pillList() {
-    const p = game.phase;
+  // a feature screen (a mode's setup, the arcade, a bonus game, the replay list ...) gives its own buttons through HOOKS 'touchPills': { t: label, k: key code }, { t: label, a: action }
+  // (u d l r p k s: the key P1 uses for it) or { t: label, f: function }, and { pad: true } / { pad: false } to show or hide the d-pad and the P K SP SU buttons. They replace the title or fight buttons below.
+  function pillList(fl) {
+    const p = game.phase, fp = fl.filter(q => q.t);
+    if (fp.length) return fp.map(q => ({ t: q.t, f: q.f || (() => key(q.a ? MAP[0][q.a][0] : q.k)) }));
     if (p === 'title') return [{ t: '1 PLAYER', f: () => { game.titleSel = 0; key('Enter'); } }, { t: '2 PLAYERS', f: () => { game.titleSel = 1; key('Enter'); } }, sound()];
     if (p === 'select') return [{ t: 'OK', f: selectOk }, { t: 'BACK', f: selectBack }, { t: '< ARENA', f: () => key('KeyQ') }, { t: 'ARENA >', f: () => key('KeyE') }];
     if (p === 'vs') return [{ t: 'SKIP', f: () => key('Enter') }];
@@ -218,6 +221,11 @@ function pollPads() {
     }
   }
   cv.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); menuTap(...canvasPos(e)); });
+  // taps (and clicks) on the canvas for a feature screen: while open() says so, onTap(x, y) gets them in canvas units and the title menu underneath never sees them
+  touch.screenTaps = (open, onTap) => addEventListener('pointerdown', e => {
+    if (e.target !== cv || e.button > 0) return; let on = false; try { on = !!open(); } catch (x) { /* a feature that is half loaded */ }
+    if (on) { e.preventDefault(); e.stopImmediatePropagation(); onTap(...canvasPos(e)); }
+  }, true);
   cv.addEventListener('contextmenu', e => e.preventDefault()); pad.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });   // the page never scrolls or zooms
   document.addEventListener('gesturestart', e => e.preventDefault());                     // iOS pinch
@@ -263,7 +271,7 @@ function pollPads() {
   }
   let sig = '';
   function sync() {   // every frame: rebuild the buttons only when the screen changed
-    const p = game.phase, vis = touch.on && p !== 'sheet', fighting = vis && FIGHT.has(p), list = vis ? pillList() : [];
+    const p = game.phase, vis = touch.on && p !== 'sheet', fl = vis ? HOOKS.collect('touchPills') : [], po = fl.find(q => 'pad' in q), fighting = vis && (po ? po.pad : FIGHT.has(p)), list = vis ? pillList(fl) : [];
     const now = vis + '|' + (fighting ? 'f' : p) + '|' + lay.stacked + '|' + list.map(q => q.t).join(',') + '|' + touch.tip;
     if (now === sig) return; sig = now;
     if (!fighting) reset();
@@ -641,6 +649,7 @@ class Fighter {
 
 // ---------- game state ----------
 const game = {
+  still: false,   // true while the pause menu or the photo mode draws the scene as a fight (phase 'fight' in game._phase): the round 1 hint strips stay out of it
   _phase: 'title', get phase() { return this._phase; }, set phase(p) { const from = this._phase; if (p === from) return; this._phase = p; BUS.emit('phase', { from, to: p }); },   // every change of phase, from setPhase or a direct assignment, emits BUS 'phase'
   phaseT: 0, mode: 1, modeId: 'versus', sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
   shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, banner: null, arena: 0, arenaPick: -1, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
@@ -664,19 +673,19 @@ function titlePager(n) { // null while everything fits, else { size, pages, page
   const pages = Math.ceil(n / TITLE_PAGE);
   return { size: TITLE_PAGE, pages, page: Math.min(Math.floor(game.titleSel / TITLE_PAGE), pages - 1), x: W - 72, y: 458 };
 }
-// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker ...): the page note, the OKRS corner button and the attract demo stay out of its way
+// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker, the ARCADE and SURVIVAL select, the mode screens, the bonus games ...): the page note, the OKRS corner button, the season tag and the attract demo stay out of its way
 const TITLE_SCREENS = [['JUKEBOX', 'isOpen'], ['VAULT', 'isOpen'], ['OBS', 'isOpen'], ['GAMEPAD', 'isOpen'], ['MUTATORS', 'isOpen'], ['OKRS', 'screen'], ['WATCH', 'screen'], ['DAILY', 'screen']];   // global, member that says a screen is open (function or flag)
 function titleOverlayOpen() {
   for (const [n, k] of TITLE_SCREENS) { try { const o = window[n], v = o && o[k]; if (typeof v === 'function' ? v.call(o) : v) return true; } catch (e) { /* a feature that is half loaded has no screen open */ } }
-  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen)); } catch (e) { return false; }
+  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen) || (window.ARCADE && ARCADE.S && ARCADE.S.screen) || (window.MODES2 && MODES2.screen && MODES2.screen()) || (window.BONUS && BONUS.active && BONUS.active())); } catch (e) { return false; }
 }
 function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six); beyond six the other pages sit off the canvas (hidden: true)
   const pg = titlePager(n);
   if (pg) { if (Math.floor(i / pg.size) !== pg.page) return { x: W / 2, y: -200, on: 24, off: 19, hidden: true }; n = Math.min(pg.size, n - pg.page * pg.size); i %= pg.size; }
   if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
-  if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
+  if (n === 3) return { x: W / 2, y: 430 + i * 26, on: 24, off: 19 };   // the third row ends at y 494, above the hint line (y 500 to 512)
   const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
-  return { x: W / 2 + (col ? 170 : -170), y: 436 + row * 28, on: 24, off: 19 };
+  return { x: W / 2 + (col ? 170 : -170), y: 430 + row * 26, on: 24, off: 19 };
 }
 function banner(txt, opts = {}) { const life = opts.life || 90; game.banner = { txt, t: 0, life, opts: Object.assign({ dur: life }, opts) }; }
 function startMatch() {
@@ -965,7 +974,7 @@ function drawWorld() {
 // The line at the foot of the playfield, kept clear of the super meters: the finisher prompt, the sudden-death rules, or the controls in round 1.
 // On a portrait phone the canvas is too small to read it, so it goes to the text under the game instead (touch.tip, shown by the touch layer).
 function fightTip() {
-  const [a, b] = game.f, ph = game.phase, early = ph === 'fight' && game.clock < 360, fade = Math.min(1, (360 - game.clock) / 60);
+  const [a, b] = game.f, ph = game.phase, early = ph === 'fight' && !game.still && game.clock < 360, fade = Math.min(1, (360 - game.clock) / 60);
   if (ph === 'finish') {
     const w = game.winner, key = w.cpu ? 'CPU' : touch.on && w.side === 0 ? 'SU' : LABEL[w.side].x;
     return { txt: key + ' FOR THE FINISHER · ANY HIT ENDS IT', y: H - 20, size: 16, col: '#ff6b5c', a: game.tick % 30 < 20 ? 1 : 0.5 };
@@ -993,12 +1002,12 @@ function drawPause() {
   let y = 346; for (const [txt, size, col] of L) { uiText(txt, W / 2, y, size, col); y += size + 10; }
   const ly = Math.max(470, y + 14);
   uiText(touch.on ? 'RESUME TO FIGHT ON · QUIT GOES TO THE TITLE' : 'P / ESC / ENTER RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, ly, 18, '#c9a24a');
-  const pit = HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, Math.min(H - 14, ly + 26), 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
+  const pit = touch.on ? [] : HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, Math.min(H - 14, ly + 26), 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
 }
 function drawFight() {
   drawWorld(); drawHUD(ctx, game); HOOKS.run('drawHud', ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
-  if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
+  if (game.phase === 'fight' && !game.still && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
     uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
   const tip = fightTip();
   if (touch.on && lay.stacked) touch.tip = tip ? tip.txt : ''; else if (tip) uiText(tip.txt, W / 2, tip.y, tip.size, tip.col, 'center', tip.a);
@@ -1027,7 +1036,7 @@ function render() {
   if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
   if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
   HOOKS.run('drawTop', ctx, game);   // last thing drawn on the canvas, in every phase
-  if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }   // shown before the touch layer is laid out, so it is sized with the other buttons
+  if (shareEl) { if (shareEl.hidden === (p === 'over')) shareEl.hidden = p !== 'over'; if (p === 'over') { const u = shareUrl(); if (shareEl.getAttribute('href') !== u) shareEl.href = u; } }   // shown before the touch layer is laid out, so it is sized with the other buttons; the link follows the result on every end-screen frame
   touch.sync();   // the touch layer follows the screen: buttons per phase, hidden on the debug sheet
 }
 

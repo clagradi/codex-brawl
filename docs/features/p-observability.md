@@ -6,7 +6,7 @@ This is a parody. After a match the fight gets the treatment a production servic
 
 ## What the player sees
 
-On the end screen (the engine's `over` phase) a green button appears on the left under the winner banner (below the OKR toast and above the KO CLIP panel): `O  MATCH REPORT`. It is not drawn, and `O` does nothing, while the match code review (p-review) is open; close the review first. Press `O`, or tap the button, and the report opens over the end screen. It fades in over 6 ticks with a short beep, the KPI numbers count up in 24 steps and the incident lines appear one after another, with a blinking cursor after the title.
+On the end screen (the engine's `over` phase) a green button appears on the left under the winner banner (below the OKR toast and above the KO CLIP panel; in a mode with its own card on the left, `MODES` `endCard`, i.e. RANKED and the sprint of the day, it moves to the right, x 660 and y 136): `O  MATCH REPORT`. It is not drawn, and `O` does nothing, while the match code review (p-review) is open; close the review first. Press `O`, or tap the button, and the report opens over the end screen. It fades in over 6 ticks with a short beep, the KPI numbers count up in 24 steps and the incident lines appear one after another, with a blinking cursor after the title.
 
 **Status banner.** One line that reads the winner's remaining health: `ALL SYSTEMS NOMINAL` (60% or more), `DEGRADED PERFORMANCE` (25% to 60%) or `PARTIAL OUTAGE` (below 25%). With no finished match it says `NO MATCH DATA`.
 

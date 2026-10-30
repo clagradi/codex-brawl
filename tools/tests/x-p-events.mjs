@@ -129,6 +129,14 @@ export async function run(t) {
     return o;
   })()`);
   check(ti.win !== ti.off && ti.hal !== ti.off && ti.off === ti.off2, 'the title screen shows the season (tag and decoration) and is back to normal with events off');
+  // the tag sits under the OKRS corner button (y 12 to 42), and stays away while a feature screen (here the ARCADE select) is over the title
+  const tg = await ev(`(() => {
+    E.fresh(0, 1); setPhase('title'); E.mode('halloween'); const log = [], p0 = window.ptext, out = {};
+    window.ptext = function (c, str, x, y) { if (String(str).includes('SPOOKY')) log.push([x, y]); return p0.apply(this, arguments); };
+    try { render(); out.plain = log.slice(); log.length = 0; MODES.get('arcade').onPick(); step(1); render(); out.arcade = log.slice(); ARCADE.S.screen = null; } finally { window.ptext = p0; }
+    return out;
+  })()`);
+  check(tg.plain.length === 1 && tg.plain[0][1] >= 46 && tg.arcade.length === 0, 'the season tag is drawn below the OKRS corner button on the plain title and not over a feature screen: ' + JSON.stringify(tg));
 
   // ---- New Year confetti on a KO ----
   const c = await ev(`(() => {

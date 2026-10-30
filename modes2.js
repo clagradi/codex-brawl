@@ -3,6 +3,7 @@
 // Area: TEAM BATTLE (three fighters a side, elimination, the winner stays with its health plus 20 %), TOURNAMENT (4 or 8 entrants, bracket, champion)
 //       and KING OF THE HILL (2 to 8 named local players, winner stays, queue and win streak). Notes for players: docs/features/x-modes2.md.
 // Plug in with: MODES.register (team, tournament, koth), HOOKS 'update' (the setup and bracket screens, the flow between matches), HOOKS 'drawTop' (those screens),
+//   HOOKS 'touchPills' (the buttons of the open screen on a touch device) and touch.screenTaps (taps on its rows, cards and buttons),
 //   HOOKS 'drawHud' (team icons, names, streaks) and the MODES callbacks for BUS 'match:start' / 'round:end' / 'round:start'.
 // Engine data it touches: game.toWin (HUD medal slots) while a team battle runs; SETTINGS.get('rounds') answers 3 during a team battle (in memory only, nothing is stored).
 // Test hook: window.MODES2 (screen name, state, starters) used by tools/tests/x-modes2.mjs.
@@ -45,6 +46,8 @@
   }
   function icon(c, i, x, y, s, flip, dim) { c.save(); if (dim) c.globalAlpha = 0.35; drawHeadIcon(c, ROSTER[i].id, x, y, s, flip); c.restore(); }
   function cross(c, x, y, s) { c.strokeStyle = '#ff3b30'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 3, y + 3); c.lineTo(x + s - 3, y + s - 3); c.moveTo(x + s - 3, y + 3); c.lineTo(x + 3, y + s - 3); c.stroke(); }
+  const inR = (x, y, r) => x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];   // a tap (canvas units) inside [x, y, w, h]
+  const NAVPILLS = [{ t: 'UP', a: 'u' }, { t: 'DOWN', a: 'd' }, { t: '< CHANGE', a: 'l' }, { t: 'CHANGE >', a: 'r' }, { t: 'NEXT', k: 'Enter' }, { t: 'BACK', k: 'Escape' }];   // the setup screens: the same keys as the keyboard
   function button(c, x, y, w, h, label, hot) { box(c, x, y, w, h, hot, hot ? '#1a2346' : PANEL); uiText(label, x + w / 2, y + h / 2 + 1, 20, hot ? GOLD : INK); }
 
   // ---------------------------------------------------------------- entrants and the shared rows editor (tournament and king of the hill)
@@ -79,6 +82,15 @@
         if (s.row === 0) { s.row = 1; s.fi = 0; } else if (e) { if (s.fi + 1 < fl.length) s.fi++; else { s.fi = 0; s.row++; } } else cfg.start();
       }
     };
+    s.pills = () => NAVPILLS;
+    s.tap = (x, y) => {   // START; the entrants row (left half fewer, right half more); a field of an entry: the first tap selects it, the next one changes it
+      if (inR(x, y, [330, 146 + m.n * 34 + 8, 300, 34])) return cfg.start();
+      if (y >= 104 && y < 134) { s.row = 0; resize(x > 480 ? 1 : -1); clampFi(); beep(560, 0.04); return; }
+      const i = Math.floor((y - 146) / 34); if (i < 0 || i >= m.n || y - 146 - i * 34 > 30) return;
+      const e = m.ents[i], fl = fieldsOf(e), fi = x >= 420 ? fl.indexOf('f') : e.human && x >= 290 && x < 384 ? fl.indexOf('c' + Math.floor((x - 290) / 30)) : cfg.allowCpu && x >= 150 && x < 270 ? fl.indexOf('type') : -1;
+      if (fi >= 0 && s.row === i + 1 && s.fi === fi) { edit(e, fl[fi], 1); beep(560, 0.04); return; }
+      s.row = i + 1; s.fi = Math.max(0, fi); clampFi(); beep(420, 0.04);
+    };
     s.draw = c => {
       backdrop(c, s.t); head(c, cfg.title, cfg.sub);
       box(c, 90, 104, 780, 30, s.row === 0);
@@ -98,11 +110,12 @@
         icon(c, e.f, 426, y + 3, 24, false); uiText(ROSTER[e.f].name, 462, y + 16, 18, INK, 'left'); uiText(ROSTER[e.f].tag, 730, y + 16, 12, DIM, 'right');
       }
       button(c, 330, 146 + m.n * 34 + 8, 300, 34, cfg.startLabel, s.row === m.n + 1);
-      foot(c, cfg.hint);
+      foot(c, touch.on ? ROWS_TOUCH : cfg.hint);
     };
     return s;
   }
   const ROWS_HINT = 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT FIELD · ESC BACK';
+  const ROWS_TOUCH = 'TAP A FIELD TO SELECT IT, AGAIN TO CHANGE IT · THE BUTTON BELOW STARTS · BACK LEAVES';
 
   // ---------------------------------------------------------------- TEAM BATTLE
   const TEAM = { live: false, setToWin: false, sides: null, pend: null, cfg: { two: false, teams: [[0, 1, 2], [4, 3, 2]] } };
@@ -123,6 +136,14 @@
       if (dx) { beep(560, 0.04); if (s.cur === 0) cf.two = !cf.two; else if (s.cur <= 6) pick((s.cur - 1) / SIZE | 0, (s.cur - 1) % SIZE, dx); }
       if (n.ok) { beep(700, 0.06); if (s.cur === 7) startTeam(); else s.cur++; }
     };
+    s.pills = () => NAVPILLS;
+    s.tap = (x, y) => {   // START; the mode row; a fighter card (the first tap selects it, the next one picks the next fighter)
+      if (inR(x, y, [330, 412, 300, 38])) return startTeam();
+      if (y >= 104 && y < 134) { s.cur = 0; cf.two = !cf.two; beep(560, 0.04); return; }
+      for (let side = 0; side < 2; side++) for (let k = 0; k < SIZE; k++) if (inR(x, y, [90 + k * 264, 176 + side * 126, 252, 84])) {
+        const i = 1 + side * SIZE + k; if (s.cur === i) { pick(side, k, 1); beep(560, 0.04); } else { s.cur = i; beep(420, 0.04); } return;
+      }
+    };
     s.draw = c => {
       backdrop(c, s.t); head(c, 'TEAM BATTLE', 'THREE FIGHTERS A SIDE · THE WINNER STAYS WITH 20% HEALTH BACK');
       box(c, 90, 104, 780, 30, s.cur === 0);
@@ -139,7 +160,7 @@
       }
       button(c, 330, 412, 300, 38, 'START BATTLE', s.cur === 7);
       uiText('LOSE ALL THREE AND YOUR SIDE IS OUT', W / 2, 474, 14, DIM);
-      foot(c, 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT · ESC BACK');
+      foot(c, touch.on ? 'TAP A FIGHTER TO SELECT IT, AGAIN TO CHANGE IT · THE BUTTON STARTS · BACK LEAVES' : 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT · ESC BACK');
     };
     return s;
   }
@@ -224,19 +245,23 @@
   function bracketScreen() {
     const s = { id: 'bracket', sel: 0, quit: 0 };
     const items = () => { const m = nextMatch(); return !m ? [] : bothCpu(m) ? ['WATCH MATCH', 'SKIP MATCH', 'SKIP ALL CPU MATCHES'] : [m.a != null && TOUR.ents[m.a].human && TOUR.ents[m.b].human ? 'PLAY MATCH (2 PLAYERS)' : 'PLAY MATCH']; };
+    const rect = (k, n) => [W / 2 - n * 110 + k * 220 + (n === 1 ? -20 : 0), H - 70, n === 1 ? 240 : 210, 32];   // the choice buttons
+    const go = (it, m) => {
+      beep(700, 0.06);
+      if (it[s.sel] === 'SKIP MATCH') { simulate(m); bracketOrChampion(); }
+      else if (it[s.sel] === 'SKIP ALL CPU MATCHES') { for (let x = nextMatch(); x && bothCpu(x); x = nextMatch()) simulate(x); bracketOrChampion(); }
+      else playMatch(m);
+    };
     s.update = n => {
       if (s.quit > 0) s.quit--;
       const it = items(), m = nextMatch(); s.sel = Math.min(s.sel, it.length - 1);
       if (n.back) { if (s.quit > 0) { TOUR.on = false; close(); } else s.quit = 150; return; }
       if (n.l || n.u) { s.sel = mod(s.sel - 1, it.length); beep(420, 0.04); }
       if (n.r || n.d) { s.sel = mod(s.sel + 1, it.length); beep(420, 0.04); }
-      if (n.ok && m) {
-        beep(700, 0.06);
-        if (it[s.sel] === 'SKIP MATCH') { simulate(m); bracketOrChampion(); }
-        else if (it[s.sel] === 'SKIP ALL CPU MATCHES') { for (let x = nextMatch(); x && bothCpu(x); x = nextMatch()) simulate(x); bracketOrChampion(); }
-        else playMatch(m);
-      }
+      if (n.ok && m) go(it, m);
     };
+    s.pills = () => [...(items().length > 1 ? [{ t: '< CHOOSE', a: 'l' }, { t: 'CHOOSE >', a: 'r' }, { t: 'GO', k: 'Enter' }] : [{ t: 'PLAY', k: 'Enter' }]), { t: s.quit > 0 ? 'QUIT AGAIN' : 'QUIT', k: 'Escape' }];
+    s.tap = (x, y) => { const it = items(), m = nextMatch(); it.forEach((_, k) => { if (m && inR(x, y, rect(k, it.length))) { s.sel = k; go(it, m); } }); };
     s.draw = c => {
       const m = nextMatch(), R = TOUR.rounds, cols = R.length + 1, gw = cols > 3 ? 200 : 236, gap = (W - 64 - cols * gw) / (cols - 1), lh = TOUR.n > 4 ? 28 : 44, top = 96, span = 338;
       backdrop(c, s.t); head(c, 'TOURNAMENT', m ? 'NEXT: ' + roundName(m.r) + ' · ' + nm(TOUR.ents[m.a]) + ' VS ' + nm(TOUR.ents[m.b]) : '');
@@ -266,15 +291,17 @@
       const fin = R[R.length - 1][0], cx = gx(R.length), ch = fin.w == null ? null : TOUR.ents[fin.w];   // the champion box
       box(c, cx, cy[R.length - 1][0] - 40, gw, 80, false); uiText('CHAMPION', cx + gw / 2, cy[R.length - 1][0] - 28, 14, GOLD);
       if (ch) { icon(c, ch.f, cx + gw / 2 - 20, cy[R.length - 1][0] - 18, 40, false); uiText(nm(ch), cx + gw / 2, cy[R.length - 1][0] + 32, 16, INK); } else uiText('?', cx + gw / 2, cy[R.length - 1][0] + 4, 34, '#56648c');
-      const it = items(); it.forEach((label, k) => button(c, W / 2 - it.length * 110 + k * 220 + (it.length === 1 ? -20 : 0), H - 70, it.length === 1 ? 240 : 210, 32, label, k === s.sel));
-      if (s.quit > 0) uiText('PRESS ESC AGAIN TO QUIT THE TOURNAMENT', W / 2, H - 92, 15, RED);
-      foot(c, it.length > 1 ? 'LEFT/RIGHT CHOOSE · ENTER GO · ESC QUIT (TWICE)' : 'ENTER PLAY THE MATCH · ESC QUIT (TWICE)');
+      const it = items(); it.forEach((label, k) => button(c, ...rect(k, it.length), label, k === s.sel));
+      if (s.quit > 0) uiText(touch.on ? 'TAP QUIT AGAIN TO LEAVE THE TOURNAMENT' : 'PRESS ESC AGAIN TO QUIT THE TOURNAMENT', W / 2, H - 92, 15, RED);
+      foot(c, touch.on ? (it.length > 1 ? 'TAP A BUTTON TO GO · QUIT TWICE TO LEAVE' : 'TAP PLAY TO FIGHT THE MATCH · QUIT TWICE TO LEAVE') : it.length > 1 ? 'LEFT/RIGHT CHOOSE · ENTER GO · ESC QUIT (TWICE)' : 'ENTER PLAY THE MATCH · ESC QUIT (TWICE)');
     };
     return s;
   }
   function championScreen() {
     const s = { id: 'champion' }, fin = TOUR.rounds[TOUR.rounds.length - 1][0], e = TOUR.ents[fin.w], o = TOUR.ents[fin.w === fin.a ? fin.b : fin.a];
     s.update = n => { if (n.ok || n.back) { TOUR.on = false; close(); beep(500, 0.08); } };
+    s.pills = () => [{ t: 'TITLE', k: 'Enter' }];
+    s.tap = () => { if (s.t > 30) { TOUR.on = false; close(); beep(500, 0.08); } };   // a tap anywhere (not in the first half second, when a stray touch from the last bout could land)
     s.draw = c => {
       backdrop(c, s.t);
       for (let i = 0; i < 44; i++) { c.fillStyle = [GOLD, BLUE, RED, GRN][i % 4]; c.fillRect((i * 97 + 31) % W, (s.t * (1 + i % 3) + i * 53) % H, 6, 6); }
@@ -282,7 +309,7 @@
       uiText(nm(e) + ' · ' + ROSTER[e.f].name, W / 2, 124, 26, INK);
       drawSprite(c, ROSTER[e.f].id, 'win', loopFrame('win', s.t), W / 2, 432, 1, 2.6);
       uiText('FINAL: ' + nm(e) + ' BEAT ' + nm(o) + ' ' + Math.max(...fin.score) + '-' + Math.min(...fin.score), W / 2, 462, 17, DIM);
-      foot(c, 'ENTER TITLE');
+      foot(c, touch.on ? 'TAP ANYWHERE FOR THE TITLE SCREEN' : 'ENTER TITLE');
     };
     return s;
   }
@@ -310,6 +337,13 @@
   function kothNext() {
     const s = { id: 'kothNext', sel: 0 };
     const chal = () => KH.at[KH.king >= 0 && KH.at[0] === KH.king ? 1 : KH.king >= 0 && KH.at[1] === KH.king ? 0 : 1];
+    const GO = [W / 2 - 230, H - 66, 220, 32], END = [W / 2 + 10, H - 66, 220, 32];   // FIGHT and END SESSION
+    s.pills = () => [{ t: '< FIGHTER', a: 'l' }, { t: 'FIGHTER >', a: 'r' }, { t: 'FIGHT', f: () => { s.sel = 0; pressed.Enter = true; } }, { t: 'END', f: () => { s.sel = 1; pressed.Enter = true; } }];
+    s.tap = (x, y) => {
+      if (inR(x, y, GO)) return playKoth();
+      if (inR(x, y, END)) return open(kothEnd());
+      for (let k = 0; k < 2; k++) if (KH.at[k] === chal() && inR(x, y, [k ? 500 : 100, 100, 360, 138])) { const e = KH.ents[chal()]; e.f = mod(e.f + 1, NF); beep(560, 0.04); }   // the challenger's card: the next fighter
+    };
     s.update = n => {
       if (n.u || n.d) { s.sel = 1 - s.sel; beep(420, 0.04); }
       const dx = (n.r ? 1 : 0) - (n.l ? 1 : 0), e = KH.ents[chal()];
@@ -332,19 +366,21 @@
       const rows = E.slice().sort((a, b) => b.wins - a.wins || b.best - a.best || a.slot - b.slot);
       uiText('STANDINGS', 140, 290, 15, GOLD, 'left'); uiText('WINS', 560, 290, 15, DIM, 'right'); uiText('BEST STREAK', 700, 290, 15, DIM, 'right');
       rows.forEach((e, i) => { const y = 312 + i * 20; uiText(String(i + 1) + '  ' + nm(e), 140, y, 15, INK, 'left'); uiText(sh(e.f), 330, y, 13, DIM, 'left'); uiText(String(e.wins), 560, y, 15, INK, 'right'); uiText(String(e.best), 700, y, 15, INK, 'right'); });
-      button(c, W / 2 - 230, H - 66, 220, 32, 'FIGHT', s.sel === 0); button(c, W / 2 + 10, H - 66, 220, 32, 'END SESSION', s.sel === 1);
-      foot(c, 'LEFT/RIGHT CHANGE THE CHALLENGER\'S FIGHTER · UP/DOWN CHOOSE · ENTER GO');
+      button(c, ...GO, 'FIGHT', s.sel === 0); button(c, ...END, 'END SESSION', s.sel === 1);
+      foot(c, touch.on ? 'TAP THE CHALLENGER TO CHANGE ITS FIGHTER · FIGHT OR END SESSION' : 'LEFT/RIGHT CHANGE THE CHALLENGER\'S FIGHTER · UP/DOWN CHOOSE · ENTER GO');
     };
     return s;
   }
   function kothEnd() {
     const s = { id: 'kothEnd' };
     s.update = n => { if (n.ok || n.back) { KH.on = false; close(); beep(500, 0.08); } };
+    s.pills = () => [{ t: 'TITLE', k: 'Enter' }];
+    s.tap = () => { if (s.t > 30) { KH.on = false; close(); beep(500, 0.08); } };
     s.draw = c => {
       const rows = KH.ents.slice().sort((a, b) => b.wins - a.wins || b.best - a.best || a.slot - b.slot);
       backdrop(c, s.t); head(c, 'FINAL STANDINGS', 'KING OF THE HILL');
       rows.forEach((e, i) => { const y = 130 + i * 40; box(c, 200, y, 560, 34, i === 0); icon(c, e.f, 208, y + 3, 28, false); uiText((i + 1) + '  ' + nm(e), 250, y + 18, 20, i === 0 ? GOLD : INK, 'left'); uiText(sh(e.f), 430, y + 18, 14, DIM, 'left'); uiText(e.wins + ' WINS', 640, y + 18, 17, INK, 'right'); uiText('BEST ' + e.best, 745, y + 18, 15, DIM, 'right'); });
-      foot(c, 'ENTER TITLE');
+      foot(c, touch.on ? 'TAP ANYWHERE FOR THE TITLE SCREEN' : 'ENTER TITLE');
     };
     return s;
   }
@@ -365,12 +401,14 @@
     else if (teamOn() && TEAM.sides && game.phase === 'over') {   // team end screen: how each side fared, and what Enter does here
       const win = game.wins[0] >= SIZE ? 0 : 1;
       c.fillStyle = 'rgba(8,10,22,0.94)'; c.fillRect(0, H - 34, W, 34);   // covers the engine's own hint line, which would say CHARACTER SELECT
-      uiText(touch.on ? 'TAP: NEW TEAMS · SU: REMATCH' : 'ENTER NEW TEAMS · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
+      uiText(touch.on ? 'SELECT: NEW TEAMS · REMATCH · TITLE · SHARE ON X POSTS THE RESULT' : 'ENTER NEW TEAMS · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
       uiText((game.mode === 2 ? 'P1 TEAM' : 'YOUR TEAM') + (win === 0 ? ' · WINNER' : ''), 96, 150, 16, win === 0 ? GOLD : BLUE, 'left');
       uiText((game.mode === 2 ? 'P2 TEAM' : 'CPU TEAM') + (win === 1 ? ' · WINNER' : ''), W - 96, 150, 16, win === 1 ? GOLD : RED, 'right');
       teamStrip(c, 0, 96, 166, 40, 4, false); teamStrip(c, 1, W - 96 - 40, 166, 40, 4, true);
     }
   });
+  HOOKS.add('touchPills', () => UI.scr && game.phase === 'title' && UI.scr.pills ? UI.scr.pills() : []);
+  touch.screenTaps(() => UI.scr && game.phase === 'title', (x, y) => { if (UI.scr && UI.scr.tap) UI.scr.tap(x, y); });
   HOOKS.add('update', () => {
     if (!UI.scr) {
       if (game.phase === 'over' && TOUR.cur) return endTourMatch();

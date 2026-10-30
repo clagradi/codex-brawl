@@ -6,7 +6,7 @@ Blocking in the base game is just holding back. This feature adds three layers t
 
 ## Inputs
 
-No new global keys and no new menu entries were needed: everything is built from the buttons you already have (move, punch, kick, special), so it works the same on keyboard, on two gamepads and on touch. The inputs are listed on screen: two extra lines above the move strip during the first seconds of round 1, and two extra lines at the bottom of the pause screen.
+No new global keys and no new menu entries were needed: everything is built from the buttons you already have (move, punch, kick, special), so it works the same on keyboard, on two gamepads and on touch. The inputs are listed on screen: two extra lines above the move strip during the first seconds of round 1, and two extra lines in the gap under the rows of the pause menu (above the two notes of `combat.js`; the bottom rows belong to the key hints and the super meter labels, and the other options screens have no room). Neither set is drawn while the pause menu or the photo mode shows the scene: `game.still` is set around that draw, so pausing in round 1 does not stack the engine's controls strip and the two defense lines under the menu.
 
 | Situation | Input | Result |
 | --- | --- | --- |

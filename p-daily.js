@@ -316,7 +316,7 @@
   }, -50);
 
   // ---------------------------------------------------------------- registry and test hook
-  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28.5, players: 1, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
+  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28.5, players: 1, endCard: true, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
   window.DAILY = {
     dateKey, dayNum, keyOf, prevKey, validKey, dayLabel, hashStr, rng, planFor, goalText, goalMet, sanitize, applyResult, liveStreak, fmtTime,
     MODS, GOALS, BASE_RULES, state: getState, today: todayKey, setToday: k => { override = k || null; },

@@ -70,7 +70,7 @@ export async function run(t) {
     const BAN = [['mortal', ' kombat'], ['fatal', 'ity'], ['finish', ' him'], ['flaw', 'less'], ['get over', ' here'], ['toast', 'y'], ['scorp', 'ion'], ['sub', '-zero'], ['rai', 'den'],
       ['hado', 'uken'], ['shory', 'uken'], ['street', ' fighter'], ['tek', 'ken'], ['baba', 'lity'], ['bruta', 'lity'], ['pot', 'ato']].map(p => p.join('').toUpperCase());
     out.banned = all.concat(all.map(s => VOICE.spoken(s).toUpperCase())).filter(s => BAN.some(b => s.includes(b)));
-    out.boxX = VOICE.C.BOX_X; out.boxY = VOICE.C.BOX_Y;
+    out.boxRight = VOICE.C.BOX_RIGHT; out.boxY = VOICE.C.BOX_Y;
     out.calls = Object.keys(VOICE.CALLS).map(k => VOICE.CALLS[k].title).join('|');
     out.spoken = VOICE.spoken('Poteto says LGTM... GG');
     return out;
@@ -78,8 +78,8 @@ export async function run(t) {
   check(d.pairs === 15 && d.bad.length === 0, 'banter covers all 15 pairings (mirrors too), either order picks the same exchange and the opener side matches its fighter: ' + JSON.stringify(d.bad.slice(0, 4)));
   check(d.rows >= 1 && d.rows <= 2, 'every banter line fits a VS bubble in at most 2 rows of ' + 34 + ' columns: ' + d.rows);
   check(d.win && d.winBad.length === 0 && d.sp > 0 && d.gen > 0, 'every fighter has general win quotes and a line for each opponent, and both kinds come up: ' + JSON.stringify([d.sp, d.gen, d.winBad.slice(0, 3)]));
-  check(d.boxY >= 180 && d.boxY + (d.quoteRows + 1) * 20 + 16 <= 468 && d.boxX + d.quoteWide + 28 + 12 <= 330,
-    'every win quote fits the end-screen bubble below the title lines and notes and left of the winner sprite: ' + JSON.stringify([d.quoteRows, d.quoteWide, d.boxX, d.boxY]));
+  check(d.boxY >= 180 && d.boxY + (d.quoteRows + 1) * 20 + 16 <= 468 && d.boxRight - (d.quoteWide + 28) - 12 >= 540,
+    'every win quote fits the end-screen bubble below the title lines and notes and right of the winner sprite: ' + JSON.stringify([d.quoteRows, d.quoteWide, d.boxRight, d.boxY]));
   check(d.count > 100 && d.ascii && d.badGlyph.length === 0, 'every caption is ASCII and drawable in the pixel font: ' + JSON.stringify([d.count, d.badGlyph.slice(0, 6)]));
   check(d.banned.length === 0, 'no caption or spoken line uses a banned phrase: ' + JSON.stringify(d.banned.slice(0, 3)));
   check(d.calls === 'FIRST HIT|COUNTER|COMEBACK|LAST SECOND', 'the four announcer callouts are FIRST HIT, COUNTER, COMEBACK and LAST SECOND: ' + d.calls);

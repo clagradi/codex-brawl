@@ -15,7 +15,7 @@ The window is checked against the local date (month and day, year ignored). Wind
 | New Year | 30 Dec to 2 Jan | firework bursts in the sky (four staggered slots) | every KO throws 90 confetti pieces at the loser and 40 at the winner, with a short rain from the top of the screen; title tag HAPPY NEW YEAR |
 | April Fools | 1 Apr | nothing in the arena | the announcer gets silly: each line shows a caption under the health bars and plays a slide whistle, and the spoken words are swapped for a silly version in a higher, quicker voice |
 
-Winter and New Year overlap from 30 Dec to 6 Jan and both show. The props (jack-o'-lanterns, trees, snow piles) are left out on the title screen so the menu stays easy to read; the tint, bats and snow still show there. The title screen also prints the active event names at the top left.
+Winter and New Year overlap from 30 Dec to 6 Jan and both show. The props (jack-o'-lanterns, trees, snow piles) are left out on the title screen so the menu stays easy to read; the tint, bats and snow still show there. The title screen also prints the active event names at the top left, just under the OKRS corner button (y 50), and leaves them out while another feature's screen is open over the title.
 
 Reduce flash (an existing option) makes the lights steady and the confetti and fireworks softer (50 + 20 pieces instead of 90 + 40).
 

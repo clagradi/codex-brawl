@@ -94,6 +94,9 @@ export async function run(t) {
   await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await tap('KeyW'); await t.wait(30);
   const nt = await ev('titleItems().length');
   check(await ev("game.titleSel === " + (((tm - 6) % nt + nt) % nt) + " && (render(), true)"), 'the title menu wraps around and draws every entry');
+  // the rows never reach the hint line under them (text y 500 to 512 once three or more entries push it down): the selected size is the tallest, the capitals are about 0.8 of it, plus the outline
+  const rows = await ev("(() => { const out = []; for (let n = 3; n <= 14; n++) for (let i = 0; i < n; i++) { const s = titleSlot(i, n); if (!s.hidden) out.push([n, i, s.y + s.on * 0.4 + 3, s.y - s.on * 0.4 - 3]); } return out; })()");
+  check(rows.length > 40 && rows.every(r => r[2] <= 498 && r[3] >= 412), 'the title rows of every layout (3 to 14 entries) stay between the fighters\' feet (y 412) and the hint line (y 500): ' + JSON.stringify(rows.filter(r => r[2] > 498 || r[3] < 412).slice(0, 3)));
 
   // ---- engine events through a whole CPU match (one round to win keeps it short) ----
   await t.open('#select');

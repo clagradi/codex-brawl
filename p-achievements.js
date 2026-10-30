@@ -233,8 +233,9 @@
     box(TITLEB.x, TITLEB.y, TITLEB.w, TITLEB.h, 'rgba(0,0,0,0.6)', '#7d7668');
     P('G OKRS ' + count() + '/' + TOTAL, TITLEB.x + TITLEB.w / 2, TITLEB.y + 8, 2, STEEL, 'center');
   }
-  const TOAST_W = 316, TOAST_Y = 112, OVER = { x: 12, y: 178 };   // under the HUD, centred, while fighting; on the end screen in the free left side, below the colourways note (y 150) and clear of the share button
-  const want = () => game.phase === 'over' ? OVER : { x: Math.round((W - TOAST_W) / 2), y: TOAST_Y };
+  const TOAST_W = 316, TOAST_Y = 112, OVER = { x: 12, y: 178 }, OVER_R = { x: W - 12 - TOAST_W, y: 62 };   // under the HUD, centred, while fighting; on the end screen in the free left side, below the colourways note (y 150) and clear of the share button; a mode with its own card there (MODES endCard) gets the top right, above the O button
+  const card = () => { try { return !!(MODES.current() || {}).endCard; } catch (e) { return false; } };
+  const want = () => game.phase === 'over' ? (card() ? OVER_R : OVER) : { x: Math.round((W - TOAST_W) / 2), y: TOAST_Y };
   let tx = want().x, ty = want().y;
   function drawToast() {
     if (!cur) { const q = want(); tx = q.x; ty = q.y; return; }

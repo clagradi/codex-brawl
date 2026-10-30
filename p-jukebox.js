@@ -3,7 +3,7 @@
 // Owner: p-jukebox (docs/features/p-jukebox.md). Plugs in through HOOKS 'titleItems' (the SOUND TEST entry), 'update' (keys, the clock), 'drawTop' (the screen) and 'musicTheme' (the track you picked,
 // and the fighter theme on the VS screen), SETTINGS 'jukebox.vs' / 'jukebox.last', and MUSIC.define (the five themes). The only engine edit is the read-only block MUSIC.info / MUSIC.hits / MUSIC.clock at
 // the end of music.js: they schedule and change nothing; the bars are read from them.
-//   - SOUND TEST: every MUSIC theme by name (menu tracks, one per arena, the fighter themes, anything another feature defines). W/S pick, ENTER plays, the special key stops, V toggles the VS themes, ESC leaves.
+//   - SOUND TEST: every MUSIC theme by name (menu tracks, the stage tracks (an arena without one plays another), the fighter themes, anything another feature defines). W/S pick, ENTER plays, the special key stops, V toggles the VS themes, ESC leaves.
 //   - Fighter themes: generated here from a small style sheet per fighter (scale, tempo, chord loop, rhythm templates, a seeded melody walk), 8 bars each, defined as 'fight_<id>'. They play on the VS
 //     screen only when SETTINGS 'jukebox.vs' is on (off by default: the match test expects the classic 'vs' track there).
 //   - Visualiser: 24 bars fed by the music clock. With sound running the clock is MUSIC.clock() (the audio position); muted or before the sound starts, a virtual clock of the same tempo runs per tick.

@@ -2,7 +2,7 @@
 
 Owner file: `options.js`. Tests: `tools/tests/options.mjs`. PWA files: `manifest.webmanifest`, `icons/`, `tools/make-icons.mjs`, the head tags in `dev.html`.
 
-Everything goes through the extension layer (`docs/ARCHITECTURE.md`): the title entry is a `titleItems` hook, the pause menu rows and the O key are a `pauseItems` hook, the input runs in an `update` hook (order -5, before the engine's own phase code), the screens are drawn by wrapping `drawTitle` and `drawFight`, and every value is stored with `SETTINGS` (`brawl.settings` in localStorage). `game.js` is not edited.
+Everything goes through the extension layer (`docs/ARCHITECTURE.md`): the title entry is a `titleItems` hook, the pause menu rows and the O key are a `pauseItems` hook, the input runs in an `update` hook (order -5, before the engine's own phase code), the screens are drawn by wrapping `drawTitle` and `drawFight` (the wrapper draws the world as a fight with `game.still` set, which keeps the round 1 hint strips and the track toast out from under the pause menu), and every value is stored with `SETTINGS` (`brawl.settings` in localStorage). `game.js` is not edited.
 
 ## What the player gets
 
@@ -43,6 +43,8 @@ The gamepad mapping is shown on the same screen, read only (A punch, B kick, X s
 ### Pause menu
 
 P or Esc pauses. The menu has RESUME, MOVES, OPTIONS, CONTROLS and QUIT TO TITLE. W/S and Enter pick a row, P or Esc resumes, Q still quits at once, M mutes, B toggles blood, O opens OPTIONS. Rows other features add through `pauseItems` keep their keys (and are drawn as extra lines). MOVES shows the move lists (with the current key labels). QUIT TO TITLE asks first, with NO selected.
+
+On a phone (`touch.on`) the pause hint reads "TAP A ROW" and points at the RESUME, SOUND and QUIT buttons; the key lines, the extra `pauseItems` rows and the move list's key names are replaced by touch wording (the move list names the d-pad and the P, K, SP and SU buttons). The key hints stay on the keyboard. `tools/test-match.mjs` (group "touch screens name no keys") checks the pause menu and MOVES text on a phone.
 
 ### Fullscreen
 
