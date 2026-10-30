@@ -50,6 +50,7 @@ Read this first, then read only the files you own.
 | 19 | `p-tutorial.js` | TUTORIAL mode: ten lessons against a scripted dummy, last in `dev.html` | p-tutorial agent |
 | 19 | `p-vault.js` | EXTRAS title screen: fighter and arena galleries, colourways, lifetime stats (`VAULT`) | p-vault agent |
 | 19 | `p-jukebox.js` | SOUND TEST screen, five fighter themes (`fight_<id>`), visualiser bars; global `JUKEBOX` | jukebox agent |
+| last | `p-training2.js` | the TRAINING mode: dummy behaviours, record and playback, input display, frame advantage, hitboxes, reset (loaded after every other feature file, so its `training` mode wins over the `training.js` stub) | p-training2 agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -72,6 +73,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-tutorial.js`, `tools/tests/x-p-tutorial.mjs`, `docs/features/p-tutorial.md` | p-tutorial agent | |
 | `p-vault.js`, `tools/tests/x-p-vault.mjs` | p-vault agent | |
 | `p-jukebox.js`, `tools/tests/x-p-jukebox.mjs` | jukebox agent | its one engine edit is the read-only `MUSIC.info` / `MUSIC.hits` / `MUSIC.clock` block at the end of `music.js` |
+| `p-training2.js`, `tools/tests/x-p-training2.mjs`, `docs/features/p-training2.md` | p-training2 agent | no engine edit: MODES, SETTINGS, BUS `hit`/`block` and HOOKS `input` (order -1000), `update`, `fighterUpdate`, `damage` (order 1e9), `drawWorld`, `drawHud`, `pauseItems` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -166,6 +168,10 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vault.stats` | any, `{}` | `{ v, m, r, ko, sp, su, fi, combo, comboBy, f: { fighterId: { w, l, c } }, ar: { arenaId: plays } }` | `p-vault.js`: lifetime stats counted from `BUS` events (matches, rounds, KOs, specials, supers, finishers, longest combo, wins and losses per fighter, plays per arena); only human fighters outside training count, the mirror boss never does; shown on the EXTRAS screen next to the arcade stats |
 | `jukebox.vs` | bool, `false` | | `p-jukebox.js`: the VS screen (and the round 1 intro) plays the first fighter's own theme `fight_<id>` instead of the classic `vs` track; off by default because the match test expects `vs` |
 | `jukebox.last` | string, `''` | any theme name | `p-jukebox.js`: the track last played on the SOUND TEST, where the cursor starts next time |
+| `training2.dummy` | enum, `'stand'` | `'stand'`, `'crouch'`, `'jump'`, `'block'`, `'after'` | `p-training2.js`: what the training dummy does (BLOCK ALL guards high or low as needed, BLOCK AFTER HIT guards for a second after it is hit) |
+| `training2.hitbox` | bool, `false` | | `p-training2.js`: the hurtbox, attack box and projectile overlay in training |
+| `training2.inputs` | bool, `true` | | `p-training2.js`: the input display (P1's last 12 inputs) in training |
+| `training2.refill` | bool, `true` | | `p-training2.js`: health refills after a quiet moment and P1 keeps a full meter in training |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
