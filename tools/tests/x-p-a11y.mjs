@@ -210,6 +210,43 @@ export async function run(t) {
   check(ui.layer && ui.tapMotion === true && ui.tapSel === 3 && ui.tapClosed, 'tapping a row selects and changes it, tapping outside the panel closes the screen: ' + JSON.stringify([ui.layer, ui.tapMotion, ui.tapSel, ui.tapClosed]));
   check(ui.autoClose, 'the screen closes by itself when the game leaves the title and pause screens');
 
+  // ---- the attract demo is not announced; the way back to the title is ----
+  const dm = await ev(`(() => {
+    for (const k of A11Y.keys) SETTINGS.reset(k);
+    const out = {}; AY.title(); step(2); const said0 = A11Y.state().said;
+    WATCH.demo(0, 1, 0); out.kind = WATCH.state().kind; AY.until(() => game.phase === 'fight', 900); step(90); out.phase = game.phase;
+    out.quiet = A11Y.state().said === said0 && out.kind === 'demo' && WATCH.state().kind === 'demo';
+    out.log = A11Y.state().log.join(' | ');
+    WATCH.leave(); step(2); out.back = A11Y.state().last; out.said = A11Y.state().said - said0; out.kindAfter = WATCH.state().kind;
+    // a match the listener started is still read out
+    AY.title(); const said1 = A11Y.state().said; AY.fresh(0, 1); out.match = A11Y.state().said - said1;
+    return out;
+  })()`);
+  check(dm.kind === 'demo' && dm.phase === 'fight' && dm.quiet, 'the attract demo (vs, round start, fight) says nothing to the screen reader: ' + dm.log);
+  check(/^Title menu\./.test(dm.back) && dm.said === 1 && dm.kindAfter === null, 'leaving the demo is read out once as the title menu: ' + dm.back);
+  check(dm.match >= 1, 'a match the player started is still announced');
+
+  // ---- Y stays out of the way of a screen of another feature ----
+  const yy = await ev(`(() => {
+    const out = {}; for (const k of A11Y.keys) SETTINGS.reset(k);
+    window.FAKEOV = { isOpen: () => true }; TITLE_SCREENS.push(['FAKEOV', 'isOpen']);
+    AY.title(); AY.T('KeyY'); step(2); out.blocked = !A11Y.state().open;
+    TITLE_SCREENS.pop(); delete window.FAKEOV;
+    AY.title(); AY.T('KeyY'); step(2); out.opens = A11Y.state().open; A11Y.close(); step(1);
+    return out;
+  })()`);
+  check(yy.blocked && yy.opens, 'Y does not open ACCESSIBILITY over a screen of another feature, and still does on a bare title');
+
+  // ---- simple specials leave the STRINGS page alone ----
+  const st = await ev(`(() => {
+    const out = {}; if (!window.STRINGS) return { none: true };
+    AY.fresh(0, 1); const id = game.f[0].d.id; SETTINGS.set('a11y.simpleSp', true); STRINGS.page = true;
+    const rows = moveRows(id, 0, false); out.flag = rows.strings === true; out.first = rows[0] && rows[0].name; out.same = moveRows(id, 0, false) === rows;
+    STRINGS.page = false; const moves = moveRows(id, 0, false); out.moves = !moves.strings && moves.some(r => String(r.input).includes('LEFT / RIGHT'));
+    SETTINGS.set('a11y.simpleSp', false); return out;
+  })()`);
+  check(st.none || (st.flag && st.first === 'CHASE JUMP' && st.same && st.moves), 'with SIMPLE SPECIALS on the STRINGS page keeps its flag and its cache, and the MOVES page still gets the simple inputs: ' + JSON.stringify(st));
+
   // ---- a whole CPU match with every option on, drawn every few ticks ----
   const all = await ev(`(() => {
     for (const k of A11Y.keys) SETTINGS.reset(k);

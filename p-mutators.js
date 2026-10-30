@@ -215,7 +215,7 @@
   HOOKS.add('drawTop', (c, g) => {
     if (g.phase === 'select' && scope(g)) {
       if (ui.open) drawPanel(c);
-      else { const n = count(); ptext(c, OPEN_KEY.slice(3) + '  MUTATORS' + (n ? '  ' + n + ' ON' : ''), W - 14, 14, 2, n ? '#ffe27a' : '#8d8696', 'right'); }
+      else { const n = count(), tc = typeof touch === 'object' && touch.on; if (!tc || n) ptext(c, (tc ? '' : OPEN_KEY.slice(3) + '  ') + 'MUTATORS' + (n ? '  ' + n + ' ON' : ''), W - 14, 14, 2, n ? '#ffe27a' : '#8d8696', 'right'); }   // the panel opens by key only: a touch player is not told to press G, but still sees that saved mutators are on
       return;
     }
     if (!PLAY[g.phase] || !scope(g)) return;

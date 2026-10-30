@@ -3,7 +3,7 @@
 `p-perf.js` (premium feature, perf agent, branch `feat/p-perf`) adds three things to the game:
 
 - a frame-time overlay on `F3`;
-- adaptive quality, so a slow device drops particles and post-processing when the average frame costs more than 12 ms;
+- adaptive quality, so a slow device drops particles and post-processing when the average frame costs more than 12 ms or the display delivers frames late;
 - an offscreen snapshot cache for the arena, used only below HIGH.
 
 The file is a classic script that loads last in `dev.html`, after every other feature file, so it wraps what they may already have wrapped. Nothing in `game.js` is edited. At HIGH every wrapper passes straight through, with the same arguments, the same draw calls and no cache. The pixels and the gameplay at HIGH are those of the game without this file, and the tests check that (see "Tests" below).
@@ -44,7 +44,7 @@ The colour grade and the vignette are switched off by handing `drawPost` (from `
 
 | Rule | Value |
 |---|---|
-| Budget | 12 ms of work per frame. |
+| Budget | 12 ms of work per frame; a frame more than 25 ms after the previous one counts as over it. |
 | Window | 180 frames (3 s at 60 Hz). The average of a full window decides. |
 | Clamp | One slow frame (a tab switch, a garbage collection) counts as 33 ms at most. |
 | Warm-up | 45 frames are ignored after a match or round starts and after `perf.quality` changes. |
@@ -52,9 +52,9 @@ The colour grade and the vignette are switched off by handing `drawPost` (from `
 | Step up | A level below HIGH moves one level up after three windows in a row under 6 ms. |
 | No see-saw | After three step-downs the level no longer steps up, so a device on the edge of the budget settles. |
 
-Frames that run no simulation tick (a 120 Hz display draws each 60 Hz tick twice) are not sampled, and the window starts again when the loop was away (a gap of over 100 ms between frames) or the tab is hidden. A change of level emits `perf:level` on `BUS` with `{ level, name }`.
+Frames that run no simulation tick (a 120 Hz display draws each 60 Hz tick twice) are not sampled, whatever the gap. A late frame (more than 25 ms since the previous one, as on a display capped at 30 Hz or behind a slow GPU) counts as at least 13 ms even when the main thread was idle, so a device that cannot hold 60 Hz steps down and, its late frames still counting, stays down; a single late frame in a window barely moves the average. The window starts again when the loop was away (a gap of over 100 ms between frames) or the tab is hidden. A change of level emits `perf:level` on `BUS` with `{ level, name }`.
 
-Under automation (`navigator.webdriver`, or a `HeadlessChrome` user agent) AUTO never adapts by itself, so headless tests and screenshots always run at HIGH. Tests drive the controller with `PERF.feed(ms, n)` instead.
+Under automation (`navigator.webdriver`, or a `HeadlessChrome` user agent) AUTO never adapts by itself, so headless tests and screenshots always run at HIGH. Tests drive the controller with `PERF.feed(ms, n)` (work only) or `PERF.feedFrame(gap, work, n, hadTick)` (the frame path, with the gap since the previous frame) instead.
 
 ## The arena snapshot cache
 

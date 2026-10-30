@@ -209,7 +209,7 @@ function pollPads() {
   const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   function menuTap(x, y) {
     const p = game.phase;
-    if (p === 'title') { if (y > 425 && y < 459) game.titleSel = 0; else if (y >= 459 && y < 493) game.titleSel = 1; key('Enter'); }
+    if (p === 'title') { const its = titleItems(), pg = titlePager(its.length); if (pg && !titleOverlayOpen() && Math.abs(x - pg.x) < 72 && y > pg.y - 14 && y < pg.y + 28) { game.titleSel = (pg.page + 1) % pg.pages * pg.size; beep(400, 0.04); return; } let best = -1, bd = 20; for (let i = 0; i < its.length; i++) { const s = titleSlot(i, its.length), d = Math.abs(y - s.y); if (Math.abs(x - s.x) < 150 && d < bd) { bd = d; best = i; } } if (best >= 0) game.titleSel = best; key('Enter'); }   // the PAGE note flips the page; else the tapped entry, else the highlighted one
     else if (p === 'vs') key('Enter');
     else if (p === 'select') {
       const i = ROSTER.findIndex((r, n) => { const c = selectCell(n); return x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 6 && y <= c.y + c.h + 26; });

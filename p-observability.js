@@ -162,11 +162,12 @@
   const colOf = s => S.cols[s] || '#fff';
 
   // ---------- opening, closing, input ----------
-  const BTN = { x: 24, y: 206, w: 276, h: 50 };   // the O button on the end screen (left side: the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const BTN = { x: 24, y: 246, w: 276, h: 50 };   // the O button on the end screen (left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const reviewOpen = () => { try { return !!(window.REVIEW && REVIEW.state().open); } catch (e) { return false; } };   // the code review is modal: no button, no report, until it is closed
   const shareAnchor = () => document.getElementById('share');
   function hideShare(on) { try { const a = shareAnchor(); if (a) a.style.visibility = on ? 'hidden' : ''; } catch (e) { /* no DOM */ } }
   function open() {
-    if (!ON || U.open || game.phase !== 'over') return false;
+    if (!ON || U.open || game.phase !== 'over' || reviewOpen()) return false;
     U.open = true; U.openT = 0; U.rt = 0; U.view = 0; U.lay = null; hideShare(true); sfx(660); return true;
   }
   function close() {
@@ -191,7 +192,7 @@
     if (cv) cv.addEventListener('pointerdown', e => {
       if (e.button > 0 || !ON || game.phase !== 'over') return;
       const r = cv.getBoundingClientRect(); if (!r.width) return;
-      onTap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height, r.width / W);
+      if (onTap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height, r.width / W)) e.stopImmediatePropagation();   // one tap, one action: p-clips listens after this and does not see a tap the report took
     });
   } catch (e) { /* no canvas: keyboard only */ }
 
@@ -366,7 +367,7 @@
   }
   HOOKS.add('drawTop', (c, g) => {
     if (!ON || g.phase !== 'over') return;
-    if (U.open) drawReport(c); else drawButton(c, g);
+    if (U.open) drawReport(c); else if (!reviewOpen()) drawButton(c, g);
   }, 900);
 
   // ---------- public ----------

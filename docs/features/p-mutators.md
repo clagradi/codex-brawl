@@ -15,7 +15,7 @@ Six optional modifiers for a versus match, picked on the select screen before th
 
 ## How to use it
 
-On the select screen of the 1 PLAYER VS CPU and 2 PLAYERS modes, a small hint at the top right says `G MUTATORS` (and how many are on). Press `G` to open the panel:
+On the select screen of the 1 PLAYER VS CPU and 2 PLAYERS modes, a small hint at the top right says `G MUTATORS` (and how many are on). Press `G` to open the panel. While the touch controls are on, the hint does not mention the key (a phone cannot press it) and shows only when some mutators are on, as `MUTATORS 2 ON`:
 
 - `W` / `S` or up / down move the highlighted row
 - `Enter`, `Space`, `J`, `A`, `D` or left / right toggle the highlighted row
@@ -25,7 +25,7 @@ On the select screen of the 1 PLAYER VS CPU and 2 PLAYERS modes, a small hint at
 
 While the panel is open the select screen behind it ignores all keys, so nothing gets confirmed by accident. Choose the fighters and arena as usual after closing it. The mutators apply to the next match that starts and stay on for the whole match, including rematches.
 
-Mutators are keyboard only for now: there is no touch or gamepad way to open the panel. A phone user can still play with mutators that were saved from a keyboard session, because the choice is stored with the other settings.
+Mutators are keyboard only for now: there is no touch or gamepad way to open the panel, which is why the select screen shows no `G` hint under touch. A phone user can still play with mutators that were saved from a keyboard session, because the choice is stored with the other settings.
 
 ## Which modes
 

@@ -1,7 +1,7 @@
 // ===== AGENT BRAWL feature file: PERF (premium performance pack). =====
 // Owner: perf agent (branch feat/p-perf).
 // Area: a frame-time budget overlay (F3), adaptive quality for slow devices (fewer particles and lighter post-processing when the
-//       average frame costs more than 12 ms), and an offscreen snapshot cache for the arena on frames that repeat a simulation tick
+//       average frame costs more than 12 ms, or the display delivers frames late: a gap over 25 ms counts as a frame over budget), and an offscreen snapshot cache for the arena on frames that repeat a simulation tick
 //       (a display refreshing faster than the 60 Hz simulation draws every tick two or more times), used below HIGH only.
 // Hooks used: 'drawTop' (order 1000: the overlay, over everything else).
 // BUS used: 'settings' (a change of any option invalidates the arena cache; perf.quality restarts the sampling), 'match:start' and
@@ -22,6 +22,7 @@
   const MAX_DOWNS = 3;               // after three step-downs the level stays where it is (no see-saw on a borderline device)
   const WINDOW = 180;                // frames per averaging window (3 s at 60 Hz)
   const CLAMP = 1000 / 30;           // one slow frame (a tab switch, a garbage collection) counts as 33 ms at most
+  const LATE = 1.5 * 1000 / 60;      // a gap between frames over 25 ms (a 30 Hz-capped display, a slow GPU) counts as a frame over budget
   const WARMUP = 45;                 // frames ignored after a match or round starts (stage build, first draw of new sprites)
   const HIST = 120;                  // frames in the overlay graph
   const NAMES = ['HIGH', 'MEDIUM', 'LOW'];
@@ -93,9 +94,14 @@
     if (!live()) { zn = zsum = zi = 0; zring.fill(0); S.win.length = 0; S.warm = Math.max(S.warm, 10); return; }
     zsum -= zring[zi]; zring[zi] = ticks ? 0 : 1; zsum += zring[zi]; zi = (zi + 1) % zring.length; if (zn < zring.length) zn++;
     if (gap <= 0 || gap > 100) { S.win.length = 0; S.warm = Math.max(S.warm, 10); return; }   // the loop was away: start the window again
-    if (!ticks) return;            // a repeat of the last tick on a fast display: not a full frame of work
+    countFrame(gap, work, ticks, !AUTOMATED);
+  }
+  // The end of afterFrame, also driven by PERF.feedFrame. A late frame costs at least a frame over budget whatever the main thread spent
+  // (the time went to the display), so a device that cannot hold 60 Hz steps down and, its late frames still counting, stays down.
+  function countFrame(gap, work, hadTick, adapt) {
+    if (!hadTick) return;          // a repeat of the last tick on a fast display: not a full frame of work, however short the gap
     if (S.warm > 0) { S.warm--; return; }
-    if (!AUTOMATED && quality() === 'auto' && S.force == null) sample(work);
+    if (adapt && quality() === 'auto' && S.force == null) sample(gap > LATE ? Math.max(work, BUDGET + 1) : work);
   }
 
   // ---------------------------------------------------------------- low quality: post-processing and particles
@@ -279,11 +285,12 @@
   }
 
   window.PERF = {
-    BUDGET, WINDOW, NAMES,
+    BUDGET, WINDOW, WARMUP, LATE, NAMES,
     get overlay() { return S.overlay; }, set overlay(v) { S.overlay = !!v; S.text = null; },
     get cache() { return C.mode; }, set cache(v) { C.mode = v === 'on' || v === 'off' ? v : 'auto'; C.key = ''; },
     level, quality, stats, cycleQuality, bench,
     feed(ms, n) { n = Math.max(1, n | 0 || 1); for (let k = 0; k < n; k++) sample(ms); return S.auto; },   // drive the adaptive controller (tests)
+    feedFrame(gap, work, n, hadTick) { n = Math.max(1, n | 0 || 1); for (let k = 0; k < n; k++) countFrame(gap, work, hadTick !== false, true); return S.auto; },   // the frame path of the controller, with a gap (tests)
     reset() { S.auto = 0; S.downs = S.ups = S.good = 0; S.win.length = 0; S.warm = WARMUP; S.force = null; C.key = ''; C.hits = C.misses = C.bypass = 0; fxStats.skipped = 0; S.text = null; },
     postOpts,
     probe: (i, t) => { const idx = arenaIndex(i); delete C.probes[idx]; return probeArena(idx, t == null ? game.tick : t); },

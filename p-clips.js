@@ -19,7 +19,7 @@
   const FPS = 30, BPS = 2500000, SLICE = 1000;                               // capture frame rate, video bit rate, MediaRecorder timeslice
   const THUMB_MS = 125, THUMB_W = 160, THUMB_H = 90, THUMBS = 100;           // preview strip: 8 frames a second, 12.5 s of history
   const SAVE_GAP = 30, SAVED_SHOW = 120, KEY = 'KeyC';                       // ticks between two saves, ticks the CLIP SAVED label stays
-  const PANEL = { x: 40, y: 172, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target)
+  const PANEL = { x: 40, y: 304, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this
   const TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   const GOLD = '#c9a24a', INK = '#e8e0cc', DIM = '#8d8576', GREEN = '#7fdc6a';
 
@@ -141,6 +141,7 @@
     return true;
   }
   const inPanel = (x, y) => x >= PANEL.x && x <= PANEL.x + PANEL.w && y >= PANEL.y && y <= PANEL.y + PANEL.h;
+  const covered = () => { try { return !!((window.REVIEW && REVIEW.state().open) || (window.OBS && OBS.isOpen())); } catch (e) { return false; } };   // the code review (modal) or the match report is up: the panel is not drawn and takes no key or tap
 
   // ---------------------------------------------------------------- the KO CLIP panel on the end screen
   function drawPanel(c) {
@@ -175,7 +176,7 @@
     });
     HOOKS.add('drawTop', c => {
       if (recs.length) { if (!paused) grab(); return; }
-      if (clip && game.phase === 'over') drawPanel(c);
+      if (clip && game.phase === 'over' && !covered()) drawPanel(c);
     }, 1000);
     BUS.on('match:start', () => { abort(); releaseClip(); armed = !!type; });
     BUS.on('round:start', () => { if (!recs.length) begin(); });
@@ -193,11 +194,11 @@
     BUS.on('settings', e => { if (e.key === 'clips.on' && e.value === false) { abort(); releaseClip(); } });
     document.addEventListener('visibilitychange', () => { if (recs.length) syncPause(); });
     addEventListener('keydown', e => {
-      if (e.code !== KEY || e.repeat || game.phase !== 'over' || !clip) return;
+      if (e.code !== KEY || e.repeat || game.phase !== 'over' || !clip || covered()) return;
       tap(KEY); save();   // tap() consumes the press so no other end-screen reader sees it
     });
     canvas.addEventListener('pointerdown', e => {
-      if (game.phase !== 'over' || !clip || e.button > 0) return;
+      if (game.phase !== 'over' || !clip || e.button > 0 || covered()) return;
       const r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return;
       if (inPanel((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height)) save();
     });
