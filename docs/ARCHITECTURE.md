@@ -55,6 +55,7 @@ Read this first, then read only the files you own.
 | 19 | `p-achievements.js` | OKRS: 30 parody achievements, an unlock toast, the OKRS screen, saved in `SETTINGS` (`window.OKRS`) | p-achievements agent |
 | 19 | `p-ranked.js` | RANKED: the PERFORMANCE REVIEW rating against the CPU (last script in `dev.html`, after `vfx.js`) | p-ranked agent |
 | 19 | `p-daily.js` | SPRINT OF THE DAY: the daily challenge, streak and result card | p-daily agent |
+| 19 | `p-mutators.js` | match mutators picked on the select screen (G): BIG HEADS, LOW GRAVITY, TURBO 1.5X, RATE LIMITED, LEGACY MODE, GLASS CANNON; public `MUTATORS` | p-mutators agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -81,6 +82,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-replays.js`, `tools/tests/x-p-replays.mjs` | p-replays agent | hooks `update` (order -1e9), `titleItems`, `drawTop` (order 40); listens to the BUS `phase`, `match:start` and `match:end`; pins `Math.random` to a seeded generator only while a recorded or replayed match runs; while a replay plays it wraps `BUS.emit` to keep that match's `match:end` from the other listeners; reads the engine globals `keys`, `pressed`, `NOISE` and `thud`; see `docs/features/p-replays.md` |
 | `p-ranked.js`, `tools/tests/x-p-ranked.mjs` | p-ranked agent | uses `match:start`, `round:start`, `match:end`, `phase`, the `update` and `drawTop` hooks, `MODES.register` and two `SETTINGS` keys; wraps `SETTINGS.get('difficulty')` while a rated match is on screen |
 | `p-daily.js`, `tools/tests/x-p-daily.mjs` | p-daily agent | |
+| `p-mutators.js`, `tools/tests/x-p-mutators.mjs` | p-mutators agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -139,6 +141,7 @@ With nothing registered a call returns at once, so the engine calls them from ho
 | `musicTheme` | filter | `(themeName, game)`; return the name of any defined theme to replace the one the engine picked |
 
 `p-strings.js` uses `update` (order -10), `input` (order 5, CPU only), `fighterUpdate`, `damage` (order 20, after `combat.js`: juggle scaling and the 35 percent cap), `drawFighter`, `drawHud`, `drawTop` and `pauseItems` (`N STRINGS`).
+A handler may run the engine's own `window.update()` again from inside an `update` handler to add a tick (`p-mutators.js` does this for TURBO 1.5X, with a re-entry guard and every other tick of a fight only). Every `update` handler then runs a second time inside that one real tick, so an `update` handler must be safe to run twice in a row and must not count real time by calls.
 
 ### SETTINGS keys
 
@@ -187,6 +190,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `okrs` | any, `null` | `null` or `{ v, got, n, best, cur, fx, ar, md }` | `p-achievements.js`: the OKRS progress (done objectives, counters, best combo and win streak, fighters, arenas and modes won with); a junk value is cleaned on load, and the live object is stored once at load so that saving later emits no `settings` event during a match |
 | `ranked.rating` | num, `1000` | 0 to 5000 | `p-ranked.js`: the RANKED rating (INTERN below 1100, then JUNIOR, SENIOR, STAFF, PRINCIPAL, DISTINGUISHED from 1700) |
 | `ranked.record` | any, an empty record | `{ games, wins, losses, streak, best, peak, forfeits, hist }` | `p-ranked.js`: the RANKED record; sanitised on every read, `hist` keeps the last 12 ratings |
+| `mutators.on` | any, `{}` | `{ mutatorId: true }` | `p-mutators.js`: the match mutators that are on (`bigheads`, `lowgrav`, `turbo`, `rate`, `legacy`, `glass`); all off by default; read and written through `window.MUTATORS` |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
