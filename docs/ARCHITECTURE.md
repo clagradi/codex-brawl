@@ -48,6 +48,7 @@ Read this first, then read only the files you own.
 | last | `p-strings.js` | named combo strings, chase jump, air chains, juggle scaling; loads after `vfx.js` so its `tryCancel` wrapper is the outermost | p-strings agent |
 | last | `p-voice.js` | VS banter, win quotes and announcer callouts with captions (`VOICE`); after `vfx.js` in `dev.html` | p-voice agent |
 | 19 | `p-tutorial.js` | TUTORIAL mode: ten lessons against a scripted dummy, last in `dev.html` | p-tutorial agent |
+| 19 | `p-vault.js` | EXTRAS title screen: fighter and arena galleries, colourways, lifetime stats (`VAULT`) | p-vault agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -68,6 +69,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-strings.js`, `tools/tests/x-p-strings.mjs` | p-strings agent | |
 | `p-voice.js`, `tools/tests/x-p-voice.mjs` | p-voice agent | |
 | `p-tutorial.js`, `tools/tests/x-p-tutorial.mjs`, `docs/features/p-tutorial.md` | p-tutorial agent | |
+| `p-vault.js`, `tools/tests/x-p-vault.mjs` | p-vault agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -159,6 +161,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `strings.callouts` | bool, `true` | | `p-strings.js`: the on-screen string name and its sting (detection and `strings:land` stay on) |
 | `voice.speech` | bool, `true` | | `p-voice.js`: the banter, callouts and win quotes are spoken (captions stay on either way); N in the pause menu toggles it |
 | `tutorial.done` | num, `0` | 0..1023 | `p-tutorial.js`: the cleared TUTORIAL lessons as a bit mask (bit k = lesson k + 1) |
+| `vault.stats` | any, `{}` | `{ v, m, r, ko, sp, su, fi, combo, comboBy, f: { fighterId: { w, l, c } }, ar: { arenaId: plays } }` | `p-vault.js`: lifetime stats counted from `BUS` events (matches, rounds, KOs, specials, supers, finishers, longest combo, wins and losses per fighter, plays per arena); only human fighters outside training count, the mirror boss never does; shown on the EXTRAS screen next to the arcade stats |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
