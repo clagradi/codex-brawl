@@ -57,6 +57,7 @@ Read this first, then read only the files you own.
 | 19 | `p-daily.js` | SPRINT OF THE DAY: the daily challenge, streak and result card | p-daily agent |
 | 19 | `p-mutators.js` | match mutators picked on the select screen (G): BIG HEADS, LOW GRAVITY, TURBO 1.5X, RATE LIMITED, LEGACY MODE, GLASS CANNON; public `MUTATORS` | p-mutators agent |
 | 19 | `p-photomode.js` | photo mode from the pause screen: free camera, six filters, frames, PNG save (`PHOTO`) | p-photomode agent |
+| 19 | `p-a11y.js` | accessibility options (colour filters, high contrast HUD, larger text, reduced motion, screen reader announcements, simple specials) and `A11Y`; loads after `vfx.js` | a11y agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -85,6 +86,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-daily.js`, `tools/tests/x-p-daily.mjs` | p-daily agent | |
 | `p-mutators.js`, `tools/tests/x-p-mutators.mjs` | p-mutators agent | |
 | `p-photomode.js`, `tools/tests/x-p-photomode.mjs` | p-photomode agent | |
+| `p-a11y.js`, `tools/tests/x-p-a11y.mjs` | a11y agent | |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -145,6 +147,7 @@ With nothing registered a call returns at once, so the engine calls them from ho
 
 `p-strings.js` uses `update` (order -10), `input` (order 5, CPU only), `fighterUpdate`, `damage` (order 20, after `combat.js`: juggle scaling and the 35 percent cap), `drawFighter`, `drawHud`, `drawTop` and `pauseItems` (`N STRINGS`).
 A handler may run the engine's own `window.update()` again from inside an `update` handler to add a tick (`p-mutators.js` does this for TURBO 1.5X, with a re-entry guard and every other tick of a fight only). Every `update` handler then runs a second time inside that one real tick, so an `update` handler must be safe to run twice in a row and must not count real time by calls.
+Order notes: `vfx.js` plays the KO slow motion from an `update` handler at order 50. `p-a11y.js` reads `game.hitstop` at order 49 and, with reduced motion on, removes the extra 1-tick hit-stop at order 51. In `drawTop`, `p-a11y.js` draws at 8000 (the high contrast HUD), 9000 (its screen) and 10000 (the colour filter, last of all).
 
 ### SETTINGS keys
 
@@ -197,6 +200,12 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `photo.filter` | enum, `'none'` | `'crt'`, `'sepia'`, `'noir'`, `'vapor'`, `'pixel'`, `'none'` | `p-photomode.js`: the last filter used in photo mode |
 | `photo.frame` | enum, `'none'` | `'none'`, `'cinema'`, `'polaroid'`, `'arcade'`, `'film'` | `p-photomode.js`: the last frame used in photo mode |
 | `photo.hud` | bool, `true` | | `p-photomode.js`: whether photo mode shows the HUD in the picture |
+| `a11y.cb` | enum, `'off'` | `'off'`, `'protan'`, `'deutan'`, `'tritan'` | `p-a11y.js`: the colour filter applied to the whole frame |
+| `a11y.contrast` | bool, `prefers-contrast: more` | | `p-a11y.js`: the high contrast HUD drawn over the normal one |
+| `a11y.bigText` | bool, `false` | | `p-a11y.js`: larger `uiText` and `ptext` text where it fits |
+| `a11y.motion` | bool, `prefers-reduced-motion: reduce` | | `p-a11y.js`: no screen shake, white flash or KO slow motion; while it is on, `SETTINGS.get('reducedFlash')` reads `true` for `vfx.js` |
+| `a11y.live` | bool, `true` | | `p-a11y.js`: announcements in the `#a11y-live` region |
+| `a11y.simpleSp` | bool, `false` | | `p-a11y.js`: specials by direction plus the special button, for human players |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
