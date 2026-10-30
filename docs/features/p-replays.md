@@ -10,7 +10,7 @@ On the title, choose REPLAYS:
 
 - `W`/`S` (or up/down) choose a match. Each row shows both fighters, the result, the arena, how long the match ran, and a tag: NEW (not watched yet), VERIFIED or DESYNC.
 - `Enter`, `Space` or punch watches it.
-- `Delete` (or `D`) twice erases it; the first press arms the row and shows a prompt. Moving the pick or leaving the list disarms it. (`X` is the back key everywhere in the game, so it never erases; the Mac delete key sends Backspace, which is back too.)
+- `Delete` (or `T`) twice erases it; the first press arms the row and shows a prompt. Moving the pick or leaving the list disarms it. (`X` is the back key everywhere in the game, so it never erases; `D` is 1P right and the pad's right, so it is not an erase key either; the Mac delete key sends Backspace, which is back too.)
 - `Esc`, `X` or kick goes back to the title.
 
 While a replay plays, the pill at the top shows REPLAY, the speed and the progress:
@@ -78,7 +78,7 @@ A recording stops (and is dropped) after an hour of play or 400 000 characters o
 - records a scripted 2 PLAYERS match with a `P` pause and a lost-focus pause, and checks that the replay matches, paused ticks included;
 - tampers with a seed and with the inputs and expects DESYNC with the frame number;
 - drives the viewer keys (pause, 2X, frame step, restart, exit) and checks that the viewer's settings, fighters and arena choice come back;
-- opens REPLAYS from the title, moves, erases with a double press of `D`, checks that `X` backs out and never arms the erase, watches and leaves;
+- opens REPLAYS from the title, moves, erases with a double press of `T`, checks that `X` backs out and never arms the erase, watches and leaves;
 - records with and without mutators and plays both back with the recorded ones (and an old entry without the key with none), then checks that the viewer's mutators come back;
 - checks that a viewer's colour-blind, contrast, big-text and REDUCED MOTION choices survive a replay, that REDUCED MOTION viewers get no shake or flash and still see a VERIFIED replay;
 - checks that a replay moves no OKRS or VAULT counter;

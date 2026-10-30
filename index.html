@@ -3979,7 +3979,7 @@ function pollPads() {
   const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   function menuTap(x, y) {
     const p = game.phase;
-    if (p === 'title') { if (y > 425 && y < 459) game.titleSel = 0; else if (y >= 459 && y < 493) game.titleSel = 1; key('Enter'); }
+    if (p === 'title') { const its = titleItems(), pg = titlePager(its.length); if (pg && !titleOverlayOpen() && Math.abs(x - pg.x) < 72 && y > pg.y - 14 && y < pg.y + 28) { game.titleSel = (pg.page + 1) % pg.pages * pg.size; beep(400, 0.04); return; } let best = -1, bd = 20; for (let i = 0; i < its.length; i++) { const s = titleSlot(i, its.length), d = Math.abs(y - s.y); if (Math.abs(x - s.x) < 150 && d < bd) { bd = d; best = i; } } if (best >= 0) game.titleSel = best; key('Enter'); }   // the PAGE note flips the page; else the tapped entry, else the highlighted one
     else if (p === 'vs') key('Enter');
     else if (p === 'select') {
       const i = ROSTER.findIndex((r, n) => { const c = selectCell(n); return x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 6 && y <= c.y + c.h + 26; });
@@ -10969,11 +10969,13 @@ requestAnimationFrame(frame);
   addEventListener('pagehide', flush);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });   // phones often skip pagehide
 
-  const human = f => !!f && !f.cpu && !!f.d && game.modeId !== 'training';   // training is practice: it counts for nothing
+  const replaying = () => { try { return !!(window.REPLAYS && REPLAYS.state().active); } catch (e) { return false; } };   // watching a replay re-runs a match that already counted
+  const demo = () => { try { return game.modeId === 'watch' && !!(window.WATCH && WATCH.state().kind === 'demo'); } catch (e) { return false; } };   // the title attract demo is nobody's play (a WATCH match still counts as a match)
+  const human = f => !!f && !f.cpu && !!f.d && game.modeId !== 'training' && !replaying();   // training is practice: it counts for nothing
   const rosterId = f => (f && f.d && !f.d.oc && S.f[f.d.id] ? f.d.id : null);   // the overclocked mirror boss is no roster fighter
   const bump = k => { S[k] = Math.min(CAP, S[k] + 1); dirty = true; };
   BUS.on('match:start', e => {
-    if (!e || e.modeId === 'training') return;
+    if (!e || e.modeId === 'training' || replaying() || demo()) return;
     const a = ARENAS[e.arena | 0]; if (!a) return;
     if (!S.ar[a.id] && Object.keys(S.ar).length >= MAX_ARENAS) return;
     S.ar[a.id] = Math.min(CAP, (S.ar[a.id] | 0) + 1); dirty = true;
@@ -10984,7 +10986,7 @@ requestAnimationFrame(frame);
     if (c > S.combo) { S.combo = c; S.comboBy = id || ''; dirty = true; }
     if (id && c > S.f[id].c) { S.f[id].c = c; dirty = true; }
   });
-  BUS.on('round:end', () => { bump('r'); });
+  BUS.on('round:end', () => { if (!replaying() && !demo()) bump('r'); });
   BUS.on('ko', e => { if (e && human(e.winner)) bump('ko'); });
   BUS.on('special', e => { if (e && human(e.fighter)) bump('sp'); });
   BUS.on('super', e => { if (e && human(e.fighter)) bump('su'); });
@@ -11073,7 +11075,7 @@ requestAnimationFrame(frame);
     }
   }
   HOOKS.add('update', g => {
-    if (!V.open) { if (g.phase === 'title' && tap('KeyV')) { open(); clearPressed(); } return; }   // V on the title opens it too: a crowded title menu can push the entry off the screen
+    if (!V.open) { if (g.phase === 'title' && !(typeof titleOverlayOpen === 'function' && titleOverlayOpen()) && tap('KeyV')) { open(); clearPressed(); } return; }   // V on the title opens it too: a crowded title menu can push the entry off the screen
     if (g.phase !== 'title') { V.open = false; V.hit.length = 0; return; }   // something else took the game over
     V.st++;
     const k = readKeys();
@@ -11874,7 +11876,8 @@ requestAnimationFrame(frame);
 //       'drawTop' (list screen and the playback bar); SETTINGS 'replays.list' and 'replays.restore' (the viewer's settings while a replay runs,
 //       put back on the next load if the page closes mid-replay). Engine globals read: keys, pressed, tap, clearPressed, pollPads, startMatch,
 //       setPhase, running, hold, step, TICK, ROSTER, ARENAS, NOISE / thud (warms the impact noise buffer before a match so its one-time fill never
-//       lands inside a recorded tick). No engine file is edited.
+//       lands inside a recorded tick). No engine file is edited. The match mutators ('mutators.on') are part of the snapshot; a viewer with REDUCED MOTION
+//       keeps a calm picture (wraps drawWorld, drawPost and the 'reducedFlash' alias) while the recorded value still drives the simulation.
 // Public: window.REPLAYS (see the bottom of this file and docs/features/p-replays.md).
 'use strict';
 (() => {
@@ -11882,8 +11885,9 @@ requestAnimationFrame(frame);
 
   const KEEP = 5, CK_EVERY = 30, TAIL = 90, LATE = 600, MAX_TICKS = 216000, MAX_CHARS = 400000;
   const REC_MODES = ['versus', 'versus2'];
-  // settings that only change how the match looks or sounds: the viewer keeps their own while watching
-  const VIEWER_ONLY = ['musicVol', 'sfxVol', 'voiceVol', 'muted', 'gore', 'shake', 'reduceFlash', 'crt', 'announcer', 'trackToast'];
+  // settings that only change how the match looks or sounds: the viewer keeps their own while watching (a11y.motion and a11y.simpleSp are not here: they change the simulation)
+  const VIEWER_ONLY = ['musicVol', 'sfxVol', 'voiceVol', 'muted', 'gore', 'shake', 'reduceFlash', 'crt', 'announcer', 'trackToast',
+    'a11y.cb', 'a11y.contrast', 'a11y.bigText', 'a11y.live', 'gamepad.rumble', 'gamepad.hints', 'gamepad.glyphs', 'perf.quality', 'photo.filter', 'photo.frame', 'photo.hud', 'voice.speech'];
   const NATIVE = Math.random;
   const GOLD = '#f5c542', STEEL = '#9aa3b5', DIM = '#6b7184', GREEN = '#5ad16a', RED = '#ff5a4f', INK = '#0b0a12';
 
@@ -11928,11 +11932,11 @@ requestAnimationFrame(frame);
     for (const c in obj) if (obj[c]) { n++; const i = idx[c]; if (i === undefined || prev.indexOf(i) < 0) return false; }
     return n === prev.length;
   }
-  function settingsSnapshot() {   // what the simulation reads: every plain setting except the look-and-sound ones, plus the key bindings
+  function settingsSnapshot() {   // what the simulation reads: every plain setting except the look-and-sound ones, plus the key bindings and the match mutators
     const o = {};
     for (const d of SETTINGS.list()) {
       const k = d.key; if (k.startsWith('replays.') || VIEWER_ONLY.includes(k)) continue;
-      if (d.type === 'bool' || d.type === 'num' || d.type === 'enum' || k === 'binds') o[k] = JSON.parse(JSON.stringify(SETTINGS.get(k) === undefined ? null : SETTINGS.get(k)));
+      if (d.type === 'bool' || d.type === 'num' || d.type === 'enum' || k === 'binds' || k === 'mutators.on') o[k] = JSON.parse(JSON.stringify(SETTINGS.get(k) === undefined ? null : SETTINGS.get(k)));
     }
     return o;
   }
@@ -11941,6 +11945,16 @@ requestAnimationFrame(frame);
 
   // ---------- sessions: one recording or one playback at a time ----------
   let S = null, PEND = null, VIEW = null, BUSY = false, raf = 0, lastT = 0, boot = true;
+
+  // REDUCED MOTION also trims slow motion and the KO hit-stop, so the recorded value stays pinned while a replay runs (the checksums need it). The viewer who
+  // has it on still gets no shake and no full-screen flash: these three wrappers calm the picture only (p-a11y.js loads after this file and wraps them again).
+  const calmView = () => !!(VIEW && VIEW.set && VIEW.set['a11y.motion'] === true);
+  const drawWorld1 = window.drawWorld;
+  if (typeof drawWorld1 === 'function') window.drawWorld = function () { if (game.shake && calmView()) game.shake = 0; return drawWorld1.apply(this, arguments); };
+  const drawPost1 = window.drawPost;
+  if (typeof drawPost1 === 'function') window.drawPost = function (c, tick, opts) { if (opts && opts.flash && calmView()) opts.flash = 0; return drawPost1.apply(this, arguments); };
+  const get1 = SETTINGS.get;
+  SETTINGS.get = function (key) { if (key === 'reducedFlash' && calmView()) return true; return get1.apply(this, arguments); };   // vfx.js turns its flashes into a soft tint on this alias
 
   function startRecording() {
     warm(); pin((NATIVE() * 4294967296) >>> 0);
@@ -12022,7 +12036,8 @@ requestAnimationFrame(frame);
         VIEW = { sel: game.sel.slice(), modeId: game.modeId, mode: game.mode, arenaPick: game.arenaPick, held, tick: game.tick, n: 0, set: viewerSettings() };
         SETTINGS.set('replays.restore', VIEW.set);
       }
-      for (const k in e.set || {}) if (!same(SETTINGS.get(k), e.set[k])) SETTINGS.set(k, e.set[k]);
+      for (const k in e.set || {}) if (!VIEWER_ONLY.includes(k) && !same(SETTINGS.get(k), e.set[k])) SETTINGS.set(k, e.set[k]);   // older entries still hold viewer keys: skip them
+      if ((!e.set || !('mutators.on' in e.set)) && !same(SETTINGS.get('mutators.on'), {})) SETTINGS.set('mutators.on', {});   // an entry from before the mutators were kept played without any
       offAll();
       if (game.phase === 'vs') game.phase = 'title';   // the switch to 'vs' must fire again
       game.sel = [fighterIdx(e.ids[0]), fighterIdx(e.ids[1])];
@@ -12143,8 +12158,8 @@ requestAnimationFrame(frame);
   function listTick(g) {
     if (g.phase !== 'title') { UI.open = false; return; }
     const L = entries(), n = L.length;
-    const up = anyTap(['KeyW', 'ArrowUp']), dn = anyTap(['KeyS', 'ArrowDown']), ok = anyTap(['Enter', 'Space', 'KeyJ', 'Numpad1']);
-    const del = anyTap(['Delete', 'KeyX']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'Numpad2']);
+    const up = anyTap(['KeyW', 'ArrowUp']), dn = anyTap(['KeyS', 'ArrowDown']), ok = anyTap(['Enter', 'Space', 'KeyJ', 'KeyZ', 'Numpad1']);
+    const del = anyTap(['Delete', 'KeyT']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'KeyX', 'Numpad2']);   // X is the 1P back key everywhere, so it never erases; D is 1P right (and pad right), so T is the second erase key
     clearPressed();   // the title menu underneath sees nothing while this screen is open
     if (back) { UI.open = false; UI.arm = -1; snd(300, 0.06); return; }
     if (!n) return;
@@ -12206,7 +12221,7 @@ requestAnimationFrame(frame);
       ptext(c, modeName(e), W - 86, y + 42, 2, DIM, 'right');
       if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
     }
-    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
+    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
     ptext(c, 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
     c.restore();
   }
@@ -12256,6 +12271,7 @@ requestAnimationFrame(frame);
     open() { UI.open = game.phase === 'title'; UI.sel = 0; UI.arm = -1; return UI.open; },
     close() { UI.open = false; },
     screen: () => ({ open: UI.open, sel: UI.sel, armed: UI.arm }),
+    calm: calmView,   // true while a replay recorded with REDUCED MOTION plays: the picture stays calm, the simulation stays pinned
     state: () => S ? (S.play
       ? { active: true, rec: false, rt: S.rt, len: S.len, paused: S.paused, speed: S.speed, done: S.done, verified: S.verified, bad: S.bad, got: S.got, index: S.i }
       : { active: false, rec: true, rt: S.rt, events: S.ev.length, seed: R.seed })
@@ -12285,7 +12301,9 @@ requestAnimationFrame(frame);
   const blip = (f, d) => { try { beep(f, d || 0.04, 'square', 0.05); } catch (e) { /* audio is optional */ } };
   const human = f => !!f && f.cpu === false;   // read at event time: the demo routes set the cpu flags after startMatch
   const qaRun = () => !!(window.__qa && window.__qa.cur);   // tools/fuzz.mjs sets __qa.cur while it plays an automated match: those never count, so a replay of the same seed stays identical
-  const counting = () => game.modeId !== 'training' && !qaRun();
+  const replaying = () => { try { return !!(window.REPLAYS && REPLAYS.state().active); } catch (e) { return false; } };   // a replay re-runs a match that already counted
+  const watching = () => { try { return game.modeId === 'watch' && !!(window.WATCH && WATCH.state().kind); } catch (e) { return false; } };   // the title demo and the WATCH matches are CPU against CPU: they count for nothing here
+  const counting = () => game.modeId !== 'training' && !qaRun() && !replaying() && !watching();
 
   // ---------- the 30 objectives: id, parody name, text, goal, and how to read the progress from the saved counters ----------
   const N = k => s => s.n[k] || 0;
@@ -13360,7 +13378,7 @@ requestAnimationFrame(frame);
   HOOKS.add('drawTop', (c, g) => {
     if (g.phase === 'select' && scope(g)) {
       if (ui.open) drawPanel(c);
-      else { const n = count(); ptext(c, OPEN_KEY.slice(3) + '  MUTATORS' + (n ? '  ' + n + ' ON' : ''), W - 14, 14, 2, n ? '#ffe27a' : '#8d8696', 'right'); }
+      else { const n = count(), tc = typeof touch === 'object' && touch.on; if (!tc || n) ptext(c, (tc ? '' : OPEN_KEY.slice(3) + '  ') + 'MUTATORS' + (n ? '  ' + n + ' ON' : ''), W - 14, 14, 2, n ? '#ffe27a' : '#8d8696', 'right'); }   // the panel opens by key only: a touch player is not told to press G, but still sees that saved mutators are on
       return;
     }
     if (!PLAY[g.phase] || !scope(g)) return;
@@ -13983,10 +14001,12 @@ requestAnimationFrame(frame);
       if (o.screen === 'options' && o.osel !== seen.osel && typeof OPTIONS.rows === 'function') { seen.osel = o.osel; const r = OPTIONS.rows()[o.osel]; if (r) say(speak(r) + '.'); }
     }
   }
+  const inDemo = () => { try { return !!(window.WATCH && WATCH.state().kind === 'demo'); } catch (e) { return false; } };   // the attract demo is not a match the listener started: read at call time, p-watch loads after this file
   BUS.on('phase', e => {
     forget();
     if (!e) return;
     const to = e.to;
+    if (to !== 'title' && inDemo()) return;   // the way back to the title is still read: p-watch leaves the demo after it sets the phase
     if (to === 'title') say('Title menu. Up and down choose, Enter starts, Y opens accessibility.');
     else if (to === 'select') say('Choose your fighter. Left and right move, punch confirms, kick goes back.');
     else if (to === 'vs' && game.f && game.f[0] && game.f[1]) say(nameOf(game.f[0]) + ' versus ' + nameOf(game.f[1]) + '.');
@@ -13995,16 +14015,16 @@ requestAnimationFrame(frame);
     else if (to === 'finish') say('Finish it! Super for the finisher, or any hit.');
     else if (to === 'over') say('Match over. Enter: character select. R: rematch. Escape: title.');
   });
-  BUS.on('round:start', e => { if (e) say(e.sudden ? 'Sudden death, round ' + e.round + '.' : 'Round ' + e.round + '.'); });
+  BUS.on('round:start', e => { if (e && !inDemo()) say(e.sudden ? 'Sudden death, round ' + e.round + '.' : 'Round ' + e.round + '.'); });
   BUS.on('round:end', e => {
-    if (!e) return;
+    if (!e || inDemo()) return;
     const score = Array.isArray(e.wins) ? ' Rounds: ' + nameOf(0) + ' ' + e.wins[0] + ', ' + nameOf(1) + ' ' + e.wins[1] + '.' : '';
     if (e.reason === 'draw' || e.winner == null) say('Round ' + e.round + ' is a draw.' + score);
     else if (e.reason === 'time') say('Time up. ' + nameOf(e.winner) + ' wins round ' + e.round + '.' + score);
     else say('KO! ' + nameOf(e.winner) + ' wins round ' + e.round + '.' + score);
   });
   BUS.on('match:end', e => {
-    if (!e) return;
+    if (!e || inDemo()) return;
     const w = typeof e.winner === 'number' ? e.winner : e.winner && e.winner.side, ws = Array.isArray(e.wins) ? e.wins : [0, 0];
     const a = ws[w] | 0, b = ws[1 - w] | 0;
     say(nameOf(e.winner) + ' wins the match, ' + a + ' rounds to ' + b + '.');
@@ -14031,7 +14051,7 @@ requestAnimationFrame(frame);
   const moveRows1 = window.moveRows;
   if (typeof moveRows1 === 'function') window.moveRows = function (id, side, cpu) {
     const rows = moveRows1.apply(this, arguments);
-    if (!S.simple || cpu || !Array.isArray(rows)) return rows;
+    if (!S.simple || cpu || !Array.isArray(rows) || rows.strings) return rows;   // the STRINGS page (p-strings) keeps its own flag and cache
     const M = typeof MOVES !== 'undefined' && MOVES[id], name = M && M.sp && M.sp[1] && M.sp[1].name;
     return rows.map(r => r && r.name === name && typeof r.input === 'string' && r.input.startsWith('FWD + ') ? Object.assign({}, r, { input: 'LEFT / RIGHT + ' + r.input.slice(6) }) : r);
   };
@@ -14086,13 +14106,14 @@ requestAnimationFrame(frame);
     if (up) move(-1); else if (dn) move(1);
     if (lf) change(-1); else if (rt || ok) change(1);
   }
+  const covered = () => { try { return (typeof titleOverlayOpen === 'function' && titleOverlayOpen()) || !!(window.ARCADE && ARCADE.S && ARCADE.S.screen) || !!(window.MODES2 && MODES2.screen && MODES2.screen()); } catch (e) { return false; } };   // a screen of another feature sits over the title: Y belongs to it
   HOOKS.add('update', g => {
     if (S.motion) calm(g);
     const ph = g.phase;
     if (ui.open) {
       if (ph !== 'title' && ph !== 'pause') { ui.open = false; shield(false); }
       else { nav(); try { clearPressed(); } catch (e) { /* engine helper */ } }
-    } else if (ph === 'title' && tap('KeyY')) open();
+    } else if (ph === 'title' && !covered() && tap('KeyY')) open();
     watchMenus(g);
   }, -20);
   HOOKS.add('update', flush, 1000);
@@ -14389,11 +14410,12 @@ requestAnimationFrame(frame);
   const colOf = s => S.cols[s] || '#fff';
 
   // ---------- opening, closing, input ----------
-  const BTN = { x: 24, y: 206, w: 276, h: 50 };   // the O button on the end screen (left side: the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const BTN = { x: 24, y: 246, w: 276, h: 50 };   // the O button on the end screen (left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const reviewOpen = () => { try { return !!(window.REVIEW && REVIEW.state().open); } catch (e) { return false; } };   // the code review is modal: no button, no report, until it is closed
   const shareAnchor = () => document.getElementById('share');
   function hideShare(on) { try { const a = shareAnchor(); if (a) a.style.visibility = on ? 'hidden' : ''; } catch (e) { /* no DOM */ } }
   function open() {
-    if (!ON || U.open || game.phase !== 'over') return false;
+    if (!ON || U.open || game.phase !== 'over' || reviewOpen()) return false;
     U.open = true; U.openT = 0; U.rt = 0; U.view = 0; U.lay = null; hideShare(true); sfx(660); return true;
   }
   function close() {
@@ -14418,7 +14440,7 @@ requestAnimationFrame(frame);
     if (cv) cv.addEventListener('pointerdown', e => {
       if (e.button > 0 || !ON || game.phase !== 'over') return;
       const r = cv.getBoundingClientRect(); if (!r.width) return;
-      onTap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height, r.width / W);
+      if (onTap((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height, r.width / W)) e.stopImmediatePropagation();   // one tap, one action: p-clips listens after this and does not see a tap the report took
     });
   } catch (e) { /* no canvas: keyboard only */ }
 
@@ -14593,7 +14615,7 @@ requestAnimationFrame(frame);
   }
   HOOKS.add('drawTop', (c, g) => {
     if (!ON || g.phase !== 'over') return;
-    if (U.open) drawReport(c); else drawButton(c, g);
+    if (U.open) drawReport(c); else if (!reviewOpen()) drawButton(c, g);
   }, 900);
 
   // ---------- public ----------
@@ -14994,7 +15016,7 @@ requestAnimationFrame(frame);
 // ===== AGENT BRAWL feature file: PERF (premium performance pack). =====
 // Owner: perf agent (branch feat/p-perf).
 // Area: a frame-time budget overlay (F3), adaptive quality for slow devices (fewer particles and lighter post-processing when the
-//       average frame costs more than 12 ms), and an offscreen snapshot cache for the arena on frames that repeat a simulation tick
+//       average frame costs more than 12 ms, or the display delivers frames late: a gap over 25 ms counts as a frame over budget), and an offscreen snapshot cache for the arena on frames that repeat a simulation tick
 //       (a display refreshing faster than the 60 Hz simulation draws every tick two or more times), used below HIGH only.
 // Hooks used: 'drawTop' (order 1000: the overlay, over everything else).
 // BUS used: 'settings' (a change of any option invalidates the arena cache; perf.quality restarts the sampling), 'match:start' and
@@ -15015,6 +15037,7 @@ requestAnimationFrame(frame);
   const MAX_DOWNS = 3;               // after three step-downs the level stays where it is (no see-saw on a borderline device)
   const WINDOW = 180;                // frames per averaging window (3 s at 60 Hz)
   const CLAMP = 1000 / 30;           // one slow frame (a tab switch, a garbage collection) counts as 33 ms at most
+  const LATE = 1.5 * 1000 / 60;      // a gap between frames over 25 ms (a 30 Hz-capped display, a slow GPU) counts as a frame over budget
   const WARMUP = 45;                 // frames ignored after a match or round starts (stage build, first draw of new sprites)
   const HIST = 120;                  // frames in the overlay graph
   const NAMES = ['HIGH', 'MEDIUM', 'LOW'];
@@ -15086,9 +15109,14 @@ requestAnimationFrame(frame);
     if (!live()) { zn = zsum = zi = 0; zring.fill(0); S.win.length = 0; S.warm = Math.max(S.warm, 10); return; }
     zsum -= zring[zi]; zring[zi] = ticks ? 0 : 1; zsum += zring[zi]; zi = (zi + 1) % zring.length; if (zn < zring.length) zn++;
     if (gap <= 0 || gap > 100) { S.win.length = 0; S.warm = Math.max(S.warm, 10); return; }   // the loop was away: start the window again
-    if (!ticks) return;            // a repeat of the last tick on a fast display: not a full frame of work
+    countFrame(gap, work, ticks, !AUTOMATED);
+  }
+  // The end of afterFrame, also driven by PERF.feedFrame. A late frame costs at least a frame over budget whatever the main thread spent
+  // (the time went to the display), so a device that cannot hold 60 Hz steps down and, its late frames still counting, stays down.
+  function countFrame(gap, work, hadTick, adapt) {
+    if (!hadTick) return;          // a repeat of the last tick on a fast display: not a full frame of work, however short the gap
     if (S.warm > 0) { S.warm--; return; }
-    if (!AUTOMATED && quality() === 'auto' && S.force == null) sample(work);
+    if (adapt && quality() === 'auto' && S.force == null) sample(gap > LATE ? Math.max(work, BUDGET + 1) : work);
   }
 
   // ---------------------------------------------------------------- low quality: post-processing and particles
@@ -15272,11 +15300,12 @@ requestAnimationFrame(frame);
   }
 
   window.PERF = {
-    BUDGET, WINDOW, NAMES,
+    BUDGET, WINDOW, WARMUP, LATE, NAMES,
     get overlay() { return S.overlay; }, set overlay(v) { S.overlay = !!v; S.text = null; },
     get cache() { return C.mode; }, set cache(v) { C.mode = v === 'on' || v === 'off' ? v : 'auto'; C.key = ''; },
     level, quality, stats, cycleQuality, bench,
     feed(ms, n) { n = Math.max(1, n | 0 || 1); for (let k = 0; k < n; k++) sample(ms); return S.auto; },   // drive the adaptive controller (tests)
+    feedFrame(gap, work, n, hadTick) { n = Math.max(1, n | 0 || 1); for (let k = 0; k < n; k++) countFrame(gap, work, hadTick !== false, true); return S.auto; },   // the frame path of the controller, with a gap (tests)
     reset() { S.auto = 0; S.downs = S.ups = S.good = 0; S.win.length = 0; S.warm = WARMUP; S.force = null; C.key = ''; C.hits = C.misses = C.bypass = 0; fxStats.skipped = 0; S.text = null; },
     postOpts,
     probe: (i, t) => { const idx = arenaIndex(i); delete C.probes[idx]; return probeArena(idx, t == null ? game.tick : t); },
@@ -15308,7 +15337,7 @@ requestAnimationFrame(frame);
   const FPS = 30, BPS = 2500000, SLICE = 1000;                               // capture frame rate, video bit rate, MediaRecorder timeslice
   const THUMB_MS = 125, THUMB_W = 160, THUMB_H = 90, THUMBS = 100;           // preview strip: 8 frames a second, 12.5 s of history
   const SAVE_GAP = 30, SAVED_SHOW = 120, KEY = 'KeyC';                       // ticks between two saves, ticks the CLIP SAVED label stays
-  const PANEL = { x: 40, y: 172, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target)
+  const PANEL = { x: 40, y: 304, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this
   const TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   const GOLD = '#c9a24a', INK = '#e8e0cc', DIM = '#8d8576', GREEN = '#7fdc6a';
 
@@ -15430,6 +15459,7 @@ requestAnimationFrame(frame);
     return true;
   }
   const inPanel = (x, y) => x >= PANEL.x && x <= PANEL.x + PANEL.w && y >= PANEL.y && y <= PANEL.y + PANEL.h;
+  const covered = () => { try { return !!((window.REVIEW && REVIEW.state().open) || (window.OBS && OBS.isOpen())); } catch (e) { return false; } };   // the code review (modal) or the match report is up: the panel is not drawn and takes no key or tap
 
   // ---------------------------------------------------------------- the KO CLIP panel on the end screen
   function drawPanel(c) {
@@ -15464,7 +15494,7 @@ requestAnimationFrame(frame);
     });
     HOOKS.add('drawTop', c => {
       if (recs.length) { if (!paused) grab(); return; }
-      if (clip && game.phase === 'over') drawPanel(c);
+      if (clip && game.phase === 'over' && !covered()) drawPanel(c);
     }, 1000);
     BUS.on('match:start', () => { abort(); releaseClip(); armed = !!type; });
     BUS.on('round:start', () => { if (!recs.length) begin(); });
@@ -15482,11 +15512,11 @@ requestAnimationFrame(frame);
     BUS.on('settings', e => { if (e.key === 'clips.on' && e.value === false) { abort(); releaseClip(); } });
     document.addEventListener('visibilitychange', () => { if (recs.length) syncPause(); });
     addEventListener('keydown', e => {
-      if (e.code !== KEY || e.repeat || game.phase !== 'over' || !clip) return;
+      if (e.code !== KEY || e.repeat || game.phase !== 'over' || !clip || covered()) return;
       tap(KEY); save();   // tap() consumes the press so no other end-screen reader sees it
     });
     canvas.addEventListener('pointerdown', e => {
-      if (game.phase !== 'over' || !clip || e.button > 0) return;
+      if (game.phase !== 'over' || !clip || e.button > 0 || covered()) return;
       const r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return;
       if (inPanel((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height)) save();
     });

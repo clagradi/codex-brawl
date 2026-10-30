@@ -274,6 +274,13 @@ export async function run(t) {
     check(ac.plain.calm === false && ac.plain.pic.flashes > 0 && ac.plain.pic.shake > 0, 'a viewer without it sees the shake and the flash (so the check above can fail): ' + JSON.stringify(ac.plain.pic));
     check(ac.calm.after.cb === 'protan' && ac.calm.after.hc === true && ac.calm.after.big === true && ac.calm.after.motion === true && ac.calm.calmAfter === false && ac.plain.after.motion === false,
       "after the replay every accessibility choice is the viewer's again and the calm picture is off: " + JSON.stringify([ac.calm.after, ac.calm.calmAfter]));
+    const old = await ev(`(() => {   // entries saved before VIEWER_ONLY still hold the viewer keys in their set: playback skips them
+      const l = SETTINGS.get('replays.list').slice(); l[0] = Object.assign({}, l[0], { set: Object.assign({}, l[0].set, { 'a11y.cb': 'deutan', 'a11y.contrast': false, 'a11y.bigText': false }) }); SETTINGS.set('replays.list', l);
+      SETTINGS.set('a11y.cb', 'protan'); SETTINGS.set('a11y.contrast', true); SETTINGS.set('a11y.bigText', true);
+      REPLAYS.play(0); let k = 0; while (game.phase !== 'fight' && k++ < 900) step(1);
+      const during = [SETTINGS.get('a11y.cb'), SETTINGS.get('a11y.contrast'), SETTINGS.get('a11y.bigText')]; REPLAYS.exit(); return during;
+    })()`);
+    check(old[0] === 'protan' && old[1] === true && old[2] === true, "an older entry that still stores the viewer's look settings does not pin them: " + JSON.stringify(old));
   }
 
   // ---- 13. a replay feeds no counters: not the VAULT, not OKRS ----
@@ -295,7 +302,7 @@ export async function run(t) {
     check(cn.back, 'the same hit counts again once the replay is left');
   }
 
-  // ---- 14. the list keys: X goes back and never erases, D erases on the second press, Z opens ----
+  // ---- 14. the list keys: X goes back and never erases, T erases on the second press, Z opens ----
   await open(); await ev(short);
   await ev("SETTINGS.set('replays.list', []); __cpu(0, 2); __run(); __cpu(1, 3); __run(); setPhase('title'); 1");
   const k0 = await len();
@@ -308,10 +315,10 @@ export async function run(t) {
   await press('KeyX');
   const kb = await ev('REPLAYS.screen()');
   check(ka === 0 && !kb.open && kb.armed === -1 && await len() === k0, 'X leaves a row that was armed for erasing and erases nothing');
-  await ev('REPLAYS.open()'); await press('KeyD');
+  await ev('REPLAYS.open()'); await press('KeyT');
   const kd = await len();
-  await press('KeyD');
-  check(kd === k0 && await len() === k0 - 1, 'D asks once and erases on the second press (' + k0 + ' then ' + (k0 - 1) + ')');
+  await press('KeyT');
+  check(kd === k0 && await len() === k0 - 1, 'T asks once and erases on the second press (' + k0 + ' then ' + (k0 - 1) + ')');
   await press('KeyZ');
   const kz = await ev('REPLAYS.state()');
   check(kz.active && kz.rt === 0, 'Z (punch for player one) watches the picked replay');

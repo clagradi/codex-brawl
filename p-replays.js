@@ -174,7 +174,7 @@
         VIEW = { sel: game.sel.slice(), modeId: game.modeId, mode: game.mode, arenaPick: game.arenaPick, held, tick: game.tick, n: 0, set: viewerSettings() };
         SETTINGS.set('replays.restore', VIEW.set);
       }
-      for (const k in e.set || {}) if (!same(SETTINGS.get(k), e.set[k])) SETTINGS.set(k, e.set[k]);
+      for (const k in e.set || {}) if (!VIEWER_ONLY.includes(k) && !same(SETTINGS.get(k), e.set[k])) SETTINGS.set(k, e.set[k]);   // older entries still hold viewer keys: skip them
       if ((!e.set || !('mutators.on' in e.set)) && !same(SETTINGS.get('mutators.on'), {})) SETTINGS.set('mutators.on', {});   // an entry from before the mutators were kept played without any
       offAll();
       if (game.phase === 'vs') game.phase = 'title';   // the switch to 'vs' must fire again
@@ -297,7 +297,7 @@
     if (g.phase !== 'title') { UI.open = false; return; }
     const L = entries(), n = L.length;
     const up = anyTap(['KeyW', 'ArrowUp']), dn = anyTap(['KeyS', 'ArrowDown']), ok = anyTap(['Enter', 'Space', 'KeyJ', 'KeyZ', 'Numpad1']);
-    const del = anyTap(['Delete', 'KeyD']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'KeyX', 'Numpad2']);   // X is the 1P back key everywhere, so it never erases
+    const del = anyTap(['Delete', 'KeyT']), back = anyTap(['Escape', 'Backspace', 'KeyK', 'KeyX', 'Numpad2']);   // X is the 1P back key everywhere, so it never erases; D is 1P right (and pad right), so T is the second erase key
     clearPressed();   // the title menu underneath sees nothing while this screen is open
     if (back) { UI.open = false; UI.arm = -1; snd(300, 0.06); return; }
     if (!n) return;
@@ -359,7 +359,7 @@
       ptext(c, modeName(e), W - 86, y + 42, 2, DIM, 'right');
       if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
     }
-    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/D ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
+    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
     ptext(c, 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
     c.restore();
   }
