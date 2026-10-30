@@ -51,6 +51,7 @@ Read this first, then read only the files you own.
 | 19 | `p-vault.js` | EXTRAS title screen: fighter and arena galleries, colourways, lifetime stats (`VAULT`) | p-vault agent |
 | 19 | `p-jukebox.js` | SOUND TEST screen, five fighter themes (`fight_<id>`), visualiser bars; global `JUKEBOX` | jukebox agent |
 | last | `p-training2.js` | the TRAINING mode: dummy behaviours, record and playback, input display, frame advantage, hitboxes, reset (loaded after every other feature file, so its `training` mode wins over the `training.js` stub) | p-training2 agent |
+| 25 | `p-replays.js` | input-based match replays and the REPLAYS title screen; loaded last in `dev.html`, after `vfx.js` | p-replays agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -74,6 +75,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-vault.js`, `tools/tests/x-p-vault.mjs` | p-vault agent | |
 | `p-jukebox.js`, `tools/tests/x-p-jukebox.mjs` | jukebox agent | its one engine edit is the read-only `MUSIC.info` / `MUSIC.hits` / `MUSIC.clock` block at the end of `music.js` |
 | `p-training2.js`, `tools/tests/x-p-training2.mjs`, `docs/features/p-training2.md` | p-training2 agent | no engine edit: MODES, SETTINGS, BUS `hit`/`block` and HOOKS `input` (order -1000), `update`, `fighterUpdate`, `damage` (order 1e9), `drawWorld`, `drawHud`, `pauseItems` |
+| `p-replays.js`, `tools/tests/x-p-replays.mjs` | p-replays agent | hooks `update` (order -1e9), `titleItems`, `drawTop` (order 40); listens to the BUS `phase`, `match:start` and `match:end`; pins `Math.random` to a seeded generator only while a recorded or replayed match runs; while a replay plays it wraps `BUS.emit` to keep that match's `match:end` from the other listeners; reads the engine globals `keys`, `pressed`, `NOISE` and `thud`; see `docs/features/p-replays.md` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -172,6 +174,8 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `training2.hitbox` | bool, `false` | | `p-training2.js`: the hurtbox, attack box and projectile overlay in training |
 | `training2.inputs` | bool, `true` | | `p-training2.js`: the input display (P1's last 12 inputs) in training |
 | `training2.refill` | bool, `true` | | `p-training2.js`: health refills after a quiet moment and P1 keeps a full meter in training |
+| `replays.list` | any, `[]` | up to five replay entries, newest first | `p-replays.js`: the last five VERSUS matches (seed, settings snapshot, input events, checksums, result); see `docs/features/p-replays.md` for the entry format |
+| `replays.restore` | any, `null` | `null` or the viewer's settings | `p-replays.js`: a crash guard; set while a replay plays with the recorded match settings, and put back on the next load if the page closed mid-replay |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
