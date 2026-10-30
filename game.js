@@ -715,7 +715,7 @@ function knockOut(w, l) {
   banner('K.O.', { style: 'blood', life: 110 }); beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2);
   FX.blood(l.x, l.y - 110, l.x < w.x ? -1 : 1, 3);
   game.later(50, () => { if (w.state !== 'ko') w.set('win'); });
-  if (game.flawless) game.later(95, () => { banner('FLAWLESS', { style: 'gold', life: 100 }); say('flawless'); });
+  if (game.flawless) game.later(95, () => { banner('ZERO BUGS', { style: 'gold', life: 100 }); say('flawless'); });
 }
 function finishOff() { if (game.phase === 'finish') knockOut(game.winner, game.loser); }
 function startFinisher(w, l) {

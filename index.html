@@ -2426,7 +2426,7 @@ function prewarmArenas() { for (const a of ARENAS) a._ensure(true); }
       fight: () => ({ text: 'Fight!', pitch: 0.4, rate: 0.9, st: 'fight' }),
       finish: () => ({ text: 'Finish it!', pitch: 0.3, rate: 0.8, st: 'finish' }),
       wins: n => ({ text: spoken(n) + ' wins', pitch: 0.4, rate: 0.85, st: 'gong' }),
-      flawless: () => ({ text: 'Flawless', pitch: 0.4, rate: 0.8, st: 'flawless' }),
+      flawless: () => ({ text: 'Zero bugs', pitch: 0.4, rate: 0.8, st: 'flawless' }),
       finisher: n => ({ text: spoken(n), pitch: 0.35, rate: 0.85, st: 'finisher' }),
       arena: n => ({ text: 'Arena: ' + spoken(n), pitch: 0.5, rate: 0.9, st: 'whoosh' }),
       select: () => ({ text: 'Choose your agent', pitch: 0.5, rate: 0.88, st: 'whoosh' }),
@@ -4485,7 +4485,7 @@ function knockOut(w, l) {
   banner('K.O.', { style: 'blood', life: 110 }); beep(110, 0.6, 'sawtooth', 0.08); thud(0.3, 0.2);
   FX.blood(l.x, l.y - 110, l.x < w.x ? -1 : 1, 3);
   game.later(50, () => { if (w.state !== 'ko') w.set('win'); });
-  if (game.flawless) game.later(95, () => { banner('FLAWLESS', { style: 'gold', life: 100 }); say('flawless'); });
+  if (game.flawless) game.later(95, () => { banner('ZERO BUGS', { style: 'gold', life: 100 }); say('flawless'); });
 }
 function finishOff() { if (game.phase === 'finish') knockOut(game.winner, game.loser); }
 function startFinisher(w, l) {

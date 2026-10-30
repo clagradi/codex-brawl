@@ -636,7 +636,7 @@
       fight: () => ({ text: 'Fight!', pitch: 0.4, rate: 0.9, st: 'fight' }),
       finish: () => ({ text: 'Finish it!', pitch: 0.3, rate: 0.8, st: 'finish' }),
       wins: n => ({ text: spoken(n) + ' wins', pitch: 0.4, rate: 0.85, st: 'gong' }),
-      flawless: () => ({ text: 'Flawless', pitch: 0.4, rate: 0.8, st: 'flawless' }),
+      flawless: () => ({ text: 'Zero bugs', pitch: 0.4, rate: 0.8, st: 'flawless' }),
       finisher: n => ({ text: spoken(n), pitch: 0.35, rate: 0.85, st: 'finisher' }),
       arena: n => ({ text: 'Arena: ' + spoken(n), pitch: 0.5, rate: 0.9, st: 'whoosh' }),
       select: () => ({ text: 'Choose your agent', pitch: 0.5, rate: 0.88, st: 'whoosh' }),
