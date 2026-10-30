@@ -52,6 +52,7 @@ Read this first, then read only the files you own.
 | 19 | `p-jukebox.js` | SOUND TEST screen, five fighter themes (`fight_<id>`), visualiser bars; global `JUKEBOX` | jukebox agent |
 | last | `p-training2.js` | the TRAINING mode: dummy behaviours, record and playback, input display, frame advantage, hitboxes, reset (loaded after every other feature file, so its `training` mode wins over the `training.js` stub) | p-training2 agent |
 | 25 | `p-replays.js` | input-based match replays and the REPLAYS title screen; loaded last in `dev.html`, after `vfx.js` | p-replays agent |
+| 19 | `p-achievements.js` | OKRS: 30 parody achievements, an unlock toast, the OKRS screen, saved in `SETTINGS` (`window.OKRS`) | p-achievements agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -100,6 +101,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `special` | `{ fighter, foe, move }` | a special move starts; `move` is the entry in `MOVES[id].sp` |
 | `super` | `{ fighter, foe, move }` | a super starts; `move` is `MOVES[id].su` |
 | `finisher` | `{ winner, loser, move }` | the end-of-match finisher begins; `move` is `MOVES[id].fin` |
+| `okr:unlock` | `{ id, name, desc, count, total }` | `p-achievements.js`: an OKRS objective was reached (once per objective; `count` is how many are done now) |
 | `settings` | `{ key, value, old }` | a `SETTINGS` value changed (only when the value is different) |
 | `strings:land` | `{ fighter, foe, name, hits, kind, combo }` | `p-strings.js`: a named combo string landed; `kind` is `'AIR'`, `'JUGGLE'` or `'CANCEL'` |
 | `strings:chase` | `{ fighter, foe }` | `p-strings.js`: a chase jump after a launcher |
@@ -176,6 +178,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `training2.refill` | bool, `true` | | `p-training2.js`: health refills after a quiet moment and P1 keeps a full meter in training |
 | `replays.list` | any, `[]` | up to five replay entries, newest first | `p-replays.js`: the last five VERSUS matches (seed, settings snapshot, input events, checksums, result); see `docs/features/p-replays.md` for the entry format |
 | `replays.restore` | any, `null` | `null` or the viewer's settings | `p-replays.js`: a crash guard; set while a replay plays with the recorded match settings, and put back on the next load if the page closed mid-replay |
+| `okrs` | any, `null` | `null` or `{ v, got, n, best, cur, fx, ar, md }` | `p-achievements.js`: the OKRS progress (done objectives, counters, best combo and win streak, fighters, arenas and modes won with); a junk value is cleaned on load, and the live object is stored once at load so that saving later emits no `settings` event during a match |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
@@ -198,6 +201,7 @@ The title menu is `MODES.list()` plus whatever `HOOKS` `titleItems` collects, so
 - `game` (in `game.js`) is the shared state. Read it freely; write to it only through the functions and hooks above. Useful fields: `phase`, `modeId`, `mode`, `f` (the two fighters), `round`, `wins`, `timer`, `sudden`, `cpuLevel`, `sel`, `arena`, `winner`, `loser`, `tick`. A fighter has `side`, `d` (its roster entry, `d.id`), `hp`, `meter`, `state`, `x`, `y`, `face`, `combo`, `cpu`. Helpers: `startMatch()`, `startRound()`, `setPhase(p)`, `roundsToWin()`, `suddenRound()`, `setMuted(v)`, `titleItems()`.
 - `ANNOUNCER` (in `hud.js`) speaks the announcer phrases. `ANNOUNCER.define(key, mk)` adds a phrase, where `mk(arg)` returns `{ text, pitch, rate, st? }` (`st` names a stinger); `ANNOUNCER.say(key, arg)` speaks it and `ANNOUNCER.stop()` cuts the current line. `p-voice.js` adds the `voice.*` phrases this way and holds its own lines while an engine phrase plays.
 - Name collision warning: everything is one global scope, and `game.js` already has globals such as `hit`, `tap`, `held`, `keys`, `pressed`, `ctx`, `muted`. Wrap each feature file in an IIFE and expose at most one global named after the feature.
+- Hooks in use by `p-achievements.js`: `update` (order -20, keeps the OKRS screen's keys away from the title and pause menu), `drawTop` (order 100, the toast and the screen), `titleItems` (`okrs`, order 880) and `pauseItems` (`KeyG`). Details in `docs/features/p-achievements.md`.
 
 ## How to add things
 
