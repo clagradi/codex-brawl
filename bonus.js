@@ -381,9 +381,9 @@
     c.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = mx + 8; x < mx + mw; x += 16) c.fillRect(x, my, 2, mh);
     const ok = s.meter >= st.line; c.fillStyle = ok ? '#fff' : '#ff6b6b'; c.fillRect(Math.round(lx) - 2, my - 8, 4, mh + 16);
     uiText('POWER', mx - 12, my + 13, 20, '#fff', 'right'); uiText('BREAK LINE', lx, my - 17, 15, ok ? '#fff' : '#ff9a9a');
-    if (!b) uiText(ok ? 'BREAK IT! PRESS L' : 'MASH J AND K · ALTERNATE FOR A BONUS', 300, 122, 18, ok ? GOLD : DIM, 'center', ok ? 0.7 + 0.3 * Math.sin(t / 3) : 1);
+    if (!b) uiText(ok ? (touch.on ? 'BREAK IT! TAP SP' : 'BREAK IT! PRESS L') : touch.on ? 'MASH P AND K · ALTERNATE FOR A BONUS' : 'MASH J AND K · ALTERNATE FOR A BONUS', 300, 122, 18, ok ? GOLD : DIM, 'center', ok ? 0.7 + 0.3 * Math.sin(t / 3) : 1);
     if (s.lvT < 40 && !b) uiText('LEVEL ' + (s.lv + 1) + ': ' + st.name, W / 2, 180, 34, GOLD, 'center', Math.min(1, (40 - s.lvT) / 15));
-    uiText('J K MASH · L BREAK · P PAUSE', W / 2, 522, 14, DIM);
+    uiText(touch.on ? 'P K MASH · SP BREAK · PAUSE BUTTON' : 'J K MASH · L BREAK · P PAUSE', W / 2, 522, 14, DIM);
   }
   function drawBug(c, b) {
     const d = BUGS[b.kind], u = d.u, fr = (b.ph >> 2) & 1, f = col => (b.hurt > 0 ? '#ffffff' : col);
@@ -421,17 +421,19 @@
     if (s.combo > 1) { ptext(c, 'COMBO ' + s.combo, W - 24, 14, 3, '#fff', 'right'); uiText('X' + s.mult, W - 24, 58, 30 + s.mult * 2, s.mult > 2 ? GOLD : '#fff', 'right'); c.fillStyle = '#ff9a3c'; c.fillRect(W - 24 - Math.round(150 * s.ct / 150), 74, Math.round(150 * s.ct / 150), 5); }
     for (let i = 0; i < HP0; i++) ptext(c, '♥', 24 + i * 26, 46, 3, i < s.hp ? '#ff4d6d' : '#3a3f5c', 'left', false);
     const rdy = s.sp <= 0, bw = 200; c.fillStyle = 'rgba(8,10,24,0.8)'; c.fillRect(W / 2 - bw / 2, 48, bw, 16); c.fillStyle = rdy ? GOLD : '#4a5590'; c.fillRect(W / 2 - bw / 2 + 2, 50, Math.round((bw - 4) * (rdy ? 1 : 1 - s.sp / 300)), 12);
-    uiText(rdy ? 'L SPECIAL READY' : 'L SPECIAL', W / 2, 82, 15, rdy ? GOLD : DIM);
+    uiText((touch.on ? 'SP' : 'L') + (rdy ? ' SPECIAL READY' : ' SPECIAL'), W / 2, 82, 15, rdy ? GOLD : DIM);
     if (s.banner > 0) uiText('WAVE ' + (s.wave + 1) + (s.wave === 5 ? ' · LAST STAND' : ''), W / 2, 150, 38, GOLD, 'center', Math.min(1, s.banner / 25));
-    uiText('A D TURN · J PUNCH · K KICK (GROUND) · L SPECIAL · P PAUSE', W / 2, 522, 14, DIM);
+    uiText(touch.on ? 'PAD TURNS · P PUNCH · K KICK (GROUND) · SP SPECIAL · PAUSE BUTTON' : 'A D TURN · J PUNCH · K KICK (GROUND) · L SPECIAL · P PAUSE', W / 2, 522, 14, DIM);
   }
   function drawLobby(c) {
     const s = S, bench = s.id === 'benchmark';
     c.drawImage(backdrop(s.id), 0, 0); c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0, 0, W, H);
     drawTitleText(c, TITLES[s.id], W / 2, 64, 46, { align: 'center', style: 'gold', glow: true });
     const lines = bench
-      ? ['MASH J AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'PRESS L ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING J AND K CHARGES FASTER.']
-      : ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. A AND D TURN YOU.', 'J PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'L SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.'];
+      ? touch.on ? ['TAP P AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'TAP SP ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING P AND K CHARGES FASTER.']
+        : ['MASH J AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'PRESS L ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING J AND K CHARGES FASTER.']
+      : touch.on ? ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. THE PAD TURNS YOU.', 'P PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'SP SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.']
+        : ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. A AND D TURN YOU.', 'J PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'L SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.'];
     lines.forEach((l, i) => uiText(l, W / 2, 124 + i * 26, 18, '#dcd6c8'));
     for (let i = 0; i < ROSTER.length; i++) {
       const x = 24 + i * 96, on = i === s.who; c.fillStyle = 'rgba(8,10,24,0.8)'; c.fillRect(x, 214, 88, 88); drawHeadIcon(c, ROSTER[i].id, x + 4, 218, 80);
@@ -440,7 +442,7 @@
     uiText(ROSTER[s.who].name, 24, 328, 26, GOLD, 'left'); uiText(ROSTER[s.who].tag, 24, 352, 15, DIM, 'left');
     drawFighter(c, 400, 505, 2, 1, null, s.tick);
     drawBoard(c, 530, 214, 400, s.id, -1);
-    uiText('A AND D CHOOSE · ENTER START · ESC TITLE', W / 2, 522, 16, DIM);
+    uiText(touch.on ? 'TAP A FIGHTER · TAP IT AGAIN OR START TO PLAY · BACK LEAVES' : 'A AND D CHOOSE · ENTER START · ESC TITLE', W / 2, 522, 16, DIM);
   }
   function drawResult(c) {
     const s = S, r = s.res; c.drawImage(backdrop(s.id), 0, 0);
@@ -458,12 +460,12 @@
       uiText('BUGS SQUASHED ' + r.kills, 250, 310, 22, '#fff'); uiText('BEST COMBO ' + r.maxCombo, 250, 340, 22, '#fff'); uiText('HEARTS LEFT ' + r.hp, 250, 370, 22, '#fff');
     }
     drawBoard(c, 530, 130, 400, s.id, r.rank);
-    uiText(s.cb ? 'ENTER CONTINUE' : 'ENTER PLAY AGAIN · ESC TITLE', W / 2, 460, 22, s.res.t > 30 ? GOLD : '#6d6a60');
+    uiText(touch.on ? (s.cb ? 'TAP CONTINUE' : 'TAP AGAIN OR TITLE') : s.cb ? 'ENTER CONTINUE' : 'ENTER PLAY AGAIN · ESC TITLE', W / 2, 460, 22, s.res.t > 30 ? GOLD : '#6d6a60');
   }
   function drawPause(c) {
     c.fillStyle = 'rgba(0,0,0,0.65)'; c.fillRect(0, 0, W, H);
     drawTitleText(c, 'PAUSED', W / 2, 190, 56, { align: 'center', style: 'gold', glow: true });
-    uiText('P OR ENTER RESUME · Q QUIT TO TITLE', W / 2, 270, 22, '#fff');
+    uiText(touch.on ? 'TAP RESUME · OR QUIT TO TITLE' : 'P OR ENTER RESUME · Q QUIT TO TITLE', W / 2, 270, 22, '#fff');
     uiText(TITLES[S.id] + ' · A QUIT DOES NOT SAVE THE SCORE', W / 2, 304, 15, DIM);
   }
   HOOKS.add('drawTop', c => {
@@ -477,8 +479,18 @@
       if (S.paused) drawPause(c);
     }
     c.restore();
-    drawTouch();   // the engine drew the touch pad under this overlay; draw it again on top
   }, -50);
+
+  // touch: the lobby, pause and result buttons press the same keys as the keyboard; while a game runs the pad (d-pad, P K SP) shows next to a PAUSE button, and canvas taps (fighter icons in the lobby)
+  // never reach the title menu under the session
+  HOOKS.add('touchPills', () => !S ? [] : S.scr === 'lobby' ? [{ t: '< FIGHTER', a: 'l' }, { t: 'FIGHTER >', a: 'r' }, { t: 'START', k: 'Enter' }, { t: 'BACK', k: 'Escape' }]
+    : S.scr === 'result' ? (S.cb ? [{ t: 'CONTINUE', k: 'Enter' }] : [{ t: 'AGAIN', k: 'Enter' }, { t: 'TITLE', k: 'Escape' }])
+    : S.paused ? [{ t: 'RESUME', k: 'KeyP' }, { t: 'QUIT', k: 'KeyQ' }] : [{ pad: true }, { t: 'PAUSE', k: 'KeyP' }]);
+  touch.screenTaps(() => S, (x, y) => {
+    if (!S || S.scr !== 'lobby') return;
+    const i = Math.floor((x - 24) / 96); if (i < 0 || i >= ROSTER.length || x - 24 - i * 96 > 88 || y < 214 || y > 302) return;
+    if (S.who === i) { begin(); beep(660, 0.1, 'square', 0.06, 1.5); } else { S.who = i; beep(420, 0.04, 'square', 0.04, 1); }   // a second tap on the chosen fighter starts
+  });
 
   // ---------- registry and public API ----------
   const registered = (id, order) => MODES.register({ id, label: TITLES[id], order, players: 1, onPick: () => { openSession(id, { viaPick: true }); return false; } });

@@ -410,7 +410,7 @@
     }
     if (g.phase === 'title') {
       const on = active();
-      if (on.length) { const txt = on.map(id => DEF[id].tag).join('  '); ptext(ctx, txt, 14, 12, 2, HUES[(S.clock >> 4) & 3], 'left', true); }   // top left: the title keeps its prompts at the top centre
+      if (on.length && !(typeof titleOverlayOpen === 'function' && titleOverlayOpen())) { const txt = on.map(id => DEF[id].tag).join('  '); ptext(ctx, txt, 14, 50, 2, HUES[(S.clock >> 4) & 3], 'left', true); }   // top left under the OKRS corner button (y 12 to 42); the title keeps its prompts at the top centre; a feature screen over the title has the whole canvas
     }
   }
 

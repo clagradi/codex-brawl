@@ -300,18 +300,23 @@
     shade(0.8); drawTitleText(ctx, 'MOVES', W / 2, 58, 44, { align: 'center', style: 'steel', glow: true });
     for (let s = 0; s < 2; s++) { const f = game.f[s]; if (f) drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
     const L = LABEL[0], M = LABEL[1], A = ALTL, one = game.mode === 1, both = a => one ? L[a] + '/' + A[a] : L[a];
-    uiText('P1  ' + (one ? dirKeys(MAP[0]) + ' OR ' + dirKeys(ALT) : dirKeys(MAP[0])) + ' · ' + both('p') + ' PUNCH · ' + both('k') + ' KICK · ' + both('s') + ' SPECIAL · ' + both('x') + ' SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
-    uiText('P2  ' + dirKeys(MAP[1]) + ' · ' + M.p + ' PUNCH · ' + M.k + ' KICK · ' + M.s + ' SPECIAL · ' + M.x + ' SUPER', W / 2, 372, 16, '#ddd');
-    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
-    uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    if (touch.on) {   // the on-screen pad: d-pad plus P K SP SU, no keys to name
+      uiText('PAD  D-PAD MOVES · P PUNCH · K KICK · SP SPECIAL · SU SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
+      uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · DOUBLE-TAP FORWARD DASH · DOUBLE-TAP BACK DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    } else {
+      uiText('P1  ' + (one ? dirKeys(MAP[0]) + ' OR ' + dirKeys(ALT) : dirKeys(MAP[0])) + ' · ' + both('p') + ' PUNCH · ' + both('k') + ' KICK · ' + both('s') + ' SPECIAL · ' + both('x') + ' SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
+      uiText('P2  ' + dirKeys(MAP[1]) + ' · ' + M.p + ' PUNCH · ' + M.k + ' KICK · ' + M.s + ' SPECIAL · ' + M.x + ' SUPER', W / 2, 372, 16, '#ddd');
+      uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
+      uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    }
     uiText('NO MATCH WINNER AFTER ROUND 3? SUDDEN DEATH: 30 SECONDS · 25% HEALTH · A TIE GOES TO THE FULLER SUPER METER', W / 2, 442, 12, '#ffb4a8');
     uiText(touch.on ? 'TAP TO GO BACK' : 'ESC OR ENTER: BACK', W / 2, 500, 18, '#c9a24a');
   }
   function drawPauseMenu() {
     shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
     PAUSE_ROWS.forEach((s, i) => { const on = ui.psel === i; drawTitleText(ctx, s, W / 2, pauseY(i), on ? 30 : 24, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.6, glow: on }); });
-    uiText('W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
-    const extra = HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }
+    uiText(touch.on ? 'TAP A ROW · RESUME, SOUND AND QUIT ARE THE BUTTONS BELOW' : 'W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
+    const extra = touch.on ? [] : HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }; a touch screen has no keys to name
     if (extra.length) {   // many features add keys: break them into rows that fit the canvas instead of one line that runs off both sides
       ctx.save(); ctx.font = '16px Impact, Haettenschweiler, "Arial Narrow", sans-serif';
       const rows = []; let cur = '';
@@ -366,8 +371,8 @@
   const drawFight0 = window.drawFight;
   window.drawFight = function () {
     if (game.phase !== 'pause') return drawFight0.apply(this, arguments);
-    game._phase = 'fight';   // the world, HUD and banner are drawn as in a fight; the stock pause overlay (which needs phase 'pause') is replaced by the menu below
-    try { drawFight0.apply(this, arguments); } finally { game._phase = 'pause'; }
+    game._phase = 'fight'; game.still = true;   // the world, HUD and banner are drawn as in a fight (without its round 1 hint strips); the stock pause overlay (which needs phase 'pause') is replaced by the menu below
+    try { drawFight0.apply(this, arguments); } finally { game._phase = 'pause'; game.still = false; }
     drawScreen();
   };
   const drawTitle0 = window.drawTitle;

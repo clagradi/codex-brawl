@@ -3961,8 +3961,11 @@ function pollPads() {
   const chooser = () => game.ready[0] ? 1 : 0;   // select: whose fighter the next tap sets (1P: you, then the CPU)
   const selectOk = () => key(game.mode === 2 ? MAP[chooser()].p[0] : 'Enter');
   const selectBack = () => key(game.mode === 2 && (game.ready[0] || game.ready[1]) ? MAP[game.ready[1] ? 1 : 0].k[0] : 'Escape');
-  function pillList() {
-    const p = game.phase;
+  // a feature screen (a mode's setup, the arcade, a bonus game, the replay list ...) gives its own buttons through HOOKS 'touchPills': { t: label, k: key code }, { t: label, a: action }
+  // (u d l r p k s: the key P1 uses for it) or { t: label, f: function }, and { pad: true } / { pad: false } to show or hide the d-pad and the P K SP SU buttons. They replace the title or fight buttons below.
+  function pillList(fl) {
+    const p = game.phase, fp = fl.filter(q => q.t);
+    if (fp.length) return fp.map(q => ({ t: q.t, f: q.f || (() => key(q.a ? MAP[0][q.a][0] : q.k)) }));
     if (p === 'title') return [{ t: '1 PLAYER', f: () => { game.titleSel = 0; key('Enter'); } }, { t: '2 PLAYERS', f: () => { game.titleSel = 1; key('Enter'); } }, sound()];
     if (p === 'select') return [{ t: 'OK', f: selectOk }, { t: 'BACK', f: selectBack }, { t: '< ARENA', f: () => key('KeyQ') }, { t: 'ARENA >', f: () => key('KeyE') }];
     if (p === 'vs') return [{ t: 'SKIP', f: () => key('Enter') }];
@@ -3988,6 +3991,11 @@ function pollPads() {
     }
   }
   cv.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); menuTap(...canvasPos(e)); });
+  // taps (and clicks) on the canvas for a feature screen: while open() says so, onTap(x, y) gets them in canvas units and the title menu underneath never sees them
+  touch.screenTaps = (open, onTap) => addEventListener('pointerdown', e => {
+    if (e.target !== cv || e.button > 0) return; let on = false; try { on = !!open(); } catch (x) { /* a feature that is half loaded */ }
+    if (on) { e.preventDefault(); e.stopImmediatePropagation(); onTap(...canvasPos(e)); }
+  }, true);
   cv.addEventListener('contextmenu', e => e.preventDefault()); pad.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });   // the page never scrolls or zooms
   document.addEventListener('gesturestart', e => e.preventDefault());                     // iOS pinch
@@ -4033,7 +4041,7 @@ function pollPads() {
   }
   let sig = '';
   function sync() {   // every frame: rebuild the buttons only when the screen changed
-    const p = game.phase, vis = touch.on && p !== 'sheet', fighting = vis && FIGHT.has(p), list = vis ? pillList() : [];
+    const p = game.phase, vis = touch.on && p !== 'sheet', fl = vis ? HOOKS.collect('touchPills') : [], po = fl.find(q => 'pad' in q), fighting = vis && (po ? po.pad : FIGHT.has(p)), list = vis ? pillList(fl) : [];
     const now = vis + '|' + (fighting ? 'f' : p) + '|' + lay.stacked + '|' + list.map(q => q.t).join(',') + '|' + touch.tip;
     if (now === sig) return; sig = now;
     if (!fighting) reset();
@@ -4411,6 +4419,7 @@ class Fighter {
 
 // ---------- game state ----------
 const game = {
+  still: false,   // true while the pause menu or the photo mode draws the scene as a fight (phase 'fight' in game._phase): the round 1 hint strips stay out of it
   _phase: 'title', get phase() { return this._phase; }, set phase(p) { const from = this._phase; if (p === from) return; this._phase = p; BUS.emit('phase', { from, to: p }); },   // every change of phase, from setPhase or a direct assignment, emits BUS 'phase'
   phaseT: 0, mode: 1, modeId: 'versus', sel: [0, ROSTER.length - 1], ready: [false, false], f: [], proj: [], fx: [], popups: [], round: 1, wins: [0, 0], timer: 99, clock: 0, tick: 0,
   shake: 0, flash: 0, hitstop: 0, slow: 0, dark: 0, banner: null, arena: 0, arenaPick: -1, titleSel: 0, cpuLevel: 0.5, sudden: false, delayed: [],
@@ -4434,19 +4443,19 @@ function titlePager(n) { // null while everything fits, else { size, pages, page
   const pages = Math.ceil(n / TITLE_PAGE);
   return { size: TITLE_PAGE, pages, page: Math.min(Math.floor(game.titleSel / TITLE_PAGE), pages - 1), x: W - 72, y: 458 };
 }
-// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker ...): the page note, the OKRS corner button and the attract demo stay out of its way
+// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker, the ARCADE and SURVIVAL select, the mode screens, the bonus games ...): the page note, the OKRS corner button, the season tag and the attract demo stay out of its way
 const TITLE_SCREENS = [['JUKEBOX', 'isOpen'], ['VAULT', 'isOpen'], ['OBS', 'isOpen'], ['GAMEPAD', 'isOpen'], ['MUTATORS', 'isOpen'], ['OKRS', 'screen'], ['WATCH', 'screen'], ['DAILY', 'screen']];   // global, member that says a screen is open (function or flag)
 function titleOverlayOpen() {
   for (const [n, k] of TITLE_SCREENS) { try { const o = window[n], v = o && o[k]; if (typeof v === 'function' ? v.call(o) : v) return true; } catch (e) { /* a feature that is half loaded has no screen open */ } }
-  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen)); } catch (e) { return false; }
+  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen) || (window.ARCADE && ARCADE.S && ARCADE.S.screen) || (window.MODES2 && MODES2.screen && MODES2.screen()) || (window.BONUS && BONUS.active && BONUS.active())); } catch (e) { return false; }
 }
 function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six); beyond six the other pages sit off the canvas (hidden: true)
   const pg = titlePager(n);
   if (pg) { if (Math.floor(i / pg.size) !== pg.page) return { x: W / 2, y: -200, on: 24, off: 19, hidden: true }; n = Math.min(pg.size, n - pg.page * pg.size); i %= pg.size; }
   if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
-  if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
+  if (n === 3) return { x: W / 2, y: 430 + i * 26, on: 24, off: 19 };   // the third row ends at y 494, above the hint line (y 500 to 512)
   const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
-  return { x: W / 2 + (col ? 170 : -170), y: 436 + row * 28, on: 24, off: 19 };
+  return { x: W / 2 + (col ? 170 : -170), y: 430 + row * 26, on: 24, off: 19 };
 }
 function banner(txt, opts = {}) { const life = opts.life || 90; game.banner = { txt, t: 0, life, opts: Object.assign({ dur: life }, opts) }; }
 function startMatch() {
@@ -4735,7 +4744,7 @@ function drawWorld() {
 // The line at the foot of the playfield, kept clear of the super meters: the finisher prompt, the sudden-death rules, or the controls in round 1.
 // On a portrait phone the canvas is too small to read it, so it goes to the text under the game instead (touch.tip, shown by the touch layer).
 function fightTip() {
-  const [a, b] = game.f, ph = game.phase, early = ph === 'fight' && game.clock < 360, fade = Math.min(1, (360 - game.clock) / 60);
+  const [a, b] = game.f, ph = game.phase, early = ph === 'fight' && !game.still && game.clock < 360, fade = Math.min(1, (360 - game.clock) / 60);
   if (ph === 'finish') {
     const w = game.winner, key = w.cpu ? 'CPU' : touch.on && w.side === 0 ? 'SU' : LABEL[w.side].x;
     return { txt: key + ' FOR THE FINISHER · ANY HIT ENDS IT', y: H - 20, size: 16, col: '#ff6b5c', a: game.tick % 30 < 20 ? 1 : 0.5 };
@@ -4763,12 +4772,12 @@ function drawPause() {
   let y = 346; for (const [txt, size, col] of L) { uiText(txt, W / 2, y, size, col); y += size + 10; }
   const ly = Math.max(470, y + 14);
   uiText(touch.on ? 'RESUME TO FIGHT ON · QUIT GOES TO THE TITLE' : 'P / ESC / ENTER RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF'), W / 2, ly, 18, '#c9a24a');
-  const pit = HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, Math.min(H - 14, ly + 26), 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
+  const pit = touch.on ? [] : HOOKS.collect('pauseItems'); if (pit.length) uiText(pit.map(it => it.label).join(' · '), W / 2, Math.min(H - 14, ly + 26), 16, '#c9a24a');   // extra pause keys from features: { key, label, run(game) }
 }
 function drawFight() {
   drawWorld(); drawHUD(ctx, game); HOOKS.run('drawHud', ctx, game);
   if (game.banner) drawBanner(ctx, game.banner.txt, game.banner.t, game.banner.opts);
-  if (game.phase === 'fight' && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
+  if (game.phase === 'fight' && !game.still && game.round === 1 && game.phaseT < 130 && window.MUSIC && MUSIC.now && MUSIC.now === MUSIC.theme)   // the arena track starts with the fight: show its name for ~2 s
     uiText('\u266a ' + ARENAS[game.arena].name, 22, 98, 14, '#ffd76a', 'left', Math.min(1, game.phaseT / 12, (130 - game.phaseT) / 25));
   const tip = fightTip();
   if (touch.on && lay.stacked) touch.tip = tip ? tip.txt : ''; else if (tip) uiText(tip.txt, W / 2, tip.y, tip.size, tip.col, 'center', tip.a);
@@ -4797,7 +4806,7 @@ function render() {
   if (p === 'sheet') drawSheet(); else if (p === 'title') drawTitle(); else if (p === 'select') drawSelect(); else if (p === 'vs') drawVs(); else if (p === 'over') drawOver(); else drawFight();
   if (p !== 'sheet') drawPost(ctx, game.tick, { flash: Math.min(1, game.flash / 10), red: p === 'finish' || p === 'finisher' ? 0.35 : 0 });
   HOOKS.run('drawTop', ctx, game);   // last thing drawn on the canvas, in every phase
-  if (shareEl && shareEl.hidden === (p === 'over')) { shareEl.hidden = p !== 'over'; if (p === 'over') shareEl.href = shareUrl(); }   // shown before the touch layer is laid out, so it is sized with the other buttons
+  if (shareEl) { if (shareEl.hidden === (p === 'over')) shareEl.hidden = p !== 'over'; if (p === 'over') { const u = shareUrl(); if (shareEl.getAttribute('href') !== u) shareEl.href = u; } }   // shown before the touch layer is laid out, so it is sized with the other buttons; the link follows the result on every end-screen frame
   touch.sync();   // the touch layer follows the screen: buttons per phase, hidden on the debug sheet
 }
 
@@ -5212,7 +5221,7 @@ requestAnimationFrame(frame);
   });
   HOOKS.add('drawTop', (c, g) => {
     if (g.phase === 'pause') {
-      const scr = typeof OPTIONS !== 'undefined' ? OPTIONS.screen : 'moves', y = scr === 'moves' ? 457 : 400;   // the options pause menu has a gap under its rows; its other screens have no room
+      const scr = typeof OPTIONS !== 'undefined' ? OPTIONS.screen : 'moves', y = scr === 'moves' ? 457 : 417;   // the options pause menu has a gap under its rows (defense.js has the first two lines of it, these the next two); its other screens have no room
       if (scr && scr !== 'moves') return;
       uiText('FWD + K OVERHEAD (GUARD STANDING) · DOWN + P/K ARE LOWS (GUARD CROUCHING) · JUMP ATTACKS ARE OVERHEADS', W / 2, y + 17, 12, '#aab');
       uiText('HOLD SU + SP = EX SPECIAL, 1 BAR (PAD RB + X) · BACK + SU WHILE HIT = BREAKER, 2 BARS · DOWN, DOWN + SU = TAUNT', W / 2, y, 12, '#aab');
@@ -5231,6 +5240,7 @@ requestAnimationFrame(frame);
 // Everything lives in this one file and talks to the engine only through BUS, HOOKS, SETTINGS and MODES. The screens of this file (select, ladder, continue,
 // ending, credits, survival, high scores, stats) are drawn by the 'drawTop' hook while the engine stays in phase 'title'; the 'update' hook reads their input
 // first and then clears the key presses, so the engine title menu never sees them. Fights are normal engine matches (startMatch) started from here.
+// Touch: HOOKS 'touchPills' gives every screen its buttons (they press the same keys) and touch.screenTaps takes taps on the select screen's fighters and difficulty rows.
 'use strict';
 (() => {
   window.STUB_ARCADE = 1;   // marker kept from the scaffold: tools/tests/core.mjs checks that this file loaded.
@@ -5523,6 +5533,27 @@ requestAnimationFrame(frame);
     return { l: has(KEYS.l), r: has(KEYS.r), u: has(KEYS.u), d: has(KEYS.d), ok: has(KEYS.ok), back: has(KEYS.back), esc: has(KEYS.esc), any: has(KEYS.btn), enter: !!raw.Enter };
   }
 
+  // ---------------------------------------------------------------- touch: the buttons of each screen (they press the keys above) and taps on the select screen
+  const tp = (touchText, keyText) => touch.on ? touchText : keyText;
+  const PILLS = {
+    select: [{ t: '< FIGHTER', k: 'KeyA' }, { t: 'FIGHTER >', k: 'KeyD' }, { t: 'EASIER', k: 'KeyW' }, { t: 'HARDER', k: 'KeyS' }, { t: 'START', k: 'Enter' }, { t: 'BACK', k: 'Escape' }],
+    ladder: [{ t: 'FIGHT', k: 'Enter' }, { t: 'LEAVE', k: 'Escape' }],
+    continue: [{ t: 'CONTINUE', k: 'Enter' }, { t: 'GIVE UP', k: 'Escape' }],
+    surv: [{ t: 'FIGHT', k: 'Enter' }, { t: 'CASH OUT', k: 'Escape' }],
+    ending: [{ t: 'NEXT', k: 'Enter' }, { t: 'SKIP', k: 'Escape' }],
+    credits: [{ t: 'SKIP', k: 'Escape' }],
+    initials: [{ t: 'UP', k: 'KeyW' }, { t: 'DOWN', k: 'KeyS' }, { t: '< BACK', k: 'KeyA' }, { t: 'NEXT >', k: 'KeyD' }, { t: 'OK', k: 'Enter' }],
+    top10: [{ t: 'TITLE', k: 'Enter' }],
+    stats: [{ t: 'BACK', k: 'Escape' }],
+  };
+  HOOKS.add('touchPills', () => A.screen && game.phase === 'title' ? PILLS[A.screen] || [] : []);
+  const SEL_CARD = i => { const cw = 148, gap = 16, x0 = (W - (ROSTER.length * cw + (ROSTER.length - 1) * gap)) / 2; return [x0 + i * (cw + gap), 106, cw, 156]; };   // drawSelect: a fighter card
+  touch.screenTaps(() => A.screen && game.phase === 'title', (x, y) => {
+    if (A.screen !== 'select') return;
+    for (let i = 0; i < ROSTER.length; i++) { const r = SEL_CARD(i); if (x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) { if (A.sel === i) { snd(900, 0.12); startRun(A.kind, A.sel, DIFFS[A.diffSel]); } else { A.sel = i; snd(500, 0.04); } return; } }   // a second tap on the chosen fighter starts the run
+    if (x >= 450 && x <= 900) for (let i = 0; i < DIFFS.length; i++) if (y >= 322 + 34 + i * 24 && y < 322 + 58 + i * 24) { A.diffSel = i; snd(400, 0.04); return; }
+  });
+
   // ---------------------------------------------------------------- update: screens, toasts
   HOOKS.add('update', g => {
     for (const t of A.toasts) t.t++;
@@ -5637,7 +5668,7 @@ requestAnimationFrame(frame);
     });
     T(c, DIFF_INFO[DIFFS[A.diffSel]][2], px + 16, py + 136, 2, C.dim);
     badgeRow(c, 14, 10, 22, 4);
-    T(c, 'A D FIGHTER   W S DIFFICULTY   J START   K BACK', W / 2, 512, 2, C.dim, 'center');
+    T(c, tp('TAP A FIGHTER, TAP IT AGAIN TO START · TAP A LEVEL · BACK LEAVES', 'A D FIGHTER   W S DIFFICULTY   J START   K BACK'), W / 2, 512, 2, C.dim, 'center');
   }
   function stageCard(c, R, i, x, y, cw, ch) {
     const boss = i >= STAGES - 1, won = R.won.includes(i), next = i === R.idx, id = boss ? ROSTER[R.pid].id : ROSTER[R.order[i]].id, r = fx(id);
@@ -5666,17 +5697,17 @@ requestAnimationFrame(frame);
     if (boss) T(c, '(OVERCLOCKED)', W / 2, 326, 2, C.red, 'center');
     wrap('"' + tauntOf(R) + '"', 26).forEach((ln, k) => T(c, ln, W / 2, (boss ? 354 : 342) + k * 22, 2, C.white, 'center'));
     T(c, 'ARENA: ' + ARENAS[arenaOf(R)].name, W / 2, 422, 2, C.cyan, 'center');
-    if (blink(24)) T(c, 'PRESS A BUTTON TO FIGHT', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: LEAVE THE LADDER', W / 2, 512, 2, C.dim, 'center');
+    if (blink(24)) T(c, tp('TAP FIGHT', 'PRESS A BUTTON TO FIGHT'), W / 2, 462, 2, C.gold, 'center');
+    T(c, tp('TAP LEAVE TO QUIT THE LADDER', 'ESC: LEAVE THE LADDER'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawContinue(c) {
     const R = A.run; backdrop(c, 'rgba(200,60,80,0.14)');
     bigTitle(c, 'CONTINUE?', 100, 72, 'blood');
     const secs = Math.max(0, Math.ceil(A.cd / 60));
     drawTitleText(c, String(secs), W / 2, 290, 190, { align: 'center', style: secs <= 3 ? 'blood' : 'gold' });
-    if (blink(24)) T(c, 'PRESS ANY BUTTON TO CONTINUE', W / 2, 410, 2, C.white, 'center');
+    if (blink(24)) T(c, tp('TAP CONTINUE', 'PRESS ANY BUTTON TO CONTINUE'), W / 2, 410, 2, C.white, 'center');
     T(c, 'STAGE ' + (R.idx + 1) + ' OF ' + STAGES + '   CONTINUES USED ' + R.conts, W / 2, 448, 2, C.dim, 'center');
-    T(c, 'ESC: GIVE UP', W / 2, 500, 2, C.dim, 'center');
+    T(c, tp('TAP GIVE UP TO END THE RUN', 'ESC: GIVE UP'), W / 2, 500, 2, C.dim, 'center');
   }
   function drawSurv(c) {
     const R = A.run; backdrop(c);
@@ -5689,8 +5720,8 @@ requestAnimationFrame(frame);
     T(c, 'METER ' + Math.round(R.meter || 0) + '%', W / 2, 284, 2, C.cyan, 'center');
     T(c, 'NEXT UP IS A NEW RIVAL.', W / 2, 330, 2, C.white, 'center');
     drawSprite(c, f0.id, 'win', loopFrame('win', A.st), 230, 500, 1);
-    if (blink(24)) T(c, 'PRESS A BUTTON', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: CASH OUT', W / 2, 512, 2, C.dim, 'center');
+    if (blink(24)) T(c, tp('TAP FIGHT', 'PRESS A BUTTON'), W / 2, 462, 2, C.gold, 'center');
+    T(c, tp('TAP CASH OUT TO END THE RUN', 'ESC: CASH OUT'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawEnding(c) {
     const R = A.run, r = ROSTER[R.pid], lines = ENDINGS[r.id][A.card]; backdrop(c, 'rgba(90,160,200,0.12)');
@@ -5703,8 +5734,8 @@ requestAnimationFrame(frame);
       wrap(ln, 24).forEach(w => { const n = Math.min(w.length, shown - used); if (n > 0) T(c, w.slice(0, n), 420, yy, 3, C.white); used += w.length + 1; yy += 30; });
       yy += 18;
     });
-    if (A.cardT >= flat * 2 + 4 && blink(20)) T(c, 'ENTER', 870, 360, 2, C.gold, 'right');
-    T(c, 'ENTER: NEXT   ESC: SKIP', W / 2, 512, 2, C.dim, 'center');
+    if (A.cardT >= flat * 2 + 4 && blink(20)) T(c, tp('NEXT', 'ENTER'), 870, 360, 2, C.gold, 'right');
+    T(c, tp('TAP NEXT FOR THE NEXT CARD · SKIP LEAVES THE ENDING', 'ENTER: NEXT   ESC: SKIP'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawCredits(c) {
     const R = A.run; c.fillStyle = '#05040a'; c.fillRect(0, 0, W, H);
@@ -5719,7 +5750,7 @@ requestAnimationFrame(frame);
       y += 34;
     }
     const f = R && ROSTER[R.pid]; if (f) drawSprite(c, f.id, 'win', loopFrame('win', A.st), 130, 500, 1);
-    T(c, 'ENTER OR ESC: SKIP', W - 20, 512, 2, C.dim, 'right');
+    T(c, tp('TAP SKIP', 'ENTER OR ESC: SKIP'), W - 20, 512, 2, C.dim, 'right');
   }
   function drawScores(c, entry) {
     backdrop(c, 'rgba(200,60,80,0.1)');
@@ -5739,7 +5770,7 @@ requestAnimationFrame(frame);
         T(c, String(e.s), 560, y, 2, me ? C.gold : C.white, 'right'); T(c, 'W' + e.w, 700, y, 2, C.dim, 'right');
       } else T(c, '---', 320, y, 2, '#3a3466');
     }
-    T(c, entry ? 'W S LETTER   J CONFIRM   A D MOVE' : 'PRESS A BUTTON', W / 2, 512, 2, C.dim, 'center');
+    T(c, entry ? tp('UP AND DOWN CHANGE THE LETTER · NEXT MOVES ON · OK SAVES AT THE LAST ONE', 'W S LETTER   J CONFIRM   A D MOVE') : tp('TAP TITLE TO LEAVE', 'PRESS A BUTTON'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawStats(c) {
     backdrop(c);
@@ -5763,7 +5794,7 @@ requestAnimationFrame(frame);
       T(c, on ? b.name : '???', x + 52, y + 5, 2, on ? C.white : '#4a4478');
       T(c, b.desc, x + 52, y + 24, 2, on ? C.dim : '#4a4478');
     });
-    T(c, 'ESC OR ANY CONFIRM KEY: BACK', W / 2, 516, 2, C.dim, 'center');
+    T(c, tp('TAP BACK', 'ESC OR ANY CONFIRM KEY: BACK'), W / 2, 516, 2, C.dim, 'center');
   }
   function drawToast(c) {
     const q = A.toasts[0]; if (!q) return;
@@ -6629,18 +6660,23 @@ requestAnimationFrame(frame);
     shade(0.8); drawTitleText(ctx, 'MOVES', W / 2, 58, 44, { align: 'center', style: 'steel', glow: true });
     for (let s = 0; s < 2; s++) { const f = game.f[s]; if (f) drawMoveList(ctx, (f.cpu ? 'CPU · ' : 'P' + (s + 1) + ' · ') + SHORT(f.d), moveRows(f.d.id, s, f.cpu), s ? W / 2 + 10 : 40, 120, W / 2 - 50, 200); }
     const L = LABEL[0], M = LABEL[1], A = ALTL, one = game.mode === 1, both = a => one ? L[a] + '/' + A[a] : L[a];
-    uiText('P1  ' + (one ? dirKeys(MAP[0]) + ' OR ' + dirKeys(ALT) : dirKeys(MAP[0])) + ' · ' + both('p') + ' PUNCH · ' + both('k') + ' KICK · ' + both('s') + ' SPECIAL · ' + both('x') + ' SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
-    uiText('P2  ' + dirKeys(MAP[1]) + ' · ' + M.p + ' PUNCH · ' + M.k + ' KICK · ' + M.s + ' SPECIAL · ' + M.x + ' SUPER', W / 2, 372, 16, '#ddd');
-    uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
-    uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    if (touch.on) {   // the on-screen pad: d-pad plus P K SP SU, no keys to name
+      uiText('PAD  D-PAD MOVES · P PUNCH · K KICK · SP SPECIAL · SU SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
+      uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · DOUBLE-TAP FORWARD DASH · DOUBLE-TAP BACK DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    } else {
+      uiText('P1  ' + (one ? dirKeys(MAP[0]) + ' OR ' + dirKeys(ALT) : dirKeys(MAP[0])) + ' · ' + both('p') + ' PUNCH · ' + both('k') + ' KICK · ' + both('s') + ' SPECIAL · ' + both('x') + ' SUPER · HOLD BACK TO BLOCK', W / 2, 346, 16, '#ddd');
+      uiText('P2  ' + dirKeys(MAP[1]) + ' · ' + M.p + ' PUNCH · ' + M.k + ' KICK · ' + M.s + ' SPECIAL · ' + M.x + ' SUPER', W / 2, 372, 16, '#ddd');
+      uiText('GAMEPAD  A PUNCH · B KICK · X SPECIAL · Y SUPER · START PAUSE', W / 2, 398, 16, '#ddd');
+      uiText('JUMP + P/K AIR ATTACK · DOWN + P LOW JAB · TAP FWD TWICE DASH · TAP BACK TWICE DODGE · PUNCH TECHS A THROW', W / 2, 428, 14, '#aab');
+    }
     uiText('NO MATCH WINNER AFTER ROUND 3? SUDDEN DEATH: 30 SECONDS · 25% HEALTH · A TIE GOES TO THE FULLER SUPER METER', W / 2, 442, 12, '#ffb4a8');
     uiText(touch.on ? 'TAP TO GO BACK' : 'ESC OR ENTER: BACK', W / 2, 500, 18, '#c9a24a');
   }
   function drawPauseMenu() {
     shade(0.72); drawTitleText(ctx, 'PAUSED', W / 2, 70, 56, { align: 'center', style: 'steel', glow: true });
     PAUSE_ROWS.forEach((s, i) => { const on = ui.psel === i; drawTitleText(ctx, s, W / 2, pauseY(i), on ? 30 : 24, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.6, glow: on }); });
-    uiText('W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
-    const extra = HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }
+    uiText(touch.on ? 'TAP A ROW · RESUME, SOUND AND QUIT ARE THE BUTTONS BELOW' : 'W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
+    const extra = touch.on ? [] : HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }; a touch screen has no keys to name
     if (extra.length) {   // many features add keys: break them into rows that fit the canvas instead of one line that runs off both sides
       ctx.save(); ctx.font = '16px Impact, Haettenschweiler, "Arial Narrow", sans-serif';
       const rows = []; let cur = '';
@@ -6695,8 +6731,8 @@ requestAnimationFrame(frame);
   const drawFight0 = window.drawFight;
   window.drawFight = function () {
     if (game.phase !== 'pause') return drawFight0.apply(this, arguments);
-    game._phase = 'fight';   // the world, HUD and banner are drawn as in a fight; the stock pause overlay (which needs phase 'pause') is replaced by the menu below
-    try { drawFight0.apply(this, arguments); } finally { game._phase = 'pause'; }
+    game._phase = 'fight'; game.still = true;   // the world, HUD and banner are drawn as in a fight (without its round 1 hint strips); the stock pause overlay (which needs phase 'pause') is replaced by the menu below
+    try { drawFight0.apply(this, arguments); } finally { game._phase = 'pause'; game.still = false; }
     drawScreen();
   };
   const drawTitle0 = window.drawTitle;
@@ -6737,7 +6773,7 @@ requestAnimationFrame(frame);
 // Hooks used:
 //   HOOKS 'update' (tick clock, effect timers), 'input' (back-press edge, blockstun lock, pushback, knockdown options, air recovery, wake-up reversal, CPU choices),
 //   'damage' (perfect guard: no chip, a 4 tick stun), 'fighterUpdate' (roll bookkeeping), 'drawFighter' (the roll sprite), 'drawWorld' (rings, texts),
-//   'drawHud' (round 1 hint strip), 'drawTop' (blue flash, pause panel).
+//   'drawHud' (round 1 hint strip), 'drawTop' (blue flash, the two lines under the pause menu's rows).
 //   BUS 'block' 'hit' 'match:start' 'round:start' (listens), 'defense:perfect' 'defense:pushback' 'defense:rise' 'defense:roll' 'defense:air' 'defense:reversal' (emits).
 //   SETTINGS 'difficulty' is read for the CPU. No other file is edited; there is no setting of its own: DEFENSE.on = false switches the whole feature off.
 // Integration notes (combat.js brings a three-bar meter, its own blockstun and hard knockdowns): DEFENSE.meter() finds the meter size and bars, DEFENSE.ownBlockstun = false
@@ -6916,8 +6952,8 @@ requestAnimationFrame(frame);
       else uiText(e.txt, e.x, e.y - e.t * 1.2, 16, e.col, 'center', 1 - p * p);
     }
   });
-  HOOKS.add('drawHud', (c, g) => {   // the two new lines sit above the engine's own round 1 hint strip and fade with it
-    if (!D.on || g.phase !== 'fight' || g.round !== 1 || g.clock >= 360 || (typeof touch !== 'undefined' && touch.on) || (g.f[0].cpu && g.f[1].cpu)) return;
+  HOOKS.add('drawHud', (c, g) => {   // the two new lines sit above the engine's own round 1 hint strip and fade with it (not under the pause menu or in a photo: g.still)
+    if (!D.on || g.phase !== 'fight' || g.still || g.round !== 1 || g.clock >= 360 || (typeof touch !== 'undefined' && touch.on) || (g.f[0].cpu && g.f[1].cpu)) return;
     const a = Math.min(1, (360 - g.clock) / 60);
     uiText('PERFECT GUARD: TAP BACK JUST AS A HIT LANDS · BLOCKING + L: PUSHBACK, COSTS METER', W / 2, H - 96, 13, '#9fd3ff', 'center', a);
     uiText('KNOCKED DOWN: P OR K GETS UP FAST · ADD A DIRECTION TO ROLL · HOLD DOWN TO STAY DOWN', W / 2, H - 76, 13, '#9fd3ff', 'center', a);
@@ -6925,9 +6961,9 @@ requestAnimationFrame(frame);
   HOOKS.add('drawTop', (c, g) => {
     if (!D.on) return;
     if (S.flash > 0 && g.phase !== 'pause') { c.fillStyle = 'rgba(110,180,255,' + (0.32 * S.flash / 12).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
-    if (g.phase === 'pause' && !(typeof OPTIONS !== 'undefined' && OPTIONS.screen)) {   // the options sub-screens (MOVES, CONTROLS...) use the bottom rows
-      uiText('DEFENSE · TAP BACK AS A HIT LANDS: PERFECT GUARD · WHILE BLOCKING, SPECIAL: PUSHBACK (COSTS METER)', W / 2, 496, 13, '#9fd3ff');
-      uiText('KNOCKED DOWN · PUNCH OR KICK: QUICK RISE · WITH A DIRECTION: ROLL · HOLD DOWN: STAY DOWN LONGER', W / 2, 514, 13, '#9fd3ff');
+    if (g.phase === 'pause' && !(typeof OPTIONS !== 'undefined' && OPTIONS.screen)) {   // in the gap under the pause menu's rows, above the two notes of combat.js; the other options screens have no room, and the bottom rows belong to the meters and the key hints
+      uiText('DEFENSE · TAP BACK AS A HIT LANDS: PERFECT GUARD · WHILE BLOCKING, SPECIAL: PUSHBACK (COSTS METER)', W / 2, 385, 13, '#9fd3ff');
+      uiText('KNOCKED DOWN · PUNCH OR KICK: QUICK RISE · WITH A DIRECTION: ROLL · HOLD DOWN: STAY DOWN LONGER', W / 2, 401, 13, '#9fd3ff');
     }
   });
 })();
@@ -8315,9 +8351,9 @@ requestAnimationFrame(frame);
     c.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = mx + 8; x < mx + mw; x += 16) c.fillRect(x, my, 2, mh);
     const ok = s.meter >= st.line; c.fillStyle = ok ? '#fff' : '#ff6b6b'; c.fillRect(Math.round(lx) - 2, my - 8, 4, mh + 16);
     uiText('POWER', mx - 12, my + 13, 20, '#fff', 'right'); uiText('BREAK LINE', lx, my - 17, 15, ok ? '#fff' : '#ff9a9a');
-    if (!b) uiText(ok ? 'BREAK IT! PRESS L' : 'MASH J AND K · ALTERNATE FOR A BONUS', 300, 122, 18, ok ? GOLD : DIM, 'center', ok ? 0.7 + 0.3 * Math.sin(t / 3) : 1);
+    if (!b) uiText(ok ? (touch.on ? 'BREAK IT! TAP SP' : 'BREAK IT! PRESS L') : touch.on ? 'MASH P AND K · ALTERNATE FOR A BONUS' : 'MASH J AND K · ALTERNATE FOR A BONUS', 300, 122, 18, ok ? GOLD : DIM, 'center', ok ? 0.7 + 0.3 * Math.sin(t / 3) : 1);
     if (s.lvT < 40 && !b) uiText('LEVEL ' + (s.lv + 1) + ': ' + st.name, W / 2, 180, 34, GOLD, 'center', Math.min(1, (40 - s.lvT) / 15));
-    uiText('J K MASH · L BREAK · P PAUSE', W / 2, 522, 14, DIM);
+    uiText(touch.on ? 'P K MASH · SP BREAK · PAUSE BUTTON' : 'J K MASH · L BREAK · P PAUSE', W / 2, 522, 14, DIM);
   }
   function drawBug(c, b) {
     const d = BUGS[b.kind], u = d.u, fr = (b.ph >> 2) & 1, f = col => (b.hurt > 0 ? '#ffffff' : col);
@@ -8355,17 +8391,19 @@ requestAnimationFrame(frame);
     if (s.combo > 1) { ptext(c, 'COMBO ' + s.combo, W - 24, 14, 3, '#fff', 'right'); uiText('X' + s.mult, W - 24, 58, 30 + s.mult * 2, s.mult > 2 ? GOLD : '#fff', 'right'); c.fillStyle = '#ff9a3c'; c.fillRect(W - 24 - Math.round(150 * s.ct / 150), 74, Math.round(150 * s.ct / 150), 5); }
     for (let i = 0; i < HP0; i++) ptext(c, '♥', 24 + i * 26, 46, 3, i < s.hp ? '#ff4d6d' : '#3a3f5c', 'left', false);
     const rdy = s.sp <= 0, bw = 200; c.fillStyle = 'rgba(8,10,24,0.8)'; c.fillRect(W / 2 - bw / 2, 48, bw, 16); c.fillStyle = rdy ? GOLD : '#4a5590'; c.fillRect(W / 2 - bw / 2 + 2, 50, Math.round((bw - 4) * (rdy ? 1 : 1 - s.sp / 300)), 12);
-    uiText(rdy ? 'L SPECIAL READY' : 'L SPECIAL', W / 2, 82, 15, rdy ? GOLD : DIM);
+    uiText((touch.on ? 'SP' : 'L') + (rdy ? ' SPECIAL READY' : ' SPECIAL'), W / 2, 82, 15, rdy ? GOLD : DIM);
     if (s.banner > 0) uiText('WAVE ' + (s.wave + 1) + (s.wave === 5 ? ' · LAST STAND' : ''), W / 2, 150, 38, GOLD, 'center', Math.min(1, s.banner / 25));
-    uiText('A D TURN · J PUNCH · K KICK (GROUND) · L SPECIAL · P PAUSE', W / 2, 522, 14, DIM);
+    uiText(touch.on ? 'PAD TURNS · P PUNCH · K KICK (GROUND) · SP SPECIAL · PAUSE BUTTON' : 'A D TURN · J PUNCH · K KICK (GROUND) · L SPECIAL · P PAUSE', W / 2, 522, 14, DIM);
   }
   function drawLobby(c) {
     const s = S, bench = s.id === 'benchmark';
     c.drawImage(backdrop(s.id), 0, 0); c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0, 0, W, H);
     drawTitleText(c, TITLES[s.id], W / 2, 64, 46, { align: 'center', style: 'gold', glow: true });
     const lines = bench
-      ? ['MASH J AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'PRESS L ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING J AND K CHARGES FASTER.']
-      : ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. A AND D TURN YOU.', 'J PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'L SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.'];
+      ? touch.on ? ['TAP P AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'TAP SP ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING P AND K CHARGES FASTER.']
+        : ['MASH J AND K TO CHARGE THE POWER METER. IT DRAINS FAST.', 'PRESS L ABOVE THE BREAK LINE TO SMASH THE STACK. HIGHER IS A BETTER GRADE.', 'FIVE STACKS, TWELVE SECONDS EACH. ALTERNATING J AND K CHARGES FASTER.']
+      : touch.on ? ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. THE PAD TURNS YOU.', 'P PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'SP SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.']
+        : ['SIXTY SECONDS. BUGS CRAWL AND FLY IN FROM BOTH SIDES. A AND D TURN YOU.', 'J PUNCH: ONE BUG, ON THE GROUND OR IN THE AIR. K KICK: SWEEPS THE GROUND.', 'L SPECIAL: BLASTS BOTH SIDES. KEEP SQUASHING FOR A BIGGER COMBO MULTIPLIER.'];
     lines.forEach((l, i) => uiText(l, W / 2, 124 + i * 26, 18, '#dcd6c8'));
     for (let i = 0; i < ROSTER.length; i++) {
       const x = 24 + i * 96, on = i === s.who; c.fillStyle = 'rgba(8,10,24,0.8)'; c.fillRect(x, 214, 88, 88); drawHeadIcon(c, ROSTER[i].id, x + 4, 218, 80);
@@ -8374,7 +8412,7 @@ requestAnimationFrame(frame);
     uiText(ROSTER[s.who].name, 24, 328, 26, GOLD, 'left'); uiText(ROSTER[s.who].tag, 24, 352, 15, DIM, 'left');
     drawFighter(c, 400, 505, 2, 1, null, s.tick);
     drawBoard(c, 530, 214, 400, s.id, -1);
-    uiText('A AND D CHOOSE · ENTER START · ESC TITLE', W / 2, 522, 16, DIM);
+    uiText(touch.on ? 'TAP A FIGHTER · TAP IT AGAIN OR START TO PLAY · BACK LEAVES' : 'A AND D CHOOSE · ENTER START · ESC TITLE', W / 2, 522, 16, DIM);
   }
   function drawResult(c) {
     const s = S, r = s.res; c.drawImage(backdrop(s.id), 0, 0);
@@ -8392,12 +8430,12 @@ requestAnimationFrame(frame);
       uiText('BUGS SQUASHED ' + r.kills, 250, 310, 22, '#fff'); uiText('BEST COMBO ' + r.maxCombo, 250, 340, 22, '#fff'); uiText('HEARTS LEFT ' + r.hp, 250, 370, 22, '#fff');
     }
     drawBoard(c, 530, 130, 400, s.id, r.rank);
-    uiText(s.cb ? 'ENTER CONTINUE' : 'ENTER PLAY AGAIN · ESC TITLE', W / 2, 460, 22, s.res.t > 30 ? GOLD : '#6d6a60');
+    uiText(touch.on ? (s.cb ? 'TAP CONTINUE' : 'TAP AGAIN OR TITLE') : s.cb ? 'ENTER CONTINUE' : 'ENTER PLAY AGAIN · ESC TITLE', W / 2, 460, 22, s.res.t > 30 ? GOLD : '#6d6a60');
   }
   function drawPause(c) {
     c.fillStyle = 'rgba(0,0,0,0.65)'; c.fillRect(0, 0, W, H);
     drawTitleText(c, 'PAUSED', W / 2, 190, 56, { align: 'center', style: 'gold', glow: true });
-    uiText('P OR ENTER RESUME · Q QUIT TO TITLE', W / 2, 270, 22, '#fff');
+    uiText(touch.on ? 'TAP RESUME · OR QUIT TO TITLE' : 'P OR ENTER RESUME · Q QUIT TO TITLE', W / 2, 270, 22, '#fff');
     uiText(TITLES[S.id] + ' · A QUIT DOES NOT SAVE THE SCORE', W / 2, 304, 15, DIM);
   }
   HOOKS.add('drawTop', c => {
@@ -8411,8 +8449,18 @@ requestAnimationFrame(frame);
       if (S.paused) drawPause(c);
     }
     c.restore();
-    drawTouch();   // the engine drew the touch pad under this overlay; draw it again on top
   }, -50);
+
+  // touch: the lobby, pause and result buttons press the same keys as the keyboard; while a game runs the pad (d-pad, P K SP) shows next to a PAUSE button, and canvas taps (fighter icons in the lobby)
+  // never reach the title menu under the session
+  HOOKS.add('touchPills', () => !S ? [] : S.scr === 'lobby' ? [{ t: '< FIGHTER', a: 'l' }, { t: 'FIGHTER >', a: 'r' }, { t: 'START', k: 'Enter' }, { t: 'BACK', k: 'Escape' }]
+    : S.scr === 'result' ? (S.cb ? [{ t: 'CONTINUE', k: 'Enter' }] : [{ t: 'AGAIN', k: 'Enter' }, { t: 'TITLE', k: 'Escape' }])
+    : S.paused ? [{ t: 'RESUME', k: 'KeyP' }, { t: 'QUIT', k: 'KeyQ' }] : [{ pad: true }, { t: 'PAUSE', k: 'KeyP' }]);
+  touch.screenTaps(() => S, (x, y) => {
+    if (!S || S.scr !== 'lobby') return;
+    const i = Math.floor((x - 24) / 96); if (i < 0 || i >= ROSTER.length || x - 24 - i * 96 > 88 || y < 214 || y > 302) return;
+    if (S.who === i) { begin(); beep(660, 0.1, 'square', 0.06, 1.5); } else { S.who = i; beep(420, 0.04, 'square', 0.04, 1); }   // a second tap on the chosen fighter starts
+  });
 
   // ---------- registry and public API ----------
   const registered = (id, order) => MODES.register({ id, label: TITLES[id], order, players: 1, onPick: () => { openSession(id, { viaPick: true }); return false; } });
@@ -8924,6 +8972,7 @@ requestAnimationFrame(frame);
 // Area: TEAM BATTLE (three fighters a side, elimination, the winner stays with its health plus 20 %), TOURNAMENT (4 or 8 entrants, bracket, champion)
 //       and KING OF THE HILL (2 to 8 named local players, winner stays, queue and win streak). Notes for players: docs/features/x-modes2.md.
 // Plug in with: MODES.register (team, tournament, koth), HOOKS 'update' (the setup and bracket screens, the flow between matches), HOOKS 'drawTop' (those screens),
+//   HOOKS 'touchPills' (the buttons of the open screen on a touch device) and touch.screenTaps (taps on its rows, cards and buttons),
 //   HOOKS 'drawHud' (team icons, names, streaks) and the MODES callbacks for BUS 'match:start' / 'round:end' / 'round:start'.
 // Engine data it touches: game.toWin (HUD medal slots) while a team battle runs; SETTINGS.get('rounds') answers 3 during a team battle (in memory only, nothing is stored).
 // Test hook: window.MODES2 (screen name, state, starters) used by tools/tests/x-modes2.mjs.
@@ -8966,6 +9015,8 @@ requestAnimationFrame(frame);
   }
   function icon(c, i, x, y, s, flip, dim) { c.save(); if (dim) c.globalAlpha = 0.35; drawHeadIcon(c, ROSTER[i].id, x, y, s, flip); c.restore(); }
   function cross(c, x, y, s) { c.strokeStyle = '#ff3b30'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 3, y + 3); c.lineTo(x + s - 3, y + s - 3); c.moveTo(x + s - 3, y + 3); c.lineTo(x + 3, y + s - 3); c.stroke(); }
+  const inR = (x, y, r) => x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];   // a tap (canvas units) inside [x, y, w, h]
+  const NAVPILLS = [{ t: 'UP', a: 'u' }, { t: 'DOWN', a: 'd' }, { t: '< CHANGE', a: 'l' }, { t: 'CHANGE >', a: 'r' }, { t: 'NEXT', k: 'Enter' }, { t: 'BACK', k: 'Escape' }];   // the setup screens: the same keys as the keyboard
   function button(c, x, y, w, h, label, hot) { box(c, x, y, w, h, hot, hot ? '#1a2346' : PANEL); uiText(label, x + w / 2, y + h / 2 + 1, 20, hot ? GOLD : INK); }
 
   // ---------------------------------------------------------------- entrants and the shared rows editor (tournament and king of the hill)
@@ -9000,6 +9051,15 @@ requestAnimationFrame(frame);
         if (s.row === 0) { s.row = 1; s.fi = 0; } else if (e) { if (s.fi + 1 < fl.length) s.fi++; else { s.fi = 0; s.row++; } } else cfg.start();
       }
     };
+    s.pills = () => NAVPILLS;
+    s.tap = (x, y) => {   // START; the entrants row (left half fewer, right half more); a field of an entry: the first tap selects it, the next one changes it
+      if (inR(x, y, [330, 146 + m.n * 34 + 8, 300, 34])) return cfg.start();
+      if (y >= 104 && y < 134) { s.row = 0; resize(x > 480 ? 1 : -1); clampFi(); beep(560, 0.04); return; }
+      const i = Math.floor((y - 146) / 34); if (i < 0 || i >= m.n || y - 146 - i * 34 > 30) return;
+      const e = m.ents[i], fl = fieldsOf(e), fi = x >= 420 ? fl.indexOf('f') : e.human && x >= 290 && x < 384 ? fl.indexOf('c' + Math.floor((x - 290) / 30)) : cfg.allowCpu && x >= 150 && x < 270 ? fl.indexOf('type') : -1;
+      if (fi >= 0 && s.row === i + 1 && s.fi === fi) { edit(e, fl[fi], 1); beep(560, 0.04); return; }
+      s.row = i + 1; s.fi = Math.max(0, fi); clampFi(); beep(420, 0.04);
+    };
     s.draw = c => {
       backdrop(c, s.t); head(c, cfg.title, cfg.sub);
       box(c, 90, 104, 780, 30, s.row === 0);
@@ -9019,11 +9079,12 @@ requestAnimationFrame(frame);
         icon(c, e.f, 426, y + 3, 24, false); uiText(ROSTER[e.f].name, 462, y + 16, 18, INK, 'left'); uiText(ROSTER[e.f].tag, 730, y + 16, 12, DIM, 'right');
       }
       button(c, 330, 146 + m.n * 34 + 8, 300, 34, cfg.startLabel, s.row === m.n + 1);
-      foot(c, cfg.hint);
+      foot(c, touch.on ? ROWS_TOUCH : cfg.hint);
     };
     return s;
   }
   const ROWS_HINT = 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT FIELD · ESC BACK';
+  const ROWS_TOUCH = 'TAP A FIELD TO SELECT IT, AGAIN TO CHANGE IT · THE BUTTON BELOW STARTS · BACK LEAVES';
 
   // ---------------------------------------------------------------- TEAM BATTLE
   const TEAM = { live: false, setToWin: false, sides: null, pend: null, cfg: { two: false, teams: [[0, 1, 2], [4, 3, 2]] } };
@@ -9044,6 +9105,14 @@ requestAnimationFrame(frame);
       if (dx) { beep(560, 0.04); if (s.cur === 0) cf.two = !cf.two; else if (s.cur <= 6) pick((s.cur - 1) / SIZE | 0, (s.cur - 1) % SIZE, dx); }
       if (n.ok) { beep(700, 0.06); if (s.cur === 7) startTeam(); else s.cur++; }
     };
+    s.pills = () => NAVPILLS;
+    s.tap = (x, y) => {   // START; the mode row; a fighter card (the first tap selects it, the next one picks the next fighter)
+      if (inR(x, y, [330, 412, 300, 38])) return startTeam();
+      if (y >= 104 && y < 134) { s.cur = 0; cf.two = !cf.two; beep(560, 0.04); return; }
+      for (let side = 0; side < 2; side++) for (let k = 0; k < SIZE; k++) if (inR(x, y, [90 + k * 264, 176 + side * 126, 252, 84])) {
+        const i = 1 + side * SIZE + k; if (s.cur === i) { pick(side, k, 1); beep(560, 0.04); } else { s.cur = i; beep(420, 0.04); } return;
+      }
+    };
     s.draw = c => {
       backdrop(c, s.t); head(c, 'TEAM BATTLE', 'THREE FIGHTERS A SIDE · THE WINNER STAYS WITH 20% HEALTH BACK');
       box(c, 90, 104, 780, 30, s.cur === 0);
@@ -9060,7 +9129,7 @@ requestAnimationFrame(frame);
       }
       button(c, 330, 412, 300, 38, 'START BATTLE', s.cur === 7);
       uiText('LOSE ALL THREE AND YOUR SIDE IS OUT', W / 2, 474, 14, DIM);
-      foot(c, 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT · ESC BACK');
+      foot(c, touch.on ? 'TAP A FIGHTER TO SELECT IT, AGAIN TO CHANGE IT · THE BUTTON STARTS · BACK LEAVES' : 'UP/DOWN ROW · LEFT/RIGHT CHANGE · ENTER NEXT · ESC BACK');
     };
     return s;
   }
@@ -9145,19 +9214,23 @@ requestAnimationFrame(frame);
   function bracketScreen() {
     const s = { id: 'bracket', sel: 0, quit: 0 };
     const items = () => { const m = nextMatch(); return !m ? [] : bothCpu(m) ? ['WATCH MATCH', 'SKIP MATCH', 'SKIP ALL CPU MATCHES'] : [m.a != null && TOUR.ents[m.a].human && TOUR.ents[m.b].human ? 'PLAY MATCH (2 PLAYERS)' : 'PLAY MATCH']; };
+    const rect = (k, n) => [W / 2 - n * 110 + k * 220 + (n === 1 ? -20 : 0), H - 70, n === 1 ? 240 : 210, 32];   // the choice buttons
+    const go = (it, m) => {
+      beep(700, 0.06);
+      if (it[s.sel] === 'SKIP MATCH') { simulate(m); bracketOrChampion(); }
+      else if (it[s.sel] === 'SKIP ALL CPU MATCHES') { for (let x = nextMatch(); x && bothCpu(x); x = nextMatch()) simulate(x); bracketOrChampion(); }
+      else playMatch(m);
+    };
     s.update = n => {
       if (s.quit > 0) s.quit--;
       const it = items(), m = nextMatch(); s.sel = Math.min(s.sel, it.length - 1);
       if (n.back) { if (s.quit > 0) { TOUR.on = false; close(); } else s.quit = 150; return; }
       if (n.l || n.u) { s.sel = mod(s.sel - 1, it.length); beep(420, 0.04); }
       if (n.r || n.d) { s.sel = mod(s.sel + 1, it.length); beep(420, 0.04); }
-      if (n.ok && m) {
-        beep(700, 0.06);
-        if (it[s.sel] === 'SKIP MATCH') { simulate(m); bracketOrChampion(); }
-        else if (it[s.sel] === 'SKIP ALL CPU MATCHES') { for (let x = nextMatch(); x && bothCpu(x); x = nextMatch()) simulate(x); bracketOrChampion(); }
-        else playMatch(m);
-      }
+      if (n.ok && m) go(it, m);
     };
+    s.pills = () => [...(items().length > 1 ? [{ t: '< CHOOSE', a: 'l' }, { t: 'CHOOSE >', a: 'r' }, { t: 'GO', k: 'Enter' }] : [{ t: 'PLAY', k: 'Enter' }]), { t: s.quit > 0 ? 'QUIT AGAIN' : 'QUIT', k: 'Escape' }];
+    s.tap = (x, y) => { const it = items(), m = nextMatch(); it.forEach((_, k) => { if (m && inR(x, y, rect(k, it.length))) { s.sel = k; go(it, m); } }); };
     s.draw = c => {
       const m = nextMatch(), R = TOUR.rounds, cols = R.length + 1, gw = cols > 3 ? 200 : 236, gap = (W - 64 - cols * gw) / (cols - 1), lh = TOUR.n > 4 ? 28 : 44, top = 96, span = 338;
       backdrop(c, s.t); head(c, 'TOURNAMENT', m ? 'NEXT: ' + roundName(m.r) + ' · ' + nm(TOUR.ents[m.a]) + ' VS ' + nm(TOUR.ents[m.b]) : '');
@@ -9187,15 +9260,17 @@ requestAnimationFrame(frame);
       const fin = R[R.length - 1][0], cx = gx(R.length), ch = fin.w == null ? null : TOUR.ents[fin.w];   // the champion box
       box(c, cx, cy[R.length - 1][0] - 40, gw, 80, false); uiText('CHAMPION', cx + gw / 2, cy[R.length - 1][0] - 28, 14, GOLD);
       if (ch) { icon(c, ch.f, cx + gw / 2 - 20, cy[R.length - 1][0] - 18, 40, false); uiText(nm(ch), cx + gw / 2, cy[R.length - 1][0] + 32, 16, INK); } else uiText('?', cx + gw / 2, cy[R.length - 1][0] + 4, 34, '#56648c');
-      const it = items(); it.forEach((label, k) => button(c, W / 2 - it.length * 110 + k * 220 + (it.length === 1 ? -20 : 0), H - 70, it.length === 1 ? 240 : 210, 32, label, k === s.sel));
-      if (s.quit > 0) uiText('PRESS ESC AGAIN TO QUIT THE TOURNAMENT', W / 2, H - 92, 15, RED);
-      foot(c, it.length > 1 ? 'LEFT/RIGHT CHOOSE · ENTER GO · ESC QUIT (TWICE)' : 'ENTER PLAY THE MATCH · ESC QUIT (TWICE)');
+      const it = items(); it.forEach((label, k) => button(c, ...rect(k, it.length), label, k === s.sel));
+      if (s.quit > 0) uiText(touch.on ? 'TAP QUIT AGAIN TO LEAVE THE TOURNAMENT' : 'PRESS ESC AGAIN TO QUIT THE TOURNAMENT', W / 2, H - 92, 15, RED);
+      foot(c, touch.on ? (it.length > 1 ? 'TAP A BUTTON TO GO · QUIT TWICE TO LEAVE' : 'TAP PLAY TO FIGHT THE MATCH · QUIT TWICE TO LEAVE') : it.length > 1 ? 'LEFT/RIGHT CHOOSE · ENTER GO · ESC QUIT (TWICE)' : 'ENTER PLAY THE MATCH · ESC QUIT (TWICE)');
     };
     return s;
   }
   function championScreen() {
     const s = { id: 'champion' }, fin = TOUR.rounds[TOUR.rounds.length - 1][0], e = TOUR.ents[fin.w], o = TOUR.ents[fin.w === fin.a ? fin.b : fin.a];
     s.update = n => { if (n.ok || n.back) { TOUR.on = false; close(); beep(500, 0.08); } };
+    s.pills = () => [{ t: 'TITLE', k: 'Enter' }];
+    s.tap = () => { if (s.t > 30) { TOUR.on = false; close(); beep(500, 0.08); } };   // a tap anywhere (not in the first half second, when a stray touch from the last bout could land)
     s.draw = c => {
       backdrop(c, s.t);
       for (let i = 0; i < 44; i++) { c.fillStyle = [GOLD, BLUE, RED, GRN][i % 4]; c.fillRect((i * 97 + 31) % W, (s.t * (1 + i % 3) + i * 53) % H, 6, 6); }
@@ -9203,7 +9278,7 @@ requestAnimationFrame(frame);
       uiText(nm(e) + ' · ' + ROSTER[e.f].name, W / 2, 124, 26, INK);
       drawSprite(c, ROSTER[e.f].id, 'win', loopFrame('win', s.t), W / 2, 432, 1, 2.6);
       uiText('FINAL: ' + nm(e) + ' BEAT ' + nm(o) + ' ' + Math.max(...fin.score) + '-' + Math.min(...fin.score), W / 2, 462, 17, DIM);
-      foot(c, 'ENTER TITLE');
+      foot(c, touch.on ? 'TAP ANYWHERE FOR THE TITLE SCREEN' : 'ENTER TITLE');
     };
     return s;
   }
@@ -9231,6 +9306,13 @@ requestAnimationFrame(frame);
   function kothNext() {
     const s = { id: 'kothNext', sel: 0 };
     const chal = () => KH.at[KH.king >= 0 && KH.at[0] === KH.king ? 1 : KH.king >= 0 && KH.at[1] === KH.king ? 0 : 1];
+    const GO = [W / 2 - 230, H - 66, 220, 32], END = [W / 2 + 10, H - 66, 220, 32];   // FIGHT and END SESSION
+    s.pills = () => [{ t: '< FIGHTER', a: 'l' }, { t: 'FIGHTER >', a: 'r' }, { t: 'FIGHT', f: () => { s.sel = 0; pressed.Enter = true; } }, { t: 'END', f: () => { s.sel = 1; pressed.Enter = true; } }];
+    s.tap = (x, y) => {
+      if (inR(x, y, GO)) return playKoth();
+      if (inR(x, y, END)) return open(kothEnd());
+      for (let k = 0; k < 2; k++) if (KH.at[k] === chal() && inR(x, y, [k ? 500 : 100, 100, 360, 138])) { const e = KH.ents[chal()]; e.f = mod(e.f + 1, NF); beep(560, 0.04); }   // the challenger's card: the next fighter
+    };
     s.update = n => {
       if (n.u || n.d) { s.sel = 1 - s.sel; beep(420, 0.04); }
       const dx = (n.r ? 1 : 0) - (n.l ? 1 : 0), e = KH.ents[chal()];
@@ -9253,19 +9335,21 @@ requestAnimationFrame(frame);
       const rows = E.slice().sort((a, b) => b.wins - a.wins || b.best - a.best || a.slot - b.slot);
       uiText('STANDINGS', 140, 290, 15, GOLD, 'left'); uiText('WINS', 560, 290, 15, DIM, 'right'); uiText('BEST STREAK', 700, 290, 15, DIM, 'right');
       rows.forEach((e, i) => { const y = 312 + i * 20; uiText(String(i + 1) + '  ' + nm(e), 140, y, 15, INK, 'left'); uiText(sh(e.f), 330, y, 13, DIM, 'left'); uiText(String(e.wins), 560, y, 15, INK, 'right'); uiText(String(e.best), 700, y, 15, INK, 'right'); });
-      button(c, W / 2 - 230, H - 66, 220, 32, 'FIGHT', s.sel === 0); button(c, W / 2 + 10, H - 66, 220, 32, 'END SESSION', s.sel === 1);
-      foot(c, 'LEFT/RIGHT CHANGE THE CHALLENGER\'S FIGHTER · UP/DOWN CHOOSE · ENTER GO');
+      button(c, ...GO, 'FIGHT', s.sel === 0); button(c, ...END, 'END SESSION', s.sel === 1);
+      foot(c, touch.on ? 'TAP THE CHALLENGER TO CHANGE ITS FIGHTER · FIGHT OR END SESSION' : 'LEFT/RIGHT CHANGE THE CHALLENGER\'S FIGHTER · UP/DOWN CHOOSE · ENTER GO');
     };
     return s;
   }
   function kothEnd() {
     const s = { id: 'kothEnd' };
     s.update = n => { if (n.ok || n.back) { KH.on = false; close(); beep(500, 0.08); } };
+    s.pills = () => [{ t: 'TITLE', k: 'Enter' }];
+    s.tap = () => { if (s.t > 30) { KH.on = false; close(); beep(500, 0.08); } };
     s.draw = c => {
       const rows = KH.ents.slice().sort((a, b) => b.wins - a.wins || b.best - a.best || a.slot - b.slot);
       backdrop(c, s.t); head(c, 'FINAL STANDINGS', 'KING OF THE HILL');
       rows.forEach((e, i) => { const y = 130 + i * 40; box(c, 200, y, 560, 34, i === 0); icon(c, e.f, 208, y + 3, 28, false); uiText((i + 1) + '  ' + nm(e), 250, y + 18, 20, i === 0 ? GOLD : INK, 'left'); uiText(sh(e.f), 430, y + 18, 14, DIM, 'left'); uiText(e.wins + ' WINS', 640, y + 18, 17, INK, 'right'); uiText('BEST ' + e.best, 745, y + 18, 15, DIM, 'right'); });
-      foot(c, 'ENTER TITLE');
+      foot(c, touch.on ? 'TAP ANYWHERE FOR THE TITLE SCREEN' : 'ENTER TITLE');
     };
     return s;
   }
@@ -9286,12 +9370,14 @@ requestAnimationFrame(frame);
     else if (teamOn() && TEAM.sides && game.phase === 'over') {   // team end screen: how each side fared, and what Enter does here
       const win = game.wins[0] >= SIZE ? 0 : 1;
       c.fillStyle = 'rgba(8,10,22,0.94)'; c.fillRect(0, H - 34, W, 34);   // covers the engine's own hint line, which would say CHARACTER SELECT
-      uiText(touch.on ? 'TAP: NEW TEAMS · SU: REMATCH' : 'ENTER NEW TEAMS · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
+      uiText(touch.on ? 'SELECT: NEW TEAMS · REMATCH · TITLE · SHARE ON X POSTS THE RESULT' : 'ENTER NEW TEAMS · R REMATCH · T SHARE ON X · ESC TITLE', W / 2, H - 18, 16, '#ddd');
       uiText((game.mode === 2 ? 'P1 TEAM' : 'YOUR TEAM') + (win === 0 ? ' · WINNER' : ''), 96, 150, 16, win === 0 ? GOLD : BLUE, 'left');
       uiText((game.mode === 2 ? 'P2 TEAM' : 'CPU TEAM') + (win === 1 ? ' · WINNER' : ''), W - 96, 150, 16, win === 1 ? GOLD : RED, 'right');
       teamStrip(c, 0, 96, 166, 40, 4, false); teamStrip(c, 1, W - 96 - 40, 166, 40, 4, true);
     }
   });
+  HOOKS.add('touchPills', () => UI.scr && game.phase === 'title' && UI.scr.pills ? UI.scr.pills() : []);
+  touch.screenTaps(() => UI.scr && game.phase === 'title', (x, y) => { if (UI.scr && UI.scr.tap) UI.scr.tap(x, y); });
   HOOKS.add('update', () => {
     if (!UI.scr) {
       if (game.phase === 'over' && TOUR.cur) return endTourMatch();
@@ -10335,7 +10421,7 @@ requestAnimationFrame(frame);
   const VS_A = 4, VS_B = 56, TYPE = 1.5;                     // VS ticks when the opener and the reply appear; typewriter speed in characters per tick
   const VS_CALL = typeof VS_LAND === 'number' ? VS_LAND : 110; // the engine names the arena at this VS tick: the reply is spoken only if it ends before
   const BUBBLE_COLS = 34, SUB_COLS = 48, BOX_COLS = 22;      // wrap widths in characters at pixel-font size 2 (BOX: the end-screen bubble)
-  const BOX_X = 24, BOX_Y = 196;                             // end screen: below the title lines and notes (y < 180), left of the winner sprite (x > 330)
+  const BOX_RIGHT = W - 24, BOX_Y = 196;                     // end screen: right side, clear of the left column (OKR toast, O button, KO CLIP panel) and right of the winner sprite (x < 520)
   const CALL_IN = 8, CALL_HOLD = 110, CALL_OUT = 15, CALL_LIFE = CALL_IN + CALL_HOLD + CALL_OUT, CALL_MAX = 2, CALL_Y = 112, CALL_STEP = 70;
   const COUNTER_CD = 240, COMEBACK_GAP = 0.4, LAST_SECONDS = 3;
   const CALL_WAIT = 75, QUOTE_AT = 30, QUOTE_WAIT = 260, ENGINE_BASE = 30;
@@ -10540,11 +10626,11 @@ requestAnimationFrame(frame);
       c.restore();
     }
   }
-  function quoteBlock(c, q, rows, wq, left, top, age) {   // left == null: centred on the screen; otherwise a bubble with a tail toward the winner
-    const lh = 20, w = Math.max(wq, ptextWidth(q.name, 2)) + 28, h = (rows.length + 1) * lh + 16, x = left == null ? Math.round(W / 2 - w / 2) : left, cx = x + w / 2;
+  function quoteBlock(c, q, rows, wq, left, top, age, fromRight) {   // left == null: centred on the screen; otherwise a bubble with a tail toward the winner (fromRight: left is the right edge)
+    const lh = 20, w = Math.max(wq, ptextWidth(q.name, 2)) + 28, h = (rows.length + 1) * lh + 16, x = left == null ? Math.round(W / 2 - w / 2) : fromRight ? left - w : left, cx = x + w / 2;
     c.save(); c.globalAlpha = clamp(age / 10, 0, 1);
     plate(c, x, top, w, h, q.col);
-    if (left != null) { c.fillStyle = q.col; c.beginPath(); c.moveTo(x + w, top + 16); c.lineTo(x + w + 12, top + 26); c.lineTo(x + w, top + 36); c.closePath(); c.fill(); }
+    if (left != null) { c.fillStyle = q.col; c.beginPath(); if (fromRight) { c.moveTo(x, top + 16); c.lineTo(x - 12, top + 26); c.lineTo(x, top + 36); } else { c.moveTo(x + w, top + 16); c.lineTo(x + w + 12, top + 26); c.lineTo(x + w, top + 36); } c.closePath(); c.fill(); }
     ptext(c, q.name, x + 14, top + 9, 2, q.col, 'left', true);
     for (let r = 0; r < rows.length; r++) ptext(c, rows[r], cx, top + 9 + (r + 1) * lh, 2, '#ffffff', 'center', true);
     c.restore();
@@ -10553,7 +10639,7 @@ requestAnimationFrame(frame);
     const ph = g.phase;
     if (ph === 'vs') { if (S.vs) for (const L of S.vs.lines) if (g.phaseT >= L.at) bubble(c, L, g.phaseT - L.at); return; }
     if (ph === 'outro') { const q = S.quote; if (q && g.phaseT >= QUOTE_AT) quoteBlock(c, q, q.sub, q.wSub, null, 470 - ((q.sub.length + 1) * 20 + 16), g.phaseT - QUOTE_AT); return; }
-    if (ph === 'over') { const q = S.quote; if (q && STD_OVER.has(g.modeId)) quoteBlock(c, q, q.box, q.wBox, BOX_X, BOX_Y, S.T - q.t0); return; }
+    if (ph === 'over') { const q = S.quote; if (q && STD_OVER.has(g.modeId)) quoteBlock(c, q, q.box, q.wBox, BOX_RIGHT, BOX_Y, S.T - q.t0, true); return; }
     if (S.calls.length && CALL_PHASES.has(ph)) drawCalls(c);
   }, 20);
 
@@ -10568,7 +10654,7 @@ requestAnimationFrame(frame);
   }
   window.VOICE = {
     BANTER, WIN, WIN_VS, CALLS, VOICES,
-    C: { VS_A, VS_B, VS_CALL, TYPE, BUBBLE_COLS, SUB_COLS, BOX_COLS, BOX_X, BOX_Y, CALL_LIFE, CALL_MAX, CALL_Y, COUNTER_CD, COMEBACK_GAP, LAST_SECONDS, QUOTE_AT },
+    C: { VS_A, VS_B, VS_CALL, TYPE, BUBBLE_COLS, SUB_COLS, BOX_COLS, BOX_RIGHT, BOX_Y, CALL_LIFE, CALL_MAX, CALL_Y, COUNTER_CD, COMEBACK_GAP, LAST_SECONDS, QUOTE_AT },
     banterFor, winQuote, wrap, est, spoken, lines, callout, speechOn, toggle, pairKey,
     state() {
       return {
@@ -11284,7 +11370,7 @@ requestAnimationFrame(frame);
 // Owner: p-jukebox (docs/features/p-jukebox.md). Plugs in through HOOKS 'titleItems' (the SOUND TEST entry), 'update' (keys, the clock), 'drawTop' (the screen) and 'musicTheme' (the track you picked,
 // and the fighter theme on the VS screen), SETTINGS 'jukebox.vs' / 'jukebox.last', and MUSIC.define (the five themes). The only engine edit is the read-only block MUSIC.info / MUSIC.hits / MUSIC.clock at
 // the end of music.js: they schedule and change nothing; the bars are read from them.
-//   - SOUND TEST: every MUSIC theme by name (menu tracks, one per arena, the fighter themes, anything another feature defines). W/S pick, ENTER plays, the special key stops, V toggles the VS themes, ESC leaves.
+//   - SOUND TEST: every MUSIC theme by name (menu tracks, the stage tracks (an arena without one plays another), the fighter themes, anything another feature defines). W/S pick, ENTER plays, the special key stops, V toggles the VS themes, ESC leaves.
 //   - Fighter themes: generated here from a small style sheet per fighter (scale, tempo, chord loop, rhythm templates, a seeded melody walk), 8 bars each, defined as 'fight_<id>'. They play on the VS
 //     screen only when SETTINGS 'jukebox.vs' is on (off by default: the match test expects the classic 'vs' track there).
 //   - Visualiser: 24 bars fed by the music clock. With sound running the clock is MUSIC.clock() (the audio position); muted or before the sound starts, a virtual clock of the same tempo runs per tick.
@@ -12179,6 +12265,17 @@ requestAnimationFrame(frame);
     if (S) { S.rt++; R.rt = S.rt; R.ctr = 0; if (S.play) playTick(g); else recTick(g); }
     if (UI.open) listTick(g);
   }, -1e9);
+  // touch: the list and the playback get their own buttons (they press the keys above), taps on a list row pick it (a second tap watches it), and none of them reach the title menu underneath
+  HOOKS.add('touchPills', () => {
+    if (S && S.play) return S.done ? [{ pad: false }, { t: 'LIST', k: 'Enter' }, { t: 'AGAIN', k: 'KeyR' }]
+      : [{ pad: false }, { t: S.paused ? 'RESUME' : 'PAUSE', k: 'KeyP' }, { t: 'SPEED ' + (S.speed === 1 ? '2X' : '1X'), k: 'KeyK' }, { t: 'STEP', k: 'Period' }, { t: 'RESTART', k: 'KeyR' }, { t: 'EXIT', k: 'Escape' }];
+    if (!UI.open || game.phase !== 'title') return [];
+    return [...(entries().length ? [{ t: 'UP', k: 'KeyW' }, { t: 'DOWN', k: 'KeyS' }, { t: 'WATCH', k: 'Enter' }, { t: UI.arm === UI.sel && game.tick - UI.armT < 180 ? 'ERASE AGAIN' : 'ERASE', k: 'Delete' }] : []), { t: 'BACK', k: 'Escape' }];
+  });
+  touch.screenTaps(() => UI.open && game.phase === 'title' && !(S && S.play), (x, y) => {
+    const n = Math.min(entries().length, KEEP), i = Math.floor((y - 92) / 76); if (i < 0 || i >= n || x < 70 || x > W - 70) return;
+    if (UI.sel === i) { if (playable(entries()[i])) { snd(900, 0.12); Promise.resolve().then(() => play(i)); } else snd(150, 0.15); } else { UI.sel = i; UI.arm = -1; snd(400, 0.04); }
+  });
   const ITEM = { id: 'replays', label: 'REPLAYS', order: 70, run() { UI.open = true; UI.sel = 0; UI.arm = -1; snd(700, 0.08); } };
   HOOKS.add('titleItems', () => ITEM);
   HOOKS.add('drawTop', (c, g) => {
@@ -12219,10 +12316,10 @@ requestAnimationFrame(frame);
       const tag = e.chk === 1 ? ['VERIFIED', GREEN] : e.chk === 0 ? ['DESYNC', RED] : i === 0 ? ['NEW', GOLD] : null;
       if (tag) ptext(c, tag[0], W - 86, y + 12, 2, tag[1], 'right');
       ptext(c, modeName(e), W - 86, y + 42, 2, DIM, 'right');
-      if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
+      if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, touch.on ? 'TAP ERASE AGAIN' : 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
     }
-    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
-    ptext(c, 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
+    ptext(c, touch.on ? (L.length ? 'TAP A REPLAY TO PICK IT, AGAIN TO WATCH   ERASE TWICE DELETES   ' : '') + 'BACK' : (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
+    ptext(c, touch.on ? 'WHILE WATCHING: PAUSE   SPEED   STEP   RESTART   EXIT' : 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
     c.restore();
   }
   function drawPlay(c, g) {
@@ -12234,7 +12331,7 @@ requestAnimationFrame(frame);
     ptext(c, 'REPLAY ' + P.speed + 'X', px + 26, y + 5, 2, '#fff');
     const bx = px + 140, bw = 126, u = Math.max(0, Math.min(1, P.rt / Math.max(1, P.len)));
     box(c, bx, y + 9, bw, 7, '#2a2740'); box(c, bx, y + 9, Math.round(bw * u), 7, GOLD);
-    const hint = 'SPACE PAUSE   K 2X   . STEP   R RESTART   ESC EXIT';
+    const hint = touch.on ? 'PAUSE   SPEED   STEP   RESTART   EXIT: THE BUTTONS' : 'SPACE PAUSE   K 2X   . STEP   R RESTART   ESC EXIT';
     if (P.paused && !P.done) {
       ptext(c, 'PAUSED', W / 2, 196, 4, '#fff', 'center');
       c.globalAlpha = 0.8; box(c, (W - 560) / 2, 232, 560, 24, '#000'); c.globalAlpha = 1;
@@ -12250,7 +12347,7 @@ requestAnimationFrame(frame);
       const got = P.got || { w: -1, hp: [game.f[0].hp, game.f[1].hp], wins: game.wins };
       ptext(c, result(P.e, got), W / 2, y0 + 64, 3, '#fff', 'center');
       ptext(c, 'HP ' + Math.round(got.hp[0]) + ' - ' + Math.round(got.hp[1]) + (ok ? '   SAME AS THE MATCH' : '   MATCH HAD ' + Math.round(P.e.res.hp[0]) + ' - ' + Math.round(P.e.res.hp[1])), W / 2, y0 + 98, 2, STEEL, 'center');
-      ptext(c, ok ? 'ENTER LIST   R WATCH AGAIN' : 'FIRST DIFFERENCE AT FRAME ' + Math.max(0, P.bad) + '   ENTER LIST', W / 2, y0 + 130, 2, DIM, 'center');
+      ptext(c, ok ? (touch.on ? 'LIST   AGAIN' : 'ENTER LIST   R WATCH AGAIN') : 'FIRST DIFFERENCE AT FRAME ' + Math.max(0, P.bad) + (touch.on ? '   LIST' : '   ENTER LIST'), W / 2, y0 + 130, 2, DIM, 'center');
     }
     c.restore();
   }
@@ -12518,8 +12615,9 @@ requestAnimationFrame(frame);
     box(TITLEB.x, TITLEB.y, TITLEB.w, TITLEB.h, 'rgba(0,0,0,0.6)', '#7d7668');
     P('G OKRS ' + count() + '/' + TOTAL, TITLEB.x + TITLEB.w / 2, TITLEB.y + 8, 2, STEEL, 'center');
   }
-  const TOAST_W = 316, TOAST_Y = 112, OVER = { x: 12, y: 178 };   // under the HUD, centred, while fighting; on the end screen in the free left side, below the colourways note (y 150) and clear of the share button
-  const want = () => game.phase === 'over' ? OVER : { x: Math.round((W - TOAST_W) / 2), y: TOAST_Y };
+  const TOAST_W = 316, TOAST_Y = 112, OVER = { x: 12, y: 178 }, OVER_R = { x: W - 12 - TOAST_W, y: 62 };   // under the HUD, centred, while fighting; on the end screen in the free left side, below the colourways note (y 150) and clear of the share button; a mode with its own card there (MODES endCard) gets the top right, above the O button
+  const card = () => { try { return !!(MODES.current() || {}).endCard; } catch (e) { return false; } };
+  const want = () => game.phase === 'over' ? (card() ? OVER_R : OVER) : { x: Math.round((W - TOAST_W) / 2), y: TOAST_Y };
   let tx = want().x, ty = want().y;
   function drawToast() {
     if (!cur) { const q = want(); tx = q.x; ty = q.y; return; }
@@ -12672,7 +12770,7 @@ requestAnimationFrame(frame);
     return realGet.apply(SETTINGS, arguments);
   };
 
-  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1 });
+  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1, endCard: true });   // endCard: the end screen carries its own card on the left (the O button, the KO CLIP panel and the OKR toast keep to the right)
 
   // ---------------------------------------------------------------- what the next match is worth (for the select and VS screens)
   function preview() {
@@ -13150,7 +13248,7 @@ requestAnimationFrame(frame);
   }, -50);
 
   // ---------------------------------------------------------------- registry and test hook
-  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28.5, players: 1, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
+  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28.5, players: 1, endCard: true, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
   window.DAILY = {
     dateKey, dayNum, keyOf, prevKey, validKey, dayLabel, hashStr, rng, planFor, goalText, goalMet, sanitize, applyResult, liveStreak, fmtTime,
     MODS, GOALS, BASE_RULES, state: getState, today: todayKey, setToday: k => { override = k || null; },
@@ -13579,7 +13677,7 @@ requestAnimationFrame(frame);
   function rebuild() {
     ensure();
     const g = game, tick0 = g.tick, ph0 = g._phase, sh0 = g.shake, cx0 = g.cam.x, cz0 = g.cam.zoom, dk0 = g.dark;
-    g.tick = st.tick; g.shake = 0; g.cam.x = st.cam.x; g.cam.zoom = st.cam.zoom; g.dark = st.dark; g._phase = 'fight';   // the scene as it was when the pause began (the same trick options.js plays for its pause menu)
+    g.tick = st.tick; g.shake = 0; g.cam.x = st.cam.x; g.cam.zoom = st.cam.zoom; g.dark = st.dark; g._phase = 'fight'; g.still = true;   // the scene as it was when the pause began (the same trick options.js plays for its pause menu)
     try {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
@@ -13588,7 +13686,7 @@ requestAnimationFrame(frame);
       if (cur('photo.hud')) { window.drawHUD(ctx, g); HOOKS.run('drawHud', ctx, g); }
       if (typeof window.drawPost === 'function') window.drawPost(ctx, st.tick, { flash: 0, red: 0 });
       ctx.restore();
-    } finally { g.tick = tick0; g._phase = ph0; g.shake = sh0; g.cam.x = cx0; g.cam.zoom = cz0; g.dark = dk0; }
+    } finally { g.tick = tick0; g._phase = ph0; g.still = false; g.shake = sh0; g.cam.x = cx0; g.cam.zoom = cz0; g.dark = dk0; }
     rawC.clearRect(0, 0, W, H); rawC.drawImage(cv, 0, 0);
     outC.setTransform(1, 0, 0, 1, 0, 0); outC.globalAlpha = 1; outC.imageSmoothingEnabled = false;
     try { applyFilter(cur('photo.filter')); st.note = ''; } catch (e) { outC.drawImage(raw, 0, 0); st.note = 'FILTER FAILED'; }
@@ -14410,7 +14508,8 @@ requestAnimationFrame(frame);
   const colOf = s => S.cols[s] || '#fff';
 
   // ---------- opening, closing, input ----------
-  const BTN = { x: 24, y: 246, w: 276, h: 50 };   // the O button on the end screen (left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const BTN_L = { x: 24, y: 246, w: 276, h: 50 }, BTN_R = { x: W - 24 - 276, y: 136, w: 276, h: 50 };   // the O button on the end screen. Left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack outside the canvas. A mode with its own card on the left (MODES endCard: RANKED, the sprint of the day) gets the button on the right: toast (to y 124), button, panel (from y 196)
+  const btn = () => { try { return (MODES.current() || {}).endCard ? BTN_R : BTN_L; } catch (e) { return BTN_L; } };
   const reviewOpen = () => { try { return !!(window.REVIEW && REVIEW.state().open); } catch (e) { return false; } };   // the code review is modal: no button, no report, until it is closed
   const shareAnchor = () => document.getElementById('share');
   function hideShare(on) { try { const a = shareAnchor(); if (a) a.style.visibility = on ? 'hidden' : ''; } catch (e) { /* no DOM */ } }
@@ -14429,7 +14528,7 @@ requestAnimationFrame(frame);
   };
   function onTap(x, y, sc) {
     if (!ON || game.phase !== 'over') return false;
-    if (!U.open) return inside(BTN, x, y, sc) ? open() : false;
+    if (!U.open) return inside(btn(), x, y, sc) ? open() : false;
     const L = lay();
     if (inside(L.back, x, y, sc)) return close();
     if (inside(L.chart, x, y)) { nextView(); return true; }
@@ -14603,7 +14702,7 @@ requestAnimationFrame(frame);
     c.restore();
   }
   function drawButton(c, g) {
-    const r = BTN, glow = (Math.sin(g.tick / 14) + 1) / 2;
+    const r = btn(), glow = (Math.sin(g.tick / 14) + 1) / 2;
     c.save();
     c.fillStyle = 'rgba(8,11,22,0.9)'; c.fillRect(r.x, r.y, r.w, r.h);
     c.fillStyle = glow > 0.5 ? C.green : '#2f8f62'; c.fillRect(r.x, r.y, r.w, 2); c.fillRect(r.x, r.y + r.h - 2, r.w, 2); c.fillRect(r.x, r.y, 2, r.h); c.fillRect(r.x + r.w - 2, r.y, 2, r.h);
@@ -14630,7 +14729,7 @@ requestAnimationFrame(frame);
         open: U.open, openT: U.openT, rt: U.rt, view: U.view,
       };
     },
-    kpis, series, incidents, status, open, close, nextView, tap: onTap, isOpen: () => U.open, button: () => Object.assign({}, BTN), layout: () => Object.assign({}, lay()),
+    kpis, series, incidents, status, open, close, nextView, tap: onTap, isOpen: () => U.open, button: () => Object.assign({}, btn()), layout: () => Object.assign({}, lay()),
     enabled: () => ON, fmtTime, niceMax,
   };
 })();
@@ -15337,7 +15436,8 @@ requestAnimationFrame(frame);
   const FPS = 30, BPS = 2500000, SLICE = 1000;                               // capture frame rate, video bit rate, MediaRecorder timeslice
   const THUMB_MS = 125, THUMB_W = 160, THUMB_H = 90, THUMBS = 100;           // preview strip: 8 frames a second, 12.5 s of history
   const SAVE_GAP = 30, SAVED_SHOW = 120, KEY = 'KeyC';                       // ticks between two saves, ticks the CLIP SAVED label stays
-  const PANEL = { x: 40, y: 304, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this
+  const PANEL_L = { x: 40, y: 304, w: 216, h: 180 }, PANEL_R = { x: W - 70 - 216, y: 196, w: 216, h: 180 };   // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this; a mode with its own card on the left (MODES endCard) gets the right column: toast, O button (136 to 186), this
+  const panel = () => { try { return (MODES.current() || {}).endCard ? PANEL_R : PANEL_L; } catch (e) { return PANEL_L; } };
   const TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   const GOLD = '#c9a24a', INK = '#e8e0cc', DIM = '#8d8576', GREEN = '#7fdc6a';
 
@@ -15458,12 +15558,12 @@ requestAnimationFrame(frame);
     try { beep(880, 0.07, 'square', 0.04); } catch (e) { /* no audio yet */ }
     return true;
   }
-  const inPanel = (x, y) => x >= PANEL.x && x <= PANEL.x + PANEL.w && y >= PANEL.y && y <= PANEL.y + PANEL.h;
+  const inPanel = (x, y) => { const P = panel(); return x >= P.x && x <= P.x + P.w && y >= P.y && y <= P.y + P.h; };
   const covered = () => { try { return !!((window.REVIEW && REVIEW.state().open) || (window.OBS && OBS.isOpen())); } catch (e) { return false; } };   // the code review (modal) or the match report is up: the panel is not drawn and takes no key or tap
 
   // ---------------------------------------------------------------- the KO CLIP panel on the end screen
   function drawPanel(c) {
-    const { x, y, w, h } = PANEL, t = game.tick, saved = t - savedTick < SAVED_SHOW;
+    const { x, y, w, h } = panel(), t = game.tick, saved = t - savedTick < SAVED_SHOW;
     c.save();
     c.fillStyle = 'rgba(8,8,14,0.88)'; c.fillRect(x, y, w, h);
     c.fillStyle = saved ? GREEN : GOLD; c.fillRect(x, y, w, 3); c.fillRect(x, y + h - 3, w, 3); c.fillRect(x, y, 3, h); c.fillRect(x + w - 3, y, 3, h);
@@ -15526,7 +15626,7 @@ requestAnimationFrame(frame);
   if (type) boot();
 
   window.CLIPS = {
-    consts: { SEG, TAIL, AFTER, MAX_LEN, FPS, THUMB_MS, SAVE_GAP, KEY, PANEL },
+    consts: { SEG, TAIL, AFTER, MAX_LEN, FPS, THUMB_MS, SAVE_GAP, KEY, PANEL: PANEL_L, PANEL_R },
     supported: () => !!type,
     save,
     cut: cutNow,
@@ -16295,7 +16395,7 @@ requestAnimationFrame(frame);
     }
     if (g.phase === 'title') {
       const on = active();
-      if (on.length) { const txt = on.map(id => DEF[id].tag).join('  '); ptext(ctx, txt, 14, 12, 2, HUES[(S.clock >> 4) & 3], 'left', true); }   // top left: the title keeps its prompts at the top centre
+      if (on.length && !(typeof titleOverlayOpen === 'function' && titleOverlayOpen())) { const txt = on.map(id => DEF[id].tag).join('  '); ptext(ctx, txt, 14, 50, 2, HUES[(S.clock >> 4) & 3], 'left', true); }   // top left under the OKRS corner button (y 12 to 42); the title keeps its prompts at the top centre; a feature screen over the title has the whole canvas
     }
   }
 

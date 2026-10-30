@@ -19,7 +19,8 @@
   const FPS = 30, BPS = 2500000, SLICE = 1000;                               // capture frame rate, video bit rate, MediaRecorder timeslice
   const THUMB_MS = 125, THUMB_W = 160, THUMB_H = 90, THUMBS = 100;           // preview strip: 8 frames a second, 12.5 s of history
   const SAVE_GAP = 30, SAVED_SHOW = 120, KEY = 'KeyC';                       // ticks between two saves, ticks the CLIP SAVED label stays
-  const PANEL = { x: 40, y: 304, w: 216, h: 180 };                           // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this
+  const PANEL_L = { x: 40, y: 304, w: 216, h: 180 }, PANEL_R = { x: W - 70 - 216, y: 196, w: 216, h: 180 };   // the KO CLIP panel on the end screen, canvas units (also the tap target); the left column: toast (to y 238), O button (246 to 296), then this; a mode with its own card on the left (MODES endCard) gets the right column: toast, O button (136 to 186), this
+  const panel = () => { try { return (MODES.current() || {}).endCard ? PANEL_R : PANEL_L; } catch (e) { return PANEL_L; } };
   const TYPES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   const GOLD = '#c9a24a', INK = '#e8e0cc', DIM = '#8d8576', GREEN = '#7fdc6a';
 
@@ -140,12 +141,12 @@
     try { beep(880, 0.07, 'square', 0.04); } catch (e) { /* no audio yet */ }
     return true;
   }
-  const inPanel = (x, y) => x >= PANEL.x && x <= PANEL.x + PANEL.w && y >= PANEL.y && y <= PANEL.y + PANEL.h;
+  const inPanel = (x, y) => { const P = panel(); return x >= P.x && x <= P.x + P.w && y >= P.y && y <= P.y + P.h; };
   const covered = () => { try { return !!((window.REVIEW && REVIEW.state().open) || (window.OBS && OBS.isOpen())); } catch (e) { return false; } };   // the code review (modal) or the match report is up: the panel is not drawn and takes no key or tap
 
   // ---------------------------------------------------------------- the KO CLIP panel on the end screen
   function drawPanel(c) {
-    const { x, y, w, h } = PANEL, t = game.tick, saved = t - savedTick < SAVED_SHOW;
+    const { x, y, w, h } = panel(), t = game.tick, saved = t - savedTick < SAVED_SHOW;
     c.save();
     c.fillStyle = 'rgba(8,8,14,0.88)'; c.fillRect(x, y, w, h);
     c.fillStyle = saved ? GREEN : GOLD; c.fillRect(x, y, w, 3); c.fillRect(x, y + h - 3, w, 3); c.fillRect(x, y, 3, h); c.fillRect(x + w - 3, y, 3, h);
@@ -208,7 +209,7 @@
   if (type) boot();
 
   window.CLIPS = {
-    consts: { SEG, TAIL, AFTER, MAX_LEN, FPS, THUMB_MS, SAVE_GAP, KEY, PANEL },
+    consts: { SEG, TAIL, AFTER, MAX_LEN, FPS, THUMB_MS, SAVE_GAP, KEY, PANEL: PANEL_L, PANEL_R },
     supported: () => !!type,
     save,
     cut: cutNow,

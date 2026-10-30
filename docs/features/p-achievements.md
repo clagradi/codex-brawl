@@ -8,9 +8,9 @@ Everything is built on the extension layer (BUS events, HOOKS points, SETTINGS).
 
 **Thirty objectives.** Parody names for things a fighter can do: win matches, land hits, chain combos, block, throw, use supers, survive. Each one has a goal, a progress bar and a line of text on the OKRS screen.
 
-**A toast.** When an objective is reached a panel drops in from the top of the screen, centred under the HUD (on the end screen it glides to the free left side, below the colourways unlock note and clear of the share button), and stays for 210 ticks (3.5 seconds) with a three-note jingle. Reaching several at once queues the toasts one after the other. The toast is not drawn, and does not run down, while the OKRS screen is open.
+**A toast.** When an objective is reached a panel drops in from the top of the screen, centred under the HUD (on the end screen it glides to the free left side, below the colourways unlock note and clear of the share button; in a mode with its own card on the left, `MODES` `endCard` (RANKED, the sprint of the day), it glides to the top right, above the MATCH REPORT button), and stays for 210 ticks (3.5 seconds) with a three-note jingle. Reaching several at once queues the toasts one after the other. The toast is not drawn, and does not run down, while the OKRS screen is open.
 
-**The OKRS screen.** Opens from the OKRS entry of the title menu, from the "G OKRS n/30" button in the top left corner of the title (tap, click or the `G` key), or with `G` on the pause screen. Two pages of 15 rows, an overall bar ("n/30 ACHIEVED") and, for the selected row, the full text of the objective.
+**The OKRS screen.** Opens from the OKRS entry of the title menu, from the "G OKRS n/30" button in the top left corner of the title (tap, click or the `G` key; the button and the key stay away while another feature's screen is open over the title, `titleOverlayOpen()` in `game.js`: the JUKEBOX, VAULT, ARCADE and SURVIVAL select, the TEAM BATTLE, TOURNAMENT and KING OF THE HILL screens, the bonus games ...), or with `G` on the pause screen. Two pages of 15 rows, an overall bar ("n/30 ACHIEVED") and, for the selected row, the full text of the objective.
 
 | Input | Effect |
 | --- | --- |

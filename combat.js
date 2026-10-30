@@ -383,7 +383,7 @@
   });
   HOOKS.add('drawTop', (c, g) => {
     if (g.phase === 'pause') {
-      const scr = typeof OPTIONS !== 'undefined' ? OPTIONS.screen : 'moves', y = scr === 'moves' ? 457 : 400;   // the options pause menu has a gap under its rows; its other screens have no room
+      const scr = typeof OPTIONS !== 'undefined' ? OPTIONS.screen : 'moves', y = scr === 'moves' ? 457 : 417;   // the options pause menu has a gap under its rows (defense.js has the first two lines of it, these the next two); its other screens have no room
       if (scr && scr !== 'moves') return;
       uiText('FWD + K OVERHEAD (GUARD STANDING) · DOWN + P/K ARE LOWS (GUARD CROUCHING) · JUMP ATTACKS ARE OVERHEADS', W / 2, y + 17, 12, '#aab');
       uiText('HOLD SU + SP = EX SPECIAL, 1 BAR (PAD RB + X) · BACK + SU WHILE HIT = BREAKER, 2 BARS · DOWN, DOWN + SU = TAUNT', W / 2, y, 12, '#aab');

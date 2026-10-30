@@ -69,10 +69,12 @@ export async function run(t) {
       Math.random = () => 0.99; a.inv = 0; a.set('block'); a.takeHit(b, 5, 3, 14, 'punch'); out.cpuNoPg = { n: D.count.perfect - c0, chip: a.hp < hp0 }; Math.random = rnd; a.cpu = false; }
     SETTINGS.set('difficulty', 'easy'); Math.random = () => 0.4; out.cpuEasy = down({ cpu: true }); SETTINGS.set('difficulty', 'hard'); Math.random = () => 0.4; out.cpuHard = down({ cpu: true });
     SETTINGS.set('difficulty', 'normal'); Math.random = rnd;
-    // the hints are drawn: round 1 strip while the clock is young, pause panel on pause
-    setup(); const seen = [], ou = window.uiText; window.uiText = function (s) { seen.push(String(s)); return ou.apply(this, arguments); };
+    // the hints are drawn: round 1 strip while the clock is young, two lines on the MOVES screen of the pause menu, and nothing stacked on the pause menu itself
+    setup(); const seen = [], ou = window.uiText; window.uiText = function (s, x, y) { seen.push(String(s) + '@' + y); return ou.apply(this, arguments); };
+    const defLines = () => seen.filter(s => /^DEFENSE \u00b7|^KNOCKED DOWN \u00b7/.test(s)).map(s => +s.split('@')[1]);
     game.round = 1; game.clock = 100; render(); out.hintFight = seen.filter(s => /PERFECT GUARD|KNOCKED DOWN/.test(s)).length;
-    seen.length = 0; game.phase = 'pause'; render(); out.hintPause = seen.filter(s => /^DEFENSE|^KNOCKED DOWN/.test(s)).length; game.phase = 'fight'; window.uiText = ou; window.beep = ob;
+    seen.length = 0; game.phase = 'pause'; render(); out.hintPause = defLines().length; out.hintPauseY = defLines(); out.noteY = seen.filter(s => /^FWD [+] K OVERHEAD|^HOLD SU [+] SP/.test(s)).map(s => +s.split('@')[1]); out.pauseMenu = { strips: seen.filter(s => /^PERFECT GUARD: TAP|^KNOCKED DOWN: P OR K|^J J J COMBO|^P1 J K L I/.test(s)).length, still: game.still };
+    seen.length = 0; OPTIONS.open('moves'); render(); out.movesScreen = defLines().length; OPTIONS.close(); game.phase = 'fight'; window.uiText = ou; window.beep = ob;
     return out;
   })()`);
 
@@ -108,5 +110,7 @@ export async function run(t) {
   ck(r.easy.pg < r.normal.pg && r.normal.pg < r.hard.pg && r.easy.rise < r.normal.rise && r.normal.rise < r.hard.rise, 'CPU perfect guard and quick rise rates grow with the difficulty setting ' + JSON.stringify(r));
   ck(R.cpuPg.n === 1 && R.cpuPg.kept && R.cpuNoPg.n === 1 && R.cpuNoPg.chip, 'a CPU victim perfect-guards when its roll succeeds and takes chip damage when it fails ' + JSON.stringify([R.cpuPg, R.cpuNoPg]));
   ck(R.cpuHard.len <= R.cpuEasy.len - 10, 'the same dice make a hard CPU quick rise while an easy one lies there (' + R.cpuHard.len + ' vs ' + R.cpuEasy.len + ')');
-  ck(R.hintFight >= 2 && R.hintPause >= 2, 'the round 1 strip and the pause screen list the defense inputs (' + R.hintFight + ', ' + R.hintPause + ')');
+  ck(R.hintFight >= 2 && R.hintPause === 2 && R.movesScreen === 0, 'the round 1 strip and the pause menu list the defense inputs (' + R.hintFight + ', ' + R.hintPause + '), the MOVES screen has no room for them (' + R.movesScreen + ')');
+  ck(R.hintPauseY.length === 2 && R.hintPauseY[0] >= 380 && R.hintPauseY[1] - R.hintPauseY[0] >= 15 && R.noteY.length === 2 && Math.min(...R.noteY) - R.hintPauseY[1] >= 15 && Math.max(...R.noteY) <= 436, 'the two lines sit in the gap under the pause rows, above the notes of combat.js and well clear of the meter labels (y 508 and below) (' + R.hintPauseY + ' / ' + R.noteY + ')');
+  ck(R.pauseMenu.strips === 0 && R.pauseMenu.still === false, 'pausing in round 1 stacks no hint strips under the pause menu, and the draw flag is cleared again ' + JSON.stringify(R.pauseMenu));
 }

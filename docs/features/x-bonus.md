@@ -6,7 +6,7 @@ Owner: the bonus agent. Files: `bonus.js`, `tools/tests/x-bonus.mjs`, this note.
 
 Pick BENCHMARK BREAK or BUG SQUASH on the title menu. A lobby opens over the title: A and D choose the fighter, Enter starts, Esc goes back to the title. A short READY, 3, 2, 1, GO countdown follows, and the attack keys are ignored until it ends.
 
-All keys are the ones the fighting game already uses. Player one's keys work (W A S D and J K L, the alternative arrows and Z X C set, or whatever the options screen rebound them to). A gamepad and the touch buttons are meant to work as well, because the minigames read the same `hit`, `held` and `tap` helpers as the fight code, but that has not been tried on a device.
+All keys are the ones the fighting game already uses. Player one's keys work (W A S D and J K L, the alternative arrows and Z X C set, or whatever the options screen rebound them to). A gamepad and the touch buttons work as well, because the minigames read the same `hit`, `held` and `tap` helpers as the fight code. On a phone the lobby shows < FIGHTER, FIGHTER >, START and BACK (a tap on a fighter icon picks it, a second tap on the chosen one starts), a running game shows the d-pad with the P, K and SP buttons next to a PAUSE button (the pause menu has RESUME and QUIT), and the result screen has AGAIN and TITLE. The lobby and result texts name P, K and SP instead of keys while `touch.on` is set.
 
 | Screen | Keys |
 |---|---|
@@ -78,6 +78,6 @@ The minigames are a self-contained overlay. While one runs, `game.phase` stays `
 ## Known limits
 
 - The title menu fits six entries with its two-column layout; with both bonus modes there are four on a plain build, and the features of other agents add more. Whoever merges the branches should look at the title once.
-- Touch and gamepad play use the generic input layer and have not been tried on a device.
+- Touch and gamepad play use the generic input layer. The touch flows are tested in the headless phone emulation (`tools/test-match.mjs`), not on a real device.
 - Sound is limited to short synthesised effects and a borrowed music theme; there is no dedicated bonus music yet.
 - Only five stacks and three bug types exist. More of either are a table entry plus a draw routine in `bonus.js`.

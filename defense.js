@@ -5,7 +5,7 @@
 // Hooks used:
 //   HOOKS 'update' (tick clock, effect timers), 'input' (back-press edge, blockstun lock, pushback, knockdown options, air recovery, wake-up reversal, CPU choices),
 //   'damage' (perfect guard: no chip, a 4 tick stun), 'fighterUpdate' (roll bookkeeping), 'drawFighter' (the roll sprite), 'drawWorld' (rings, texts),
-//   'drawHud' (round 1 hint strip), 'drawTop' (blue flash, pause panel).
+//   'drawHud' (round 1 hint strip), 'drawTop' (blue flash, the two lines under the pause menu's rows).
 //   BUS 'block' 'hit' 'match:start' 'round:start' (listens), 'defense:perfect' 'defense:pushback' 'defense:rise' 'defense:roll' 'defense:air' 'defense:reversal' (emits).
 //   SETTINGS 'difficulty' is read for the CPU. No other file is edited; there is no setting of its own: DEFENSE.on = false switches the whole feature off.
 // Integration notes (combat.js brings a three-bar meter, its own blockstun and hard knockdowns): DEFENSE.meter() finds the meter size and bars, DEFENSE.ownBlockstun = false
@@ -184,8 +184,8 @@
       else uiText(e.txt, e.x, e.y - e.t * 1.2, 16, e.col, 'center', 1 - p * p);
     }
   });
-  HOOKS.add('drawHud', (c, g) => {   // the two new lines sit above the engine's own round 1 hint strip and fade with it
-    if (!D.on || g.phase !== 'fight' || g.round !== 1 || g.clock >= 360 || (typeof touch !== 'undefined' && touch.on) || (g.f[0].cpu && g.f[1].cpu)) return;
+  HOOKS.add('drawHud', (c, g) => {   // the two new lines sit above the engine's own round 1 hint strip and fade with it (not under the pause menu or in a photo: g.still)
+    if (!D.on || g.phase !== 'fight' || g.still || g.round !== 1 || g.clock >= 360 || (typeof touch !== 'undefined' && touch.on) || (g.f[0].cpu && g.f[1].cpu)) return;
     const a = Math.min(1, (360 - g.clock) / 60);
     uiText('PERFECT GUARD: TAP BACK JUST AS A HIT LANDS · BLOCKING + L: PUSHBACK, COSTS METER', W / 2, H - 96, 13, '#9fd3ff', 'center', a);
     uiText('KNOCKED DOWN: P OR K GETS UP FAST · ADD A DIRECTION TO ROLL · HOLD DOWN TO STAY DOWN', W / 2, H - 76, 13, '#9fd3ff', 'center', a);
@@ -193,9 +193,9 @@
   HOOKS.add('drawTop', (c, g) => {
     if (!D.on) return;
     if (S.flash > 0 && g.phase !== 'pause') { c.fillStyle = 'rgba(110,180,255,' + (0.32 * S.flash / 12).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
-    if (g.phase === 'pause' && !(typeof OPTIONS !== 'undefined' && OPTIONS.screen)) {   // the options sub-screens (MOVES, CONTROLS...) use the bottom rows
-      uiText('DEFENSE · TAP BACK AS A HIT LANDS: PERFECT GUARD · WHILE BLOCKING, SPECIAL: PUSHBACK (COSTS METER)', W / 2, 496, 13, '#9fd3ff');
-      uiText('KNOCKED DOWN · PUNCH OR KICK: QUICK RISE · WITH A DIRECTION: ROLL · HOLD DOWN: STAY DOWN LONGER', W / 2, 514, 13, '#9fd3ff');
+    if (g.phase === 'pause' && !(typeof OPTIONS !== 'undefined' && OPTIONS.screen)) {   // in the gap under the pause menu's rows, above the two notes of combat.js; the other options screens have no room, and the bottom rows belong to the meters and the key hints
+      uiText('DEFENSE · TAP BACK AS A HIT LANDS: PERFECT GUARD · WHILE BLOCKING, SPECIAL: PUSHBACK (COSTS METER)', W / 2, 385, 13, '#9fd3ff');
+      uiText('KNOCKED DOWN · PUNCH OR KICK: QUICK RISE · WITH A DIRECTION: ROLL · HOLD DOWN: STAY DOWN LONGER', W / 2, 401, 13, '#9fd3ff');
     }
   });
 })();

@@ -161,6 +161,10 @@ async function body(t) {
   const endToast = await ev(`(() => { for (let i = 0; i < 40; i++) render(); const t = OKRS.toast; return { phase: game.phase, id: t && t.id, high: Z.gold(322, 112, 316, 60), low: Z.gold(12, 178, 316, 60) }; })()`);
   check(endToast.phase === 'over' && endToast.id && endToast.low > 60 && endToast.high < 20, 'on the end screen the toast glides to the left side, below the unlock note: ' + JSON.stringify(endToast));
 
+  // a mode with a card of its own on the left of the end screen (RANKED, the sprint of the day) gets the toast at the top right instead
+  const cardToast = await ev(`(() => { game.modeId = 'ranked'; for (let i = 0; i < 80; i++) render(); const o = { right: Z.gold(632, 62, 316, 60), left: Z.gold(12, 178, 316, 60) }; game.modeId = 'versus'; for (let i = 0; i < 80; i++) render(); o.back = Z.gold(12, 178, 316, 60); return o; })()`);
+  check(cardToast.right > 60 && cardToast.left < 20 && cardToast.back > 60, 'on the end screen of a mode with its own card the toast glides to the top right, clear of the card: ' + JSON.stringify(cardToast));
+
   const m2 = await ev(`(() => {   // a second win, other fighter, other arena: the streak and the sets grow
     const [a, b] = Z.start(1, 2, 1); Z.ko(a, b); Z.over(); const out = { phase: game.phase };
     out.wins = OKRS.state.n.wins | 0; out.cur = OKRS.state.cur; out.best = OKRS.state.best.streak; out.fx = OKRS.state.fx.length; out.ar = OKRS.state.ar.length; out.id = a.d.id;
@@ -332,6 +336,21 @@ async function body(t) {
     check(wt.demo.kind === 'demo' && wt.demo.cpu && wt.demo.md === '' && wt.match.kind === 'match' && wt.match.md === '' && wt.pivot === 0, 'the attract demo and a WATCH match add no mode to the modes played (PIVOT): ' + JSON.stringify([wt.demo, wt.match]));
     check(wt.real === 'versus', 'a real match still adds its mode: ' + wt.real);
   }
+
+  // ---- a feature screen over the title (ARCADE select, a TEAM BATTLE screen, a BUG SQUASH lobby) has the whole canvas: no corner button, no season tag ----
+  const co = await ev(`(() => {
+    const log = [], p0 = window.ptext, out = {}; window.ptext = function (c, str) { log.push(String(str)); return p0.apply(this, arguments); };
+    const probe = name => { log.length = 0; render(); out[name] = [titleOverlayOpen(), log.some(x => x.startsWith('G OKRS'))]; };
+    const home = () => { game.phase = 'select'; step(2); setPhase('title'); step(1); };
+    try {
+      setPhase('title'); game.modeId = 'versus'; step(1); probe('plain');
+      MODES.get('arcade').onPick(); step(1); probe('arcade'); ARCADE.S.screen = null; home();
+      MODES.get('team').onPick(); step(1); probe('team'); home();
+      MODES.get('squash').onPick(); step(1); probe('squash'); BONUS.close(); home(); probe('after');
+    } finally { window.ptext = p0; }
+    return out;
+  })()`);
+  check(JSON.stringify(co.plain) === '[false,true]' && ['arcade', 'team', 'squash'].every(k => co[k] && co[k][0] === true && co[k][1] === false) && JSON.stringify(co.after) === '[false,true]', 'the corner button is drawn on the plain title and not over the ARCADE, TEAM BATTLE or BUG SQUASH screens (open, button drawn): ' + JSON.stringify(co));
 
   // ---- no console errors, clean up ----
   check(t.p.errors.length === errors0, 'no console errors from OKRS' + (t.p.errors.length > errors0 ? ': ' + t.p.errors.slice(errors0).join(' | ').slice(0, 300) : ''));

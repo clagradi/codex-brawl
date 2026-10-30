@@ -3,6 +3,7 @@
 // Everything lives in this one file and talks to the engine only through BUS, HOOKS, SETTINGS and MODES. The screens of this file (select, ladder, continue,
 // ending, credits, survival, high scores, stats) are drawn by the 'drawTop' hook while the engine stays in phase 'title'; the 'update' hook reads their input
 // first and then clears the key presses, so the engine title menu never sees them. Fights are normal engine matches (startMatch) started from here.
+// Touch: HOOKS 'touchPills' gives every screen its buttons (they press the same keys) and touch.screenTaps takes taps on the select screen's fighters and difficulty rows.
 'use strict';
 (() => {
   window.STUB_ARCADE = 1;   // marker kept from the scaffold: tools/tests/core.mjs checks that this file loaded.
@@ -295,6 +296,27 @@
     return { l: has(KEYS.l), r: has(KEYS.r), u: has(KEYS.u), d: has(KEYS.d), ok: has(KEYS.ok), back: has(KEYS.back), esc: has(KEYS.esc), any: has(KEYS.btn), enter: !!raw.Enter };
   }
 
+  // ---------------------------------------------------------------- touch: the buttons of each screen (they press the keys above) and taps on the select screen
+  const tp = (touchText, keyText) => touch.on ? touchText : keyText;
+  const PILLS = {
+    select: [{ t: '< FIGHTER', k: 'KeyA' }, { t: 'FIGHTER >', k: 'KeyD' }, { t: 'EASIER', k: 'KeyW' }, { t: 'HARDER', k: 'KeyS' }, { t: 'START', k: 'Enter' }, { t: 'BACK', k: 'Escape' }],
+    ladder: [{ t: 'FIGHT', k: 'Enter' }, { t: 'LEAVE', k: 'Escape' }],
+    continue: [{ t: 'CONTINUE', k: 'Enter' }, { t: 'GIVE UP', k: 'Escape' }],
+    surv: [{ t: 'FIGHT', k: 'Enter' }, { t: 'CASH OUT', k: 'Escape' }],
+    ending: [{ t: 'NEXT', k: 'Enter' }, { t: 'SKIP', k: 'Escape' }],
+    credits: [{ t: 'SKIP', k: 'Escape' }],
+    initials: [{ t: 'UP', k: 'KeyW' }, { t: 'DOWN', k: 'KeyS' }, { t: '< BACK', k: 'KeyA' }, { t: 'NEXT >', k: 'KeyD' }, { t: 'OK', k: 'Enter' }],
+    top10: [{ t: 'TITLE', k: 'Enter' }],
+    stats: [{ t: 'BACK', k: 'Escape' }],
+  };
+  HOOKS.add('touchPills', () => A.screen && game.phase === 'title' ? PILLS[A.screen] || [] : []);
+  const SEL_CARD = i => { const cw = 148, gap = 16, x0 = (W - (ROSTER.length * cw + (ROSTER.length - 1) * gap)) / 2; return [x0 + i * (cw + gap), 106, cw, 156]; };   // drawSelect: a fighter card
+  touch.screenTaps(() => A.screen && game.phase === 'title', (x, y) => {
+    if (A.screen !== 'select') return;
+    for (let i = 0; i < ROSTER.length; i++) { const r = SEL_CARD(i); if (x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) { if (A.sel === i) { snd(900, 0.12); startRun(A.kind, A.sel, DIFFS[A.diffSel]); } else { A.sel = i; snd(500, 0.04); } return; } }   // a second tap on the chosen fighter starts the run
+    if (x >= 450 && x <= 900) for (let i = 0; i < DIFFS.length; i++) if (y >= 322 + 34 + i * 24 && y < 322 + 58 + i * 24) { A.diffSel = i; snd(400, 0.04); return; }
+  });
+
   // ---------------------------------------------------------------- update: screens, toasts
   HOOKS.add('update', g => {
     for (const t of A.toasts) t.t++;
@@ -409,7 +431,7 @@
     });
     T(c, DIFF_INFO[DIFFS[A.diffSel]][2], px + 16, py + 136, 2, C.dim);
     badgeRow(c, 14, 10, 22, 4);
-    T(c, 'A D FIGHTER   W S DIFFICULTY   J START   K BACK', W / 2, 512, 2, C.dim, 'center');
+    T(c, tp('TAP A FIGHTER, TAP IT AGAIN TO START · TAP A LEVEL · BACK LEAVES', 'A D FIGHTER   W S DIFFICULTY   J START   K BACK'), W / 2, 512, 2, C.dim, 'center');
   }
   function stageCard(c, R, i, x, y, cw, ch) {
     const boss = i >= STAGES - 1, won = R.won.includes(i), next = i === R.idx, id = boss ? ROSTER[R.pid].id : ROSTER[R.order[i]].id, r = fx(id);
@@ -438,17 +460,17 @@
     if (boss) T(c, '(OVERCLOCKED)', W / 2, 326, 2, C.red, 'center');
     wrap('"' + tauntOf(R) + '"', 26).forEach((ln, k) => T(c, ln, W / 2, (boss ? 354 : 342) + k * 22, 2, C.white, 'center'));
     T(c, 'ARENA: ' + ARENAS[arenaOf(R)].name, W / 2, 422, 2, C.cyan, 'center');
-    if (blink(24)) T(c, 'PRESS A BUTTON TO FIGHT', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: LEAVE THE LADDER', W / 2, 512, 2, C.dim, 'center');
+    if (blink(24)) T(c, tp('TAP FIGHT', 'PRESS A BUTTON TO FIGHT'), W / 2, 462, 2, C.gold, 'center');
+    T(c, tp('TAP LEAVE TO QUIT THE LADDER', 'ESC: LEAVE THE LADDER'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawContinue(c) {
     const R = A.run; backdrop(c, 'rgba(200,60,80,0.14)');
     bigTitle(c, 'CONTINUE?', 100, 72, 'blood');
     const secs = Math.max(0, Math.ceil(A.cd / 60));
     drawTitleText(c, String(secs), W / 2, 290, 190, { align: 'center', style: secs <= 3 ? 'blood' : 'gold' });
-    if (blink(24)) T(c, 'PRESS ANY BUTTON TO CONTINUE', W / 2, 410, 2, C.white, 'center');
+    if (blink(24)) T(c, tp('TAP CONTINUE', 'PRESS ANY BUTTON TO CONTINUE'), W / 2, 410, 2, C.white, 'center');
     T(c, 'STAGE ' + (R.idx + 1) + ' OF ' + STAGES + '   CONTINUES USED ' + R.conts, W / 2, 448, 2, C.dim, 'center');
-    T(c, 'ESC: GIVE UP', W / 2, 500, 2, C.dim, 'center');
+    T(c, tp('TAP GIVE UP TO END THE RUN', 'ESC: GIVE UP'), W / 2, 500, 2, C.dim, 'center');
   }
   function drawSurv(c) {
     const R = A.run; backdrop(c);
@@ -461,8 +483,8 @@
     T(c, 'METER ' + Math.round(R.meter || 0) + '%', W / 2, 284, 2, C.cyan, 'center');
     T(c, 'NEXT UP IS A NEW RIVAL.', W / 2, 330, 2, C.white, 'center');
     drawSprite(c, f0.id, 'win', loopFrame('win', A.st), 230, 500, 1);
-    if (blink(24)) T(c, 'PRESS A BUTTON', W / 2, 462, 2, C.gold, 'center');
-    T(c, 'ESC: CASH OUT', W / 2, 512, 2, C.dim, 'center');
+    if (blink(24)) T(c, tp('TAP FIGHT', 'PRESS A BUTTON'), W / 2, 462, 2, C.gold, 'center');
+    T(c, tp('TAP CASH OUT TO END THE RUN', 'ESC: CASH OUT'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawEnding(c) {
     const R = A.run, r = ROSTER[R.pid], lines = ENDINGS[r.id][A.card]; backdrop(c, 'rgba(90,160,200,0.12)');
@@ -475,8 +497,8 @@
       wrap(ln, 24).forEach(w => { const n = Math.min(w.length, shown - used); if (n > 0) T(c, w.slice(0, n), 420, yy, 3, C.white); used += w.length + 1; yy += 30; });
       yy += 18;
     });
-    if (A.cardT >= flat * 2 + 4 && blink(20)) T(c, 'ENTER', 870, 360, 2, C.gold, 'right');
-    T(c, 'ENTER: NEXT   ESC: SKIP', W / 2, 512, 2, C.dim, 'center');
+    if (A.cardT >= flat * 2 + 4 && blink(20)) T(c, tp('NEXT', 'ENTER'), 870, 360, 2, C.gold, 'right');
+    T(c, tp('TAP NEXT FOR THE NEXT CARD · SKIP LEAVES THE ENDING', 'ENTER: NEXT   ESC: SKIP'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawCredits(c) {
     const R = A.run; c.fillStyle = '#05040a'; c.fillRect(0, 0, W, H);
@@ -491,7 +513,7 @@
       y += 34;
     }
     const f = R && ROSTER[R.pid]; if (f) drawSprite(c, f.id, 'win', loopFrame('win', A.st), 130, 500, 1);
-    T(c, 'ENTER OR ESC: SKIP', W - 20, 512, 2, C.dim, 'right');
+    T(c, tp('TAP SKIP', 'ENTER OR ESC: SKIP'), W - 20, 512, 2, C.dim, 'right');
   }
   function drawScores(c, entry) {
     backdrop(c, 'rgba(200,60,80,0.1)');
@@ -511,7 +533,7 @@
         T(c, String(e.s), 560, y, 2, me ? C.gold : C.white, 'right'); T(c, 'W' + e.w, 700, y, 2, C.dim, 'right');
       } else T(c, '---', 320, y, 2, '#3a3466');
     }
-    T(c, entry ? 'W S LETTER   J CONFIRM   A D MOVE' : 'PRESS A BUTTON', W / 2, 512, 2, C.dim, 'center');
+    T(c, entry ? tp('UP AND DOWN CHANGE THE LETTER · NEXT MOVES ON · OK SAVES AT THE LAST ONE', 'W S LETTER   J CONFIRM   A D MOVE') : tp('TAP TITLE TO LEAVE', 'PRESS A BUTTON'), W / 2, 512, 2, C.dim, 'center');
   }
   function drawStats(c) {
     backdrop(c);
@@ -535,7 +557,7 @@
       T(c, on ? b.name : '???', x + 52, y + 5, 2, on ? C.white : '#4a4478');
       T(c, b.desc, x + 52, y + 24, 2, on ? C.dim : '#4a4478');
     });
-    T(c, 'ESC OR ANY CONFIRM KEY: BACK', W / 2, 516, 2, C.dim, 'center');
+    T(c, tp('TAP BACK', 'ESC OR ANY CONFIRM KEY: BACK'), W / 2, 516, 2, C.dim, 'center');
   }
   function drawToast(c) {
     const q = A.toasts[0]; if (!q) return;

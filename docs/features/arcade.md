@@ -101,6 +101,10 @@ All access is wrapped in try/catch and corrupt data falls back to empty.
   The `phase` handler turns the engine `over` phase of a run fight into the next ladder, continue, survival or score screen.
 - BUS used: `match:start`, `round:start`, `hit`, `round:end`, `finisher`, `match:end`, `phase`. BUS emitted: `unlock`.
 
+## Touch
+
+Every screen gives its own buttons through the `touchPills` hook, and they press the keys the screen already reads. SELECT (arcade and survival): < FIGHTER, FIGHTER >, EASIER, HARDER, START and BACK. A tap on a fighter card picks it, a second tap on the chosen card starts the run, a tap on a level row picks the level. LADDER: FIGHT and LEAVE. CONTINUE: CONTINUE and GIVE UP. SURVIVAL between fights: FIGHT and CASH OUT. ENDING: NEXT and SKIP. CREDITS: SKIP. INITIALS: UP, DOWN, < BACK, NEXT > and OK. TOP 10: TITLE. STATS: BACK. `touch.screenTaps` keeps every tap away from the title menu underneath. The hint lines say what to tap instead of naming keys while `touch.on` is set.
+
 ## Test API
 
 `window.ARCADE`: `S` (live state), `BADGES`, `DIFFS`, `ENDINGS`, `TAUNT`, `stats()`, `top()`, `qualifies(score)`, `addScore(name, score, wins, diff)`,

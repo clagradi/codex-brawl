@@ -6,7 +6,7 @@ Photo mode is built on the extension layer only (HOOKS, BUS, SETTINGS). It uses 
 
 ## What the player sees
 
-On the pause screen, a C PHOTO MODE button (bottom right, under the pause menu) and the `C` key open photo mode. It is available only from the pause screen, never during a fight, and not on top of the options screen.
+On the pause screen, a C PHOTO MODE button (bottom right, under the pause menu) and the `C` key open photo mode. It is available only from the pause screen, never during a fight, and not on top of the options screen. The picture is drawn with `game.still` set, so the round 1 hint strips are not in it.
 
 The match stays frozen exactly where it was paused. A free camera lets you look around:
 

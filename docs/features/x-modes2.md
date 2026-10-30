@@ -10,7 +10,9 @@ Three extra modes for people sitting at the same screen. They all live in `modes
 | TOURNAMENT | A bracket of 4 or 8 entrants, each human or CPU. |
 | KING OF THE HILL | 2 to 8 named players share the controller; the winner stays on. |
 
-Each entry opens its own setup screen instead of the normal character select. The setup screens use the same inputs everywhere: Up/Down (or W/S, or the pad stick) change the row, Left/Right change the value, Enter (or punch) goes to the next field and starts at the end, Esc (or kick) goes back. The hint strip at the bottom of every screen says the same. Gamepads and the touch overlay already produce these key codes, so the screens work with them as well (not tried on real hardware yet).
+Each entry opens its own setup screen instead of the normal character select. The setup screens use the same inputs everywhere: Up/Down (or W/S, or the pad stick) change the row, Left/Right change the value, Enter (or punch) goes to the next field and starts at the end, Esc (or kick) goes back. The hint strip at the bottom of every screen says the same. Gamepads produce these key codes, so the screens work with them as well (not tried on real hardware yet).
+
+**Touch.** On a phone each screen gives its own buttons through the `touchPills` hook (they press the same keys): the setup screens have UP, DOWN, < CHANGE, CHANGE >, NEXT and BACK; the tournament bracket has PLAY and QUIT (< CHOOSE, CHOOSE > and GO instead of PLAY when a choice of fighter is open; a second press of QUIT, labelled QUIT AGAIN, leaves); the king of the hill challenger screen has < FIGHTER, FIGHTER >, FIGHT and END, and its result screen has TITLE (a tap anywhere on it also leaves). A tap on a setup row's START bar starts the match. `touch.screenTaps` swallows every tap while a screen is open, so none reaches the title menu underneath. The hint strips name no keys while `touch.on` is set; the touch layout test (`tools/test-match.mjs`, groups "feature screens by touch" and "touch screens name no keys") covers the flows and the text.
 
 ## Team battle
 

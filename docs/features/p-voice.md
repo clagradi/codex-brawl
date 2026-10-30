@@ -19,7 +19,7 @@ The feature is built on the extension layer (BUS events, HOOKS points, SETTINGS)
 
 Callouts are off in training mode.
 
-**Win quotes.** When the match is won, the winner's quote is captioned under the winner call, and the end screen of the two versus modes shows it in a speech bubble left of the winner, below the title lines (y 196 and down, so notes other features draw around y 150 stay clear). Other modes draw their own panels on the end screen, so the bubble is left out there. Each fighter has four general lines and one line for each opponent; the pick alternates between the two kinds.
+**Win quotes.** When the match is won, the winner's quote is captioned under the winner call, and the end screen of the two versus modes shows it in a speech bubble on the right, below the title lines (y 196 and down), so the left column (OKR toast, MATCH REPORT button, KO CLIP panel) stays clear. Other modes draw their own panels on the end screen, so the bubble is left out there. Each fighter has four general lines and one line for each opponent; the pick alternates between the two kinds.
 
 **Voices.** Each fighter speaks with their own pitch and rate; callouts use a low announcer voice with the whoosh stinger. Names and acronyms are spelled for the speech engine (for example LGTM is read letter by letter).
 

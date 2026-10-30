@@ -113,7 +113,7 @@
     return realGet.apply(SETTINGS, arguments);
   };
 
-  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1 });
+  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1, endCard: true });   // endCard: the end screen carries its own card on the left (the O button, the KO CLIP panel and the OKR toast keep to the right)
 
   // ---------------------------------------------------------------- what the next match is worth (for the select and VS screens)
   function preview() {

@@ -317,6 +317,17 @@
     if (S) { S.rt++; R.rt = S.rt; R.ctr = 0; if (S.play) playTick(g); else recTick(g); }
     if (UI.open) listTick(g);
   }, -1e9);
+  // touch: the list and the playback get their own buttons (they press the keys above), taps on a list row pick it (a second tap watches it), and none of them reach the title menu underneath
+  HOOKS.add('touchPills', () => {
+    if (S && S.play) return S.done ? [{ pad: false }, { t: 'LIST', k: 'Enter' }, { t: 'AGAIN', k: 'KeyR' }]
+      : [{ pad: false }, { t: S.paused ? 'RESUME' : 'PAUSE', k: 'KeyP' }, { t: 'SPEED ' + (S.speed === 1 ? '2X' : '1X'), k: 'KeyK' }, { t: 'STEP', k: 'Period' }, { t: 'RESTART', k: 'KeyR' }, { t: 'EXIT', k: 'Escape' }];
+    if (!UI.open || game.phase !== 'title') return [];
+    return [...(entries().length ? [{ t: 'UP', k: 'KeyW' }, { t: 'DOWN', k: 'KeyS' }, { t: 'WATCH', k: 'Enter' }, { t: UI.arm === UI.sel && game.tick - UI.armT < 180 ? 'ERASE AGAIN' : 'ERASE', k: 'Delete' }] : []), { t: 'BACK', k: 'Escape' }];
+  });
+  touch.screenTaps(() => UI.open && game.phase === 'title' && !(S && S.play), (x, y) => {
+    const n = Math.min(entries().length, KEEP), i = Math.floor((y - 92) / 76); if (i < 0 || i >= n || x < 70 || x > W - 70) return;
+    if (UI.sel === i) { if (playable(entries()[i])) { snd(900, 0.12); Promise.resolve().then(() => play(i)); } else snd(150, 0.15); } else { UI.sel = i; UI.arm = -1; snd(400, 0.04); }
+  });
   const ITEM = { id: 'replays', label: 'REPLAYS', order: 70, run() { UI.open = true; UI.sel = 0; UI.arm = -1; snd(700, 0.08); } };
   HOOKS.add('titleItems', () => ITEM);
   HOOKS.add('drawTop', (c, g) => {
@@ -357,10 +368,10 @@
       const tag = e.chk === 1 ? ['VERIFIED', GREEN] : e.chk === 0 ? ['DESYNC', RED] : i === 0 ? ['NEW', GOLD] : null;
       if (tag) ptext(c, tag[0], W - 86, y + 12, 2, tag[1], 'right');
       ptext(c, modeName(e), W - 86, y + 42, 2, DIM, 'right');
-      if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
+      if (UI.arm === i && g.tick - UI.armT < 180) ptext(c, touch.on ? 'TAP ERASE AGAIN' : 'PRESS DEL AGAIN TO ERASE', W - 86, y + 26, 2, RED, 'right');
     }
-    ptext(c, (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
-    ptext(c, 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
+    ptext(c, touch.on ? (L.length ? 'TAP A REPLAY TO PICK IT, AGAIN TO WATCH   ERASE TWICE DELETES   ' : '') + 'BACK' : (L.length ? 'W/S PICK   ENTER WATCH   DEL/T ERASE   ' : '') + 'ESC BACK', W / 2, 486, 2, STEEL, 'center');
+    ptext(c, touch.on ? 'WHILE WATCHING: PAUSE   SPEED   STEP   RESTART   EXIT' : 'SPACE PAUSE   K 2X SPEED   . ONE FRAME   R RESTART', W / 2, 512, 2, DIM, 'center');
     c.restore();
   }
   function drawPlay(c, g) {
@@ -372,7 +383,7 @@
     ptext(c, 'REPLAY ' + P.speed + 'X', px + 26, y + 5, 2, '#fff');
     const bx = px + 140, bw = 126, u = Math.max(0, Math.min(1, P.rt / Math.max(1, P.len)));
     box(c, bx, y + 9, bw, 7, '#2a2740'); box(c, bx, y + 9, Math.round(bw * u), 7, GOLD);
-    const hint = 'SPACE PAUSE   K 2X   . STEP   R RESTART   ESC EXIT';
+    const hint = touch.on ? 'PAUSE   SPEED   STEP   RESTART   EXIT: THE BUTTONS' : 'SPACE PAUSE   K 2X   . STEP   R RESTART   ESC EXIT';
     if (P.paused && !P.done) {
       ptext(c, 'PAUSED', W / 2, 196, 4, '#fff', 'center');
       c.globalAlpha = 0.8; box(c, (W - 560) / 2, 232, 560, 24, '#000'); c.globalAlpha = 1;
@@ -388,7 +399,7 @@
       const got = P.got || { w: -1, hp: [game.f[0].hp, game.f[1].hp], wins: game.wins };
       ptext(c, result(P.e, got), W / 2, y0 + 64, 3, '#fff', 'center');
       ptext(c, 'HP ' + Math.round(got.hp[0]) + ' - ' + Math.round(got.hp[1]) + (ok ? '   SAME AS THE MATCH' : '   MATCH HAD ' + Math.round(P.e.res.hp[0]) + ' - ' + Math.round(P.e.res.hp[1])), W / 2, y0 + 98, 2, STEEL, 'center');
-      ptext(c, ok ? 'ENTER LIST   R WATCH AGAIN' : 'FIRST DIFFERENCE AT FRAME ' + Math.max(0, P.bad) + '   ENTER LIST', W / 2, y0 + 130, 2, DIM, 'center');
+      ptext(c, ok ? (touch.on ? 'LIST   AGAIN' : 'ENTER LIST   R WATCH AGAIN') : 'FIRST DIFFERENCE AT FRAME ' + Math.max(0, P.bad) + (touch.on ? '   LIST' : '   ENTER LIST'), W / 2, y0 + 130, 2, DIM, 'center');
     }
     c.restore();
   }

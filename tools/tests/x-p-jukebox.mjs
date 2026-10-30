@@ -1,6 +1,12 @@
 // Tests for p-jukebox.js: the SOUND TEST screen, the five fighter themes and the visualiser bars. Owner: the p-jukebox agent. Runs after core.mjs; `t` is described in docs/ARCHITECTURE.md.
 // The screen is driven with real key events (one step() after each so the tick consumes it) and with synthetic pointer events on the canvas. Muted runs use the virtual clock, which makes the bars
 // exact: every tick that crosses a 16th step is compared with what MUSIC.hits says starts on that step.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
 export async function run(t) {
   try { await body(t); } finally { try { await t.eval('localStorage.clear(); 1'); } catch (e) { /* the page is gone: nothing to clean */ } }   // leave the stored settings as found for the test files that run after this one
 }
@@ -28,6 +34,8 @@ async function body(t) {
   const tr = await ev('JUKEBOX.tracks()');
   const all = await ev('MUSIC.themes()');
   check(tr.length === all.length && new Set(tr.map(x => x.id)).size === all.length && all.every(n => tr.some(x => x.id === n)), 'the SOUND TEST lists every MUSIC theme exactly once (' + all.length + ')');
+  const nArena = tr.filter(x => x.group === 'ARENA').length, nArenas = await ev('ARENAS.length'), line = (fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8').split('\n').find(l => l.startsWith('SOUND TEST')) || ''), claim = /(\d+) stage tracks \((\w+) of the (\d+) arenas/.exec(line);
+  check(claim && +claim[1] === nArena && +claim[3] === nArenas && claim[2] === ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nArenas - nArena] && !/one per arena/.test(line), 'the README says how many arena tracks there are and how many arenas share one, not one per arena: ' + (claim ? claim[0] : line.slice(0, 120)) + ' against ' + nArena + ' tracks, ' + nArenas + ' arenas');
   const groups = tr.map(x => x.group), firstOf = g => groups.indexOf(g), lastOf = g => groups.lastIndexOf(g);
   check(groups.slice(0, 3).every(g => g === 'MENU') && lastOf('MENU') < firstOf('ARENA') && lastOf('ARENA') < firstOf('FIGHTER') && groups.filter(g => g === 'FIGHTER').length === 5, 'the list runs MENU, ARENA, FIGHTER: ' + [...new Set(groups)].join(' '));
   check(tr.every(x => /^[A-Z0-9 .,!?:;\-_/"()[\]+=><&@#%*]+$/.test(x.name) && /^[A-Z]+$/.test(x.group)), 'every track name is capitals and ASCII for the pixel font: ' + tr.slice(0, 4).map(x => x.name).join(' | ') + ' ...');

@@ -141,8 +141,10 @@ export async function runTests(p) {
   // 2. full CPU vs CPU matches, fast-forwarded; each must end with a finisher window
   const N = await p.eval('ROSTER.length');
   const pairs = []; for (let i = 0; i < N; i++) pairs.push([i, (i + 3) % N]); pairs.push([N - 1, N - 1], [0, 2]);
-  let sawFinish = 0, sawFinisher = 0; const use = {};
-  for (const [i, j] of pairs) {
+  let sawFinish = 0, sawFinisher = 0, topUp = 0; const use = {};
+  // the move mix is random, so when a kind of move was not seen in the planned matches, a few more pairs are played (at most 8) until every kind was seen
+  for (let pi = 0; pi < pairs.length; pi++) {
+    const [i, j] = pairs[pi];
     await p.goto(`${URL_BASE}#demo=${i},${j}&stop`); await p.wait(250);
     const r = await p.eval(`(() => { window.__use = {}; const bump = k => { __use[k] = (__use[k] || 0) + 1; }, sa = Fighter.prototype.startAtk, st = Fighter.prototype.startThrow, sm = Fighter.prototype.startMove;
       Fighter.prototype.startAtk = function (k) { bump(k); return sa.call(this, k); }; Fighter.prototype.startThrow = function (o) { bump('throw'); return st.call(this, o); }; Fighter.prototype.startMove = function (mv, kind, o) { if (kind === 'special' && this.airSp) bump('airsp'); return sm.call(this, mv, kind, o); };
@@ -152,6 +154,7 @@ export async function runTests(p) {
     if (r.fin) sawFinish++; if (r.fr) sawFinisher++;
     check(r.phase === 'over', `match ${i} vs ${j} finishes in ${r.arena} (${r.ticks} ticks, wins ${r.wins}, rounds ${r.round}${r.sudden ? ', sudden death' : ''}${r.fr ? ', finisher' : ''})`);
     check(r.ticks < 60000 && r.round <= 5, `match ${i} vs ${j} ends in a sane number of rounds`);
+    if (pi === pairs.length - 1 && topUp < 8 && !(use.punch2 > 0 && ['sweep', 'airk', 'throw'].every(k => use[k] > 0))) { pairs.push([topUp % N, (topUp + 2) % N]); topUp++; }
   }
   check(use.punch2 > 0 && ['sweep', 'airk', 'throw'].every(k => use[k] > 0), 'CPUs use chains, sweeps, air kicks and throws: ' + JSON.stringify(use));
   check(sawFinish > 0, `FINISH IT window reached in ${sawFinish}/${pairs.length} matches (finisher performed in ${sawFinisher})`);
@@ -700,8 +703,8 @@ export async function uxDesktopChecks(p, check, tap) {
       if (u.origin !== 'https://x.com' || u.pathname !== '/intent/post' || [...u.searchParams.keys()].join() !== 'text,url' || u.searchParams.get('text') !== r.text || u.searchParams.get('url') !== 'https://clagradi.github.io/codex-brawl/' || /[ "<>]/.test(r.url)) bad.push(label + ': the intent URL is wrong (' + r.url.slice(0, 80) + ')');
     }
     check(!bad.length, 'the X post is the match result alone, URL-encoded, with the game link in the url parameter' + more(bad));
-    const a = await p.eval(`(() => { __over(1, [0, 3], 0, false); render(); const e = document.getElementById('share'), r = e.getBoundingClientRect(), c = cv.getBoundingClientRect(); return { hidden: e.hidden, href: e.href, target: e.target, rel: e.rel, text: e.textContent.trim(), r: [r.left, r.top, r.right, r.bottom], c: [c.left, c.top, c.right, c.bottom], s: lay.s, vw: innerWidth, vh: innerHeight, url: shareUrl() }; })()`);
-    check(!a.hidden && a.href === a.url && a.target === '_blank' && /noopener/.test(a.rel) && a.text === 'SHARE ON X', 'the SHARE ON X button is an anchor to the intent URL that opens a new tab');
+    const a = await p.eval(`(() => { __over(1, [3, 0], 1, true); render(); __over(1, [0, 3], 0, false); render(); const e = document.getElementById('share'), r = e.getBoundingClientRect(), c = cv.getBoundingClientRect(); return { hidden: e.hidden, href: e.href, target: e.target, rel: e.rel, text: e.textContent.trim(), r: [r.left, r.top, r.right, r.bottom], c: [c.left, c.top, c.right, c.bottom], s: lay.s, vw: innerWidth, vh: innerHeight, url: shareUrl() }; })()`);
+    check(!a.hidden && a.href === a.url && a.target === '_blank' && /noopener/.test(a.rel) && a.text === 'SHARE ON X', 'the SHARE ON X button is an anchor to the intent URL that opens a new tab, and its link follows the result when the end screen is already showing');
     check(a.r[1] >= a.c[1] + 120 * a.s - 1 && a.r[3] <= a.c[3] && a.r[0] >= 0 && a.r[2] <= a.vw, 'the SHARE ON X button sits below the result line, inside the screen');
     await p.eval('__opens.length = 0'); await tap('KeyT');
     const o = await p.eval('({ opens: __opens, url: shareUrl() })');
@@ -855,6 +858,7 @@ export async function uxDesktopChecks(p, check, tap) {
         mode === 2 ? ['SUDDEN DEATH', 'P2  ARROWS', 'GAMEPAD'] : ['SUDDEN DEATH', 'GAMEPAD']);
     }
     await p.eval(`typeof OPTIONS !== 'undefined' && OPTIONS.close()`);
+    for (const mode of [1, 2]) for (const rd of [1, 2]) await draw(`pause menu ${mode}P round ${rd}`, `__fight([0, 3], ${mode}, ${rd}, true); step(40); game.phase = 'pause'`, '[]', ['W/S + ENTER', 'DEFENSE', 'FWD + K OVERHEAD']);   // the rows, the notes of defense.js and combat.js, the key hints and the meter labels share one screen; a round 1 pause adds no hint strips
     for (let i = 0; i < IDS.length; i++) await draw('over ' + IDS[i], `__over(1, [${i}, ${(i + 1) % IDS.length}], 0, true)`, "['P1 TAKES IT 2-1 · ' + game.fin.name]", ['ENTER CHARACTER SELECT']);
     await draw('over, CPU wins', '__over(1, [3, 0], 1, true)', "['CPU TAKES IT 2-1 · ' + game.fin.name]");
     await draw('tip, round 1 (1P)', "__fight([0, 3], 1, 1, true); game.clock = 10", '[fightTip().txt]');
@@ -884,6 +888,9 @@ const SCREENS = {
   portrait: [[390, 844], [360, 640], [320, 568], [412, 915], [375, 667], [820, 1180]],
   landscape: [[844, 390], [667, 375], [568, 320], [932, 430], [1024, 768], [1180, 820]],
 };
+const OPEN_ENTRY = id => "game.titleSel = titleItems().findIndex(i => i.id === '" + id + "'); pressed.Enter = true; step(2)";
+// closes whatever feature screen an earlier setup left open (the title screens take Escape, and a tournament asks twice)
+const FEAT_OFF = "(() => { BONUS.close(); ARCADE.S.screen = null; for (let i = 0; i < 3 && (MODES2.screen() || REPLAYS.screen().open); i++) { pressed.Escape = true; step(2); } game.phase = 'title'; step(1); })()";
 const PHONE_PHASES = [   // [name, code that puts the game on that screen, how many menu buttons the touch layer shows there]
   ['title', "game.phase = 'title'; game.titleSel = 0", 3],
   ['select', "game.mode = 1; game.sel = [1, 3]; game.ready = [true, false]; game.arenaPick = 2; game.phase = 'select'; game.phaseT = 0", 4],
@@ -892,6 +899,12 @@ const PHONE_PHASES = [   // [name, code that puts the game on that screen, how m
   ['sudden death', "__fight([2, 4], 1, 4, true); game.clock = 20", 1],
   ['pause', "__fight([1, 3], 1, 1, true); game.phase = 'pause'", 3],
   ['end', "__over(1, [1, 3], 0, true)", 4],   // SELECT, REMATCH, TITLE and the SHARE ON X button
+  // the feature screens give their own buttons (HOOKS 'touchPills'); they open the way a player gets there: the title cursor on the entry, then Enter
+  ['arcade select', "game.phase = 'title'; " + OPEN_ENTRY('arcade'), 6],
+  ['team setup', "game.phase = 'title'; " + OPEN_ENTRY('team'), 6],
+  ['bonus lobby', "game.phase = 'title'; " + OPEN_ENTRY('benchmark'), 4],
+  ['bonus game, fight pad', "game.phase = 'title'; " + OPEN_ENTRY('benchmark') + "; pressed.Enter = true; step(2); BONUS.state().scr === 'play' || step(400)", 1],
+  ['replays list', "game.phase = 'title'; " + OPEN_ENTRY('replays'), 1],
 ];
 // both fighters back to a neutral spot, so that a touch test starts from a known position
 const PARK = "(() => { const [f, o] = game.f; f.cpu = o.cpu = false; game.proj = []; game.fx = []; game.delayed = []; game.hitstop = 0; game.slow = 0; for (const q of [f, o]) { q.set('idle'); q.hp = q.d.hp; q.y = GROUND; q.vx = q.vy = 0; q.cool = q.inv = q.dashCool = 0; q.combo = 0; q.meter = 0; q.lie = 0; q.land = 0; } f.x = 300; o.x = 700; f.face = 1; o.face = -1; step(1); })()";
@@ -1028,6 +1041,105 @@ export async function runPhoneTests(p) {
     check((await p.eval('game.phase')) === 'title', 'QUIT leaves to the title');
   });
 
+  // The feature screens (ARCADE, SURVIVAL, TEAM BATTLE, TOURNAMENT, KING OF THE HILL, the bonus games, REPLAYS) opened with a keyboard only: they now give their own
+  // buttons (HOOKS 'touchPills' press the keyboard's keys), take canvas taps (touch.screenTaps keeps them away from the title menu underneath) and name no keys on a phone.
+  await group('feature screens by touch', async () => {
+    const entry = async id => { await fresh(); await p.eval(`game.titleSel = titleItems().findIndex(i => i.id === '${id}'); pressed.Enter = true; 1`); await p.wait(260); };
+    const names = () => p.eval(`[...document.querySelectorAll('#pills .mb')].map(e => e.textContent).join()`);
+    const where = () => p.eval(`[game.phase, ARCADE.S.screen || '', MODES2.screen() || '', BONUS.active() ? 'bonus' : '', REPLAYS.screen().open ? 'replays' : ''].join()`);
+    const arc = async id => { await entry(id); return (await where()) + ' | ' + await names(); };
+    check(await arc('arcade') === 'title,select,,, | < FIGHTER,FIGHTER >,EASIER,HARDER,START,BACK', 'ARCADE: the select screen has fighter, level, START and BACK buttons');
+    await onCanvas(480, 180);
+    const a1 = await p.eval('[ARCADE.S.sel, ARCADE.S.screen, game.phase].join()');
+    await onCanvas(600, 414);
+    const a2 = await p.eval('[ARCADE.S.diffSel, ARCADE.S.screen, game.phase].join()');
+    check(a1 === '2,select,title' && a2 === '2,select,title', 'ARCADE: a tap on a fighter card and on a level row picks it, and no tap reaches the title menu underneath (' + a1 + ' / ' + a2 + ')');
+    await pill('< FIGHTER'); await onCanvas(316, 180);
+    check((await p.eval('[ARCADE.S.sel, ARCADE.S.screen].join()')) === '1,ladder' && await names() === 'FIGHT,LEAVE', 'ARCADE: < FIGHTER steps back, a second tap on the chosen fighter starts the run and the ladder offers FIGHT and LEAVE');
+    await pill('FIGHT');
+    check((await p.eval('game.phase')) === 'vs' && (await p.eval('game.modeId')) === 'arcade', 'ARCADE: FIGHT starts the first fight');
+    await arc('arcade'); await pill('BACK');
+    check((await where()) === 'title,,,,', 'ARCADE: BACK on the select screen returns to the title');
+    await arc('arcade'); await onCanvas(316, 180); await onCanvas(316, 180); await pill('LEAVE');
+    check((await where()) === 'title,,,,', 'ARCADE: LEAVE ends the ladder run and returns to the title');
+    check(await arc('survival') === 'title,select,,, | < FIGHTER,FIGHTER >,EASIER,HARDER,START,BACK', 'SURVIVAL: the same buttons');
+    await pill('START');
+    check((await p.eval('game.phase')) === 'vs' && (await p.eval('game.modeId')) === 'survival', 'SURVIVAL: START begins the first fight');
+    await arc('survival'); await pill('BACK');
+    check((await where()) === 'title,,,,', 'SURVIVAL: BACK returns to the title');
+
+    check(await arc('team') === 'title,,team,, | UP,DOWN,< CHANGE,CHANGE >,NEXT,BACK', 'TEAM BATTLE: the setup has UP, DOWN, CHANGE, NEXT and BACK buttons');
+    await onCanvas(480, 431);
+    check((await p.eval('MODES2.screen()')) === null && (await p.eval('game.phase')) !== 'title', 'TEAM BATTLE: a tap on START starts the match');
+    await entry('team'); await pill('BACK');
+    check((await where()) === 'title,,,,', 'TEAM BATTLE: BACK returns to the title');
+    await entry('tournament'); const tn = await names(); await pill('BACK');
+    check(tn === 'UP,DOWN,< CHANGE,CHANGE >,NEXT,BACK' && (await where()) === 'title,,,,', 'TOURNAMENT: the setup has the same buttons and BACK leaves');
+    await entry('tournament'); await p.eval('MODES2.tournament.start(); 1'); await p.wait(150);
+    check(await names() === 'PLAY,QUIT', 'TOURNAMENT: the bracket has PLAY and QUIT buttons (' + await names() + ')');
+    await pill('QUIT'); const q1 = await names(); await pill('QUIT AGAIN');
+    check(/QUIT AGAIN/.test(q1) && (await where()) === 'title,,,,', 'TOURNAMENT: QUIT asks once more, and leaves the tournament the second time (' + q1 + ')');
+    await entry('tournament'); await p.eval('MODES2.tournament.start(); 1'); await p.wait(150); await pill('PLAY');
+    check((await p.eval('game.phase')) !== 'title', 'TOURNAMENT: PLAY starts the next bout');
+    await entry('koth'); const kn = await names(); await pill('BACK');
+    check(kn === 'UP,DOWN,< CHANGE,CHANGE >,NEXT,BACK' && (await where()) === 'title,,,,', 'KING OF THE HILL: the setup has the same buttons and BACK leaves');
+    await entry('koth'); await p.eval('MODES2.koth.start(); 1'); await p.wait(150);
+    check(await names() === '< FIGHTER,FIGHTER >,FIGHT,END', 'KING OF THE HILL: the next challenger screen has FIGHTER, FIGHT and END buttons (' + await names() + ')');
+    await pill('END'); await p.wait(700);
+    check(await names() === 'TITLE', 'KING OF THE HILL: END shows the result with a TITLE button (' + await names() + ')');
+    await onCanvas(480, 270);
+    check((await where()) === 'title,,,,', 'KING OF THE HILL: a tap anywhere on the result returns to the title');
+
+    check(await arc('benchmark') === 'title,,,bonus, | < FIGHTER,FIGHTER >,START,BACK', 'BENCHMARK BREAK: the lobby has FIGHTER, START and BACK buttons');
+    await onCanvas(24 + 3 * 96 + 44, 258);
+    const b1 = await p.eval('[BONUS.state().who, BONUS.state().scr].join()');
+    check(b1 === '3,lobby', 'BENCHMARK BREAK: a tap on a fighter icon picks the fighter and stays in the lobby (' + b1 + ')');
+    await onCanvas(24 + 3 * 96 + 44, 258); await p.wait(120);
+    const b2 = await p.eval(`(() => { const vis = e => !!e && !e.hidden && e.getClientRects().length > 0; return { scr: BONUS.state().scr, dpad: vis(document.getElementById('dpad')), btns: [...document.querySelectorAll('#pad .tb')].filter(vis).length, pills: [...document.querySelectorAll('#pills .mb')].map(e => e.textContent).join() }; })()`);
+    check(b2.scr !== 'lobby' && b2.dpad && b2.btns === 4 && b2.pills === 'PAUSE', 'BENCHMARK BREAK: a second tap starts the game, with the d-pad, the four buttons and a PAUSE button (' + JSON.stringify(b2) + ')');
+    await pill('PAUSE'); await p.wait(120);
+    check(await names() === 'RESUME,QUIT', 'BENCHMARK BREAK: PAUSE offers RESUME and QUIT (' + await names() + ')');
+    await pill('QUIT'); await p.wait(120);
+    check((await where()) === 'title,,,,', 'BENCHMARK BREAK: QUIT returns to the title');
+    await entry('squash'); await pill('BACK');
+    check((await where()) === 'title,,,,', 'BUG SQUASH: BACK leaves the lobby');
+    await entry('replays');
+    check(await names() === 'BACK' && (await where()) === 'title,,,,replays', 'REPLAYS: the list has a BACK button');
+    await onCanvas(480, 300);
+    check((await where()) === 'title,,,,replays', 'REPLAYS: a tap on the list does not reach the title menu underneath');
+    await pill('BACK');
+    check((await where()) === 'title,,,,', 'REPLAYS: BACK returns to the title');
+  });
+
+  // text on the touch screens: the feature screens, the pause menu and the move list name no keys (a phone has none), and nothing leaves the canvas
+  await group('touch screens name no keys', async () => {
+    await p.eval(INIT); await p.eval(CAPTURE);
+    await p.eval(`(() => { const o = window.ptext; window.__pt = []; window.__ptOn = false; window.ptext = function (c, s, x, y, size = 2, col, align = 'left') {
+      if (window.__ptOn) { const w = ptextWidth(s, size); window.__pt.push({ s: String(s), x0: align === 'center' ? x - w / 2 : align === 'right' ? x - w : x, x1: align === 'center' ? x + w / 2 : align === 'right' ? x : x + w, y0: y, y1: y + 7 * size }); }
+      return o.apply(this, arguments); }; })()`);
+    await p.eval('touch.on = true; fit(); 1');
+    const OPEN = id => `game.phase = 'title'; game.titleSel = titleItems().findIndex(i => i.id === '${id}'); pressed.Enter = true; step(2)`;
+    const OFF = `BONUS.close(); ARCADE.S.screen = null; for (let i = 0; i < 3 && (MODES2.screen() || REPLAYS.screen().open); i++) { pressed.Escape = true; step(2); } game.phase = 'title'; step(1)`;
+    const arcade = sc => OPEN('arcade') + `; ARCADE.startRun('arcade', 0, 'easy'); ARCADE.S.screen = '${sc}'; ARCADE.S.card = 0; ARCADE.S.t = 100`;
+    const SCRS = [['arcade select', OPEN('arcade')], ['survival select', OPEN('survival')], ['arcade stats', OPEN('stats')], ...['ladder', 'continue', 'surv', 'ending', 'credits', 'top10'].map(sc => ['arcade ' + sc, arcade(sc)]),
+      ['team battle setup', OPEN('team')], ['tournament setup', OPEN('tournament')], ['king of the hill setup', OPEN('koth')],
+      ['tournament bracket', OPEN('tournament') + '; MODES2.tournament.start(); step(2)'], ['king of the hill next', OPEN('koth') + '; MODES2.koth.start(); step(2)'],
+      ['benchmark lobby', OPEN('benchmark')], ['squash lobby', OPEN('squash')], ['benchmark game', OPEN('benchmark') + '; pressed.Enter = true; step(90)'], ['squash game', OPEN('squash') + '; pressed.Enter = true; step(90)'],
+      ['replays', OPEN('replays')], ['pause menu', "__fight([1, 3], 1, 1, true); game.phase = 'pause'"], ['pause moves', "__fight([1, 3], 1, 1, true); game.phase = 'pause'; OPTIONS.open('moves')"]];
+    const KEYS = /\b(ENTER|ESC|W\/S|W S|A D|A AND D|PRESS|DEL|SPACE|ARROWS?|[A-Z] (MUTE|UNMUTE|BLOOD|FULLSCREEN|OPTIONS|OKRS))\b/;
+    const bad = [];
+    for (const [label, setup] of SCRS) {
+      const list = await p.eval(`(() => { ${OFF}; ${setup}; window.__pt.length = 0; window.__ptOn = true; try { return __draw().concat(window.__pt); } finally { window.__ptOn = false; } })()`);
+      if (!list.length) bad.push(label + ': nothing was drawn');
+      for (const b of list) {
+        if (KEYS.test(b.s)) bad.push(label + ': "' + b.s.slice(0, 50) + '" names a key');
+        if (b.x0 < -0.5 || b.x1 > 960.5 || b.y0 < -0.5 || b.y1 > 540.5) bad.push(label + ': "' + b.s.slice(0, 40) + '" leaves the canvas');
+      }
+    }
+    check(!bad.length, 'on touch the ' + SCRS.length + ' feature, pause and move-list screens name no keys and keep their text on the canvas' + more(bad));
+    await p.eval(OFF);
+  });
+
   await group('share and the end screen by touch', async () => {
     await p.eval(INIT);
     await p.eval(`(() => { __over(1, [0, 3], 0, false); render(); window.__clicks = [];
@@ -1060,7 +1172,7 @@ export async function runPhoneTests(p) {
       const size = await p.eval('innerWidth + "x" + innerHeight');
       if (size !== w + 'x' + h) { bad.push(w + 'x' + h + ': the viewport is ' + size); continue; }
       for (const [name, setup, menus] of PHONE_PHASES) {
-        await p.eval(setup);
+        await p.eval(FEAT_OFF); await p.eval(setup);
         const texts = await p.eval('__draw()'), g = await p.eval('__geom()'), found = geomProblems(g, texts);
         const n = g.items.filter(i => i.type === 'menu').length;
         if (n !== menus) found.push(n + ' menu buttons instead of ' + menus);

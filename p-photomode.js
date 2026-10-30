@@ -174,7 +174,7 @@
   function rebuild() {
     ensure();
     const g = game, tick0 = g.tick, ph0 = g._phase, sh0 = g.shake, cx0 = g.cam.x, cz0 = g.cam.zoom, dk0 = g.dark;
-    g.tick = st.tick; g.shake = 0; g.cam.x = st.cam.x; g.cam.zoom = st.cam.zoom; g.dark = st.dark; g._phase = 'fight';   // the scene as it was when the pause began (the same trick options.js plays for its pause menu)
+    g.tick = st.tick; g.shake = 0; g.cam.x = st.cam.x; g.cam.zoom = st.cam.zoom; g.dark = st.dark; g._phase = 'fight'; g.still = true;   // the scene as it was when the pause began (the same trick options.js plays for its pause menu)
     try {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
@@ -183,7 +183,7 @@
       if (cur('photo.hud')) { window.drawHUD(ctx, g); HOOKS.run('drawHud', ctx, g); }
       if (typeof window.drawPost === 'function') window.drawPost(ctx, st.tick, { flash: 0, red: 0 });
       ctx.restore();
-    } finally { g.tick = tick0; g._phase = ph0; g.shake = sh0; g.cam.x = cx0; g.cam.zoom = cz0; g.dark = dk0; }
+    } finally { g.tick = tick0; g._phase = ph0; g.still = false; g.shake = sh0; g.cam.x = cx0; g.cam.zoom = cz0; g.dark = dk0; }
     rawC.clearRect(0, 0, W, H); rawC.drawImage(cv, 0, 0);
     outC.setTransform(1, 0, 0, 1, 0, 0); outC.globalAlpha = 1; outC.imageSmoothingEnabled = false;
     try { applyFilter(cur('photo.filter')); st.note = ''; } catch (e) { outC.drawImage(raw, 0, 0); st.note = 'FILTER FAILED'; }

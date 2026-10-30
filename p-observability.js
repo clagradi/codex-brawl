@@ -162,7 +162,8 @@
   const colOf = s => S.cols[s] || '#fff';
 
   // ---------- opening, closing, input ----------
-  const BTN = { x: 24, y: 246, w: 276, h: 50 };   // the O button on the end screen (left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack on the right)
+  const BTN_L = { x: 24, y: 246, w: 276, h: 50 }, BTN_R = { x: W - 24 - 276, y: 136, w: 276, h: 50 };   // the O button on the end screen. Left column: the OKR toast above it (to y 238), the KO CLIP panel below it (from y 304); the engine's SHARE ON X floats in the middle, the touch buttons stack outside the canvas. A mode with its own card on the left (MODES endCard: RANKED, the sprint of the day) gets the button on the right: toast (to y 124), button, panel (from y 196)
+  const btn = () => { try { return (MODES.current() || {}).endCard ? BTN_R : BTN_L; } catch (e) { return BTN_L; } };
   const reviewOpen = () => { try { return !!(window.REVIEW && REVIEW.state().open); } catch (e) { return false; } };   // the code review is modal: no button, no report, until it is closed
   const shareAnchor = () => document.getElementById('share');
   function hideShare(on) { try { const a = shareAnchor(); if (a) a.style.visibility = on ? 'hidden' : ''; } catch (e) { /* no DOM */ } }
@@ -181,7 +182,7 @@
   };
   function onTap(x, y, sc) {
     if (!ON || game.phase !== 'over') return false;
-    if (!U.open) return inside(BTN, x, y, sc) ? open() : false;
+    if (!U.open) return inside(btn(), x, y, sc) ? open() : false;
     const L = lay();
     if (inside(L.back, x, y, sc)) return close();
     if (inside(L.chart, x, y)) { nextView(); return true; }
@@ -355,7 +356,7 @@
     c.restore();
   }
   function drawButton(c, g) {
-    const r = BTN, glow = (Math.sin(g.tick / 14) + 1) / 2;
+    const r = btn(), glow = (Math.sin(g.tick / 14) + 1) / 2;
     c.save();
     c.fillStyle = 'rgba(8,11,22,0.9)'; c.fillRect(r.x, r.y, r.w, r.h);
     c.fillStyle = glow > 0.5 ? C.green : '#2f8f62'; c.fillRect(r.x, r.y, r.w, 2); c.fillRect(r.x, r.y + r.h - 2, r.w, 2); c.fillRect(r.x, r.y, 2, r.h); c.fillRect(r.x + r.w - 2, r.y, 2, r.h);
@@ -382,7 +383,7 @@
         open: U.open, openT: U.openT, rt: U.rt, view: U.view,
       };
     },
-    kpis, series, incidents, status, open, close, nextView, tap: onTap, isOpen: () => U.open, button: () => Object.assign({}, BTN), layout: () => Object.assign({}, lay()),
+    kpis, series, incidents, status, open, close, nextView, tap: onTap, isOpen: () => U.open, button: () => Object.assign({}, btn()), layout: () => Object.assign({}, lay()),
     enabled: () => ON, fmtTime, niceMax,
   };
 })();

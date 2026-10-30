@@ -64,7 +64,7 @@
   const VS_A = 4, VS_B = 56, TYPE = 1.5;                     // VS ticks when the opener and the reply appear; typewriter speed in characters per tick
   const VS_CALL = typeof VS_LAND === 'number' ? VS_LAND : 110; // the engine names the arena at this VS tick: the reply is spoken only if it ends before
   const BUBBLE_COLS = 34, SUB_COLS = 48, BOX_COLS = 22;      // wrap widths in characters at pixel-font size 2 (BOX: the end-screen bubble)
-  const BOX_X = 24, BOX_Y = 196;                             // end screen: below the title lines and notes (y < 180), left of the winner sprite (x > 330)
+  const BOX_RIGHT = W - 24, BOX_Y = 196;                     // end screen: right side, clear of the left column (OKR toast, O button, KO CLIP panel) and right of the winner sprite (x < 520)
   const CALL_IN = 8, CALL_HOLD = 110, CALL_OUT = 15, CALL_LIFE = CALL_IN + CALL_HOLD + CALL_OUT, CALL_MAX = 2, CALL_Y = 112, CALL_STEP = 70;
   const COUNTER_CD = 240, COMEBACK_GAP = 0.4, LAST_SECONDS = 3;
   const CALL_WAIT = 75, QUOTE_AT = 30, QUOTE_WAIT = 260, ENGINE_BASE = 30;
@@ -269,11 +269,11 @@
       c.restore();
     }
   }
-  function quoteBlock(c, q, rows, wq, left, top, age) {   // left == null: centred on the screen; otherwise a bubble with a tail toward the winner
-    const lh = 20, w = Math.max(wq, ptextWidth(q.name, 2)) + 28, h = (rows.length + 1) * lh + 16, x = left == null ? Math.round(W / 2 - w / 2) : left, cx = x + w / 2;
+  function quoteBlock(c, q, rows, wq, left, top, age, fromRight) {   // left == null: centred on the screen; otherwise a bubble with a tail toward the winner (fromRight: left is the right edge)
+    const lh = 20, w = Math.max(wq, ptextWidth(q.name, 2)) + 28, h = (rows.length + 1) * lh + 16, x = left == null ? Math.round(W / 2 - w / 2) : fromRight ? left - w : left, cx = x + w / 2;
     c.save(); c.globalAlpha = clamp(age / 10, 0, 1);
     plate(c, x, top, w, h, q.col);
-    if (left != null) { c.fillStyle = q.col; c.beginPath(); c.moveTo(x + w, top + 16); c.lineTo(x + w + 12, top + 26); c.lineTo(x + w, top + 36); c.closePath(); c.fill(); }
+    if (left != null) { c.fillStyle = q.col; c.beginPath(); if (fromRight) { c.moveTo(x, top + 16); c.lineTo(x - 12, top + 26); c.lineTo(x, top + 36); } else { c.moveTo(x + w, top + 16); c.lineTo(x + w + 12, top + 26); c.lineTo(x + w, top + 36); } c.closePath(); c.fill(); }
     ptext(c, q.name, x + 14, top + 9, 2, q.col, 'left', true);
     for (let r = 0; r < rows.length; r++) ptext(c, rows[r], cx, top + 9 + (r + 1) * lh, 2, '#ffffff', 'center', true);
     c.restore();
@@ -282,7 +282,7 @@
     const ph = g.phase;
     if (ph === 'vs') { if (S.vs) for (const L of S.vs.lines) if (g.phaseT >= L.at) bubble(c, L, g.phaseT - L.at); return; }
     if (ph === 'outro') { const q = S.quote; if (q && g.phaseT >= QUOTE_AT) quoteBlock(c, q, q.sub, q.wSub, null, 470 - ((q.sub.length + 1) * 20 + 16), g.phaseT - QUOTE_AT); return; }
-    if (ph === 'over') { const q = S.quote; if (q && STD_OVER.has(g.modeId)) quoteBlock(c, q, q.box, q.wBox, BOX_X, BOX_Y, S.T - q.t0); return; }
+    if (ph === 'over') { const q = S.quote; if (q && STD_OVER.has(g.modeId)) quoteBlock(c, q, q.box, q.wBox, BOX_RIGHT, BOX_Y, S.T - q.t0, true); return; }
     if (S.calls.length && CALL_PHASES.has(ph)) drawCalls(c);
   }, 20);
 
@@ -297,7 +297,7 @@
   }
   window.VOICE = {
     BANTER, WIN, WIN_VS, CALLS, VOICES,
-    C: { VS_A, VS_B, VS_CALL, TYPE, BUBBLE_COLS, SUB_COLS, BOX_COLS, BOX_X, BOX_Y, CALL_LIFE, CALL_MAX, CALL_Y, COUNTER_CD, COMEBACK_GAP, LAST_SECONDS, QUOTE_AT },
+    C: { VS_A, VS_B, VS_CALL, TYPE, BUBBLE_COLS, SUB_COLS, BOX_COLS, BOX_RIGHT, BOX_Y, CALL_LIFE, CALL_MAX, CALL_Y, COUNTER_CD, COMEBACK_GAP, LAST_SECONDS, QUOTE_AT },
     banterFor, winQuote, wrap, est, spoken, lines, callout, speechOn, toggle, pairKey,
     state() {
       return {
