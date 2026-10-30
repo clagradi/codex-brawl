@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 19 | `p-observability.js` | OBSERVABILITY: the post-match dashboard (damage-over-time chart, KPI scorecard, incident log), public `OBS`; loads last in `dev.html` | observability agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-observability.js`, `tools/tests/x-p-observability.mjs` | observability agent | uses `update`, `fighterUpdate`, `drawTop` and the BUS events `match:start`, `round:start`, `round:end`, `hit`, `block`, `special`, `super`, `throw`, `match:end`, `phase`, `settings`; one pointerdown listener on `#c` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -142,6 +144,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `observability.enabled` | bool, `true` | | `p-observability.js`: records the match and offers the OBSERVABILITY report (O key or tap) on the end screen |
+| `observability.auto` | bool, `false` | | `p-observability.js`: open the report by itself when the end screen appears |
+| `observability.fleet` | any, `{ m: 0, d: 0, h: 0 }` | matches, damage and hits ever logged | `p-observability.js`: the lifetime totals shown in the footer of the report |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
