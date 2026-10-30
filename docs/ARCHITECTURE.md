@@ -62,6 +62,7 @@ Read this first, then read only the files you own.
 | 19 | `p-watch.js` | attract demo after 20 s idle on the title, the WATCH entry, live commentary captions | p-watch agent |
 | last | `p-perf.js` | frame-time overlay (F3), adaptive quality, arena snapshot cache and `PERF`; it loads after every other feature file because it wraps the functions they may have wrapped | perf agent |
 | 26 | `p-clips.js` | KO clips: rolling canvas capture, the KO CLIP panel and SAVE CLIP on the end screen (`CLIPS`); last script in `dev.html` | clips agent |
+| 19 | `p-gamepad.js` | gamepad extras: rumble, button glyphs on the menus, per-pad remapping screen, hot-plug toast | p-gamepad agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -95,6 +96,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-watch.js`, `tools/tests/x-p-watch.mjs` | p-watch agent | |
 | `p-perf.js`, `tools/tests/x-p-perf.mjs` | perf agent | wraps `frame`, `update`, `render`, `drawArena`, `drawPost`, `FX.blood/sparks/dust/ring` and `ARENAS2.react`; at HIGH every wrapper passes straight through |
 | `p-clips.js`, `tools/tests/x-p-clips.mjs`, `docs/features/p-clips.md` | clips agent | |
+| `p-gamepad.js`, `tools/tests/x-p-gamepad.mjs` | p-gamepad agent | adds two hook points to `game.js` (`pad` in `pollPads`, `menuHint` in the title, select and end screens) |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -153,6 +155,8 @@ With nothing registered a call returns at once, so the engine calls them from ho
 | `titleItems` | collect | no arguments (read the global `game`); items `{ id, label, order?, run(game) }` added to the title menu next to the modes (default `order` 100); called every tick on the title and every frame it is drawn |
 | `pauseItems` | collect | no arguments; items `{ key, label, run(game) }`: while paused, pressing `key` (a `KeyboardEvent.code`) calls `run`; the labels are drawn under the pause text |
 | `musicTheme` | filter | `(themeName, game)`; return the name of any defined theme to replace the one the engine picked |
+| `pad` | filter | `(gamepad, side)`; inside `pollPads()`, once per connected pad (the first two); return a Gamepad-like object (`buttons[n].pressed`, `axes`) to use instead, for example a remapped one. `p-gamepad.js` uses it |
+| `menuHint` | run | `(ctx, game)`; at the foot of the title, select and end screens, straight after the engine drew its key-hint line, so a feature can draw over it (the gamepad button glyphs) |
 
 `p-strings.js` uses `update` (order -10), `input` (order 5, CPU only), `fighterUpdate`, `damage` (order 20, after `combat.js`: juggle scaling and the 35 percent cap), `drawFighter`, `drawHud`, `drawTop` and `pauseItems` (`N STRINGS`).
 A handler may run the engine's own `window.update()` again from inside an `update` handler to add a tick (`p-mutators.js` does this for TURBO 1.5X, with a re-entry guard and every other tick of a fight only). Every `update` handler then runs a second time inside that one real tick, so an `update` handler must be safe to run twice in a row and must not count real time by calls.
@@ -225,6 +229,10 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `watch.pick` | any, `{}` | `{ a, b, arena }` | `p-watch.js`: the two fighters and the arena (-1 random) last picked in WATCH |
 | `perf.quality` | enum, `'auto'` | `'auto'`, `'high'`, `'low'` | `p-perf.js`: AUTO steps down to MEDIUM or LOW when the average frame costs over 12 ms; `Shift`+`F3` cycles it |
 | `clips.on` | bool, `true` | | `p-clips.js`: record the canvas during a match and offer the KO clip on the end screen (no effect where recording is unsupported) |
+| `gamepad.rumble` | bool, `true` | | `p-gamepad.js`: rumble on a human fighter's pad (`vibrationActuator`, when the pad has one) for hits taken, blocks, knockdowns, throws, supers and the KO |
+| `gamepad.hints` | bool, `true` | | `p-gamepad.js`: the strip of button glyphs on the menus while the last input came from a pad |
+| `gamepad.glyphs` | enum, `'auto'` | `'auto'`, `'letters'`, `'swapped'`, `'shapes'` | `p-gamepad.js`: the glyph set; `auto` picks from the controller id (a pad without the standard layout shows plain numbers) |
+| `gamepad.maps` | any, `null` | `null` or `{ controllerId: { l, r, u, d, p, k, s, x, st, bk: [button numbers] } }` | `p-gamepad.js`: the remapping screen's result, per controller id; a pad on the default layout stores nothing, at most six pads are kept |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
