@@ -58,6 +58,7 @@ Read this first, then read only the files you own.
 | 19 | `p-mutators.js` | match mutators picked on the select screen (G): BIG HEADS, LOW GRAVITY, TURBO 1.5X, RATE LIMITED, LEGACY MODE, GLASS CANNON; public `MUTATORS` | p-mutators agent |
 | 19 | `p-photomode.js` | photo mode from the pause screen: free camera, six filters, frames, PNG save (`PHOTO`) | p-photomode agent |
 | 19 | `p-a11y.js` | accessibility options (colour filters, high contrast HUD, larger text, reduced motion, screen reader announcements, simple specials) and `A11Y`; loads after `vfx.js` | a11y agent |
+| 19 | `p-observability.js` | OBSERVABILITY: the post-match dashboard (damage-over-time chart, KPI scorecard, incident log), public `OBS`; loads last in `dev.html` | observability agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -87,6 +88,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `p-mutators.js`, `tools/tests/x-p-mutators.mjs` | p-mutators agent | |
 | `p-photomode.js`, `tools/tests/x-p-photomode.mjs` | p-photomode agent | |
 | `p-a11y.js`, `tools/tests/x-p-a11y.mjs` | a11y agent | |
+| `p-observability.js`, `tools/tests/x-p-observability.mjs` | observability agent | uses `update`, `fighterUpdate`, `drawTop` and the BUS events `match:start`, `round:start`, `round:end`, `hit`, `block`, `special`, `super`, `throw`, `match:end`, `phase`, `settings`; one pointerdown listener on `#c` |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -206,6 +208,9 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `a11y.motion` | bool, `prefers-reduced-motion: reduce` | | `p-a11y.js`: no screen shake, white flash or KO slow motion; while it is on, `SETTINGS.get('reducedFlash')` reads `true` for `vfx.js` |
 | `a11y.live` | bool, `true` | | `p-a11y.js`: announcements in the `#a11y-live` region |
 | `a11y.simpleSp` | bool, `false` | | `p-a11y.js`: specials by direction plus the special button, for human players |
+| `observability.enabled` | bool, `true` | | `p-observability.js`: records the match and offers the OBSERVABILITY report (O key or tap) on the end screen |
+| `observability.auto` | bool, `false` | | `p-observability.js`: open the report by itself when the end screen appears |
+| `observability.fleet` | any, `{ m: 0, d: 0, h: 0 }` | matches, damage and hits ever logged | `p-observability.js`: the lifetime totals shown in the footer of the report |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
