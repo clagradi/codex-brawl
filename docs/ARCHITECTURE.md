@@ -45,6 +45,7 @@ Read this first, then read only the files you own.
 | 16 | `options.js` | options screen, key rebinding | options agent |
 | 17 | `touch.js` | phone and tablet controls | touch agent |
 | 18 | `bonus.js` | bonus minigames (BENCHMARK BREAK, BUG SQUASH) and `BONUS.run` | bonus agent |
+| 26 | `p-review.js` | parody code review of a 1P match over the end screen, public `REVIEW` | review agent |
 
 Because the feature files load after `game.js`, they can use everything it declares. The engine files never name a feature file; features reach the engine only through the contracts below.
 
@@ -62,6 +63,7 @@ Because the feature files load after `game.js`, they can use everything it decla
 | `options.js`, `tools/tests/options.mjs` | options agent | |
 | `touch.js`, `tools/tests/touch.mjs` | touch agent | |
 | `bonus.js`, `tools/tests/x-bonus.mjs` | bonus agent | |
+| `p-review.js`, `tools/tests/x-p-review.mjs`, `docs/features/p-review.md` | review agent | hooks: `update` order -40, `drawTop` order 150 |
 | `docs/features/<name>.md` | the agent of that feature | short notes on what the feature does and how to test it |
 | `index.html` | nobody | build output: never merge it by hand, rebuild with `node build.mjs` |
 
@@ -142,6 +144,7 @@ One store, persisted as JSON under `localStorage` key `brawl.settings`. A blocke
 | `vfx.replay` | bool, `true` | | `vfx.js`: the instant replay of the deciding KO |
 | `vfx.cutin` | bool, `true` | | `vfx.js`: the cut-in panel for supers and finishers |
 | `vfx.impact` | bool, `true` | | `vfx.js`: the inverted impact frames on counters, heavy hits and supers |
+| `review.on` | bool, `true` | | `p-review.js`: the code review (comments and an APPROVED or CHANGES REQUESTED verdict) after a 1P match against the CPU |
 
 Features add their own keys with `SETTINGS.define` at load time (prefix them with the feature name, for example `arcade.best`).
 
