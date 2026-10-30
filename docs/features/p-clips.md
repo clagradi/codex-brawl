@@ -8,6 +8,8 @@ Everything is built on the extension layer only: the HOOKS points `update` and `
 
 While a match is played, the browser keeps a rolling capture of the game canvas. When the match is decided, the clip is cut a few seconds after the deciding blow. The end screen then shows a **KO CLIP** panel on the left, with the clip length, a looping preview at 8 frames a second and a blinking **C SAVE CLIP** button (**TAP TO SAVE** on touch screens).
 
+The left column of the end screen is shared, top to bottom: the OKR toast (to y 238), the `O  MATCH REPORT` button (y 246 to 296), then this panel (from y 304). While the match code review (p-review) or the match report (p-observability) is open, the panel is not drawn and the `C` key and taps on it do nothing, so a tap that belongs to the review or the report never also saves a file. A tap that the report takes (the button, the chart, BACK) is not passed on to the panel (the report's listener runs first and stops the event).
+
 - **`C`**, or a tap anywhere on the panel, saves the clip as a local download named `agent-brawl-ko-<winner>-vs-<loser>-<date>-<time>.webm`. Where the browser records only mp4, the file is `.mp4`.
 - The panel turns green and shows **CLIP SAVED** for two seconds. Saving again needs a fresh press after half a second, and a held key does not repeat.
 - Nothing is ever saved without that key press or tap. Nothing is uploaded or sent anywhere: the file is a `blob:` object URL handed to an `<a download>` link.

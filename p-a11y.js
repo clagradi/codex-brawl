@@ -181,10 +181,12 @@
       if (o.screen === 'options' && o.osel !== seen.osel && typeof OPTIONS.rows === 'function') { seen.osel = o.osel; const r = OPTIONS.rows()[o.osel]; if (r) say(speak(r) + '.'); }
     }
   }
+  const inDemo = () => { try { return !!(window.WATCH && WATCH.state().kind === 'demo'); } catch (e) { return false; } };   // the attract demo is not a match the listener started: read at call time, p-watch loads after this file
   BUS.on('phase', e => {
     forget();
     if (!e) return;
     const to = e.to;
+    if (to !== 'title' && inDemo()) return;   // the way back to the title is still read: p-watch leaves the demo after it sets the phase
     if (to === 'title') say('Title menu. Up and down choose, Enter starts, Y opens accessibility.');
     else if (to === 'select') say('Choose your fighter. Left and right move, punch confirms, kick goes back.');
     else if (to === 'vs' && game.f && game.f[0] && game.f[1]) say(nameOf(game.f[0]) + ' versus ' + nameOf(game.f[1]) + '.');
@@ -193,16 +195,16 @@
     else if (to === 'finish') say('Finish it! Super for the finisher, or any hit.');
     else if (to === 'over') say('Match over. Enter: character select. R: rematch. Escape: title.');
   });
-  BUS.on('round:start', e => { if (e) say(e.sudden ? 'Sudden death, round ' + e.round + '.' : 'Round ' + e.round + '.'); });
+  BUS.on('round:start', e => { if (e && !inDemo()) say(e.sudden ? 'Sudden death, round ' + e.round + '.' : 'Round ' + e.round + '.'); });
   BUS.on('round:end', e => {
-    if (!e) return;
+    if (!e || inDemo()) return;
     const score = Array.isArray(e.wins) ? ' Rounds: ' + nameOf(0) + ' ' + e.wins[0] + ', ' + nameOf(1) + ' ' + e.wins[1] + '.' : '';
     if (e.reason === 'draw' || e.winner == null) say('Round ' + e.round + ' is a draw.' + score);
     else if (e.reason === 'time') say('Time up. ' + nameOf(e.winner) + ' wins round ' + e.round + '.' + score);
     else say('KO! ' + nameOf(e.winner) + ' wins round ' + e.round + '.' + score);
   });
   BUS.on('match:end', e => {
-    if (!e) return;
+    if (!e || inDemo()) return;
     const w = typeof e.winner === 'number' ? e.winner : e.winner && e.winner.side, ws = Array.isArray(e.wins) ? e.wins : [0, 0];
     const a = ws[w] | 0, b = ws[1 - w] | 0;
     say(nameOf(e.winner) + ' wins the match, ' + a + ' rounds to ' + b + '.');
@@ -229,7 +231,7 @@
   const moveRows1 = window.moveRows;
   if (typeof moveRows1 === 'function') window.moveRows = function (id, side, cpu) {
     const rows = moveRows1.apply(this, arguments);
-    if (!S.simple || cpu || !Array.isArray(rows)) return rows;
+    if (!S.simple || cpu || !Array.isArray(rows) || rows.strings) return rows;   // the STRINGS page (p-strings) keeps its own flag and cache
     const M = typeof MOVES !== 'undefined' && MOVES[id], name = M && M.sp && M.sp[1] && M.sp[1].name;
     return rows.map(r => r && r.name === name && typeof r.input === 'string' && r.input.startsWith('FWD + ') ? Object.assign({}, r, { input: 'LEFT / RIGHT + ' + r.input.slice(6) }) : r);
   };
@@ -284,13 +286,14 @@
     if (up) move(-1); else if (dn) move(1);
     if (lf) change(-1); else if (rt || ok) change(1);
   }
+  const covered = () => { try { return (typeof titleOverlayOpen === 'function' && titleOverlayOpen()) || !!(window.ARCADE && ARCADE.S && ARCADE.S.screen) || !!(window.MODES2 && MODES2.screen && MODES2.screen()); } catch (e) { return false; } };   // a screen of another feature sits over the title: Y belongs to it
   HOOKS.add('update', g => {
     if (S.motion) calm(g);
     const ph = g.phase;
     if (ui.open) {
       if (ph !== 'title' && ph !== 'pause') { ui.open = false; shield(false); }
       else { nav(); try { clearPressed(); } catch (e) { /* engine helper */ } }
-    } else if (ph === 'title' && tap('KeyY')) open();
+    } else if (ph === 'title' && !covered() && tap('KeyY')) open();
     watchMenus(g);
   }, -20);
   HOOKS.add('update', flush, 1000);

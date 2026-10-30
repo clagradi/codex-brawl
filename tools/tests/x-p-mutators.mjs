@@ -86,6 +86,11 @@ export async function run(t) {
     check(await ev('__M.count(700, 8, 260, 30, 255, 226, 122)') > 30, 'with a mutator on, the select hint (G MUTATORS, count) is drawn in gold at the top right');
     await ev('MUTATORS.clear(); step(1); render()');
     check(await ev('__M.count(700, 8, 260, 30, 255, 226, 122)') === 0 && await ev('__M.count(700, 8, 260, 30, 141, 134, 150)') > 20, 'with all off, the hint is grey and says nothing is on');
+    await ev('touch.on = true; step(1); render()');
+    check(await ev('__M.count(700, 8, 260, 30, 141, 134, 150)') === 0, 'with the touch controls on and nothing on, the select screen does not advertise the G key (a phone cannot open the panel)');
+    await ev('MUTATORS.set("glass", true); step(1); render()');
+    check(await ev('__M.count(700, 8, 260, 30, 255, 226, 122)') > 20, 'with the touch controls on and a mutator on, the gold MUTATORS count is still shown');
+    await ev('touch.on = false; MUTATORS.clear(); step(1); render()');
     const mv = await ev('(() => { const x = game.sel[0]; return x; })()');
     await press('KeyD');
     check(await ev('game.sel[0]') !== mv, 'with the panel closed, D moves the fighter cursor again');

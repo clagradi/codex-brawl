@@ -916,7 +916,7 @@ export async function runPhoneTests(p) {
     const i0 = await p.eval(`({ on: touch.on, stacked: lay.stacked, quiet: AC === null, phase: game.phase, padHidden: document.getElementById('pad').hidden, pills: [...document.querySelectorAll('#pills .mb')].map(e => e.textContent) })`);
     check(i0.on && i0.stacked && i0.quiet && i0.phase === 'title' && !i0.padHidden, 'a phone gets the on-screen controls and the portrait layout, and the audio waits for the first tap');
     check(i0.pills.slice(0, 2).join() === '1 PLAYER,2 PLAYERS' && /^SOUND O(N|FF)$/.test(i0.pills[2] || ''), 'title: 1 PLAYER, 2 PLAYERS and SOUND buttons under the game');
-    await onCanvas(480, 476);   // the "2 PLAYERS" row of the title
+    const row2 = await p.eval('titleSlot(1, titleItems().length)'); await onCanvas(row2.x, row2.y);   // the "2 PLAYERS" row of the title, wherever the layout puts the second entry
     check((await p.eval('[game.phase, game.mode].join()')) === 'select,2' && await p.eval('AC !== null'), 'a tap on a title row picks that mode, and the first tap starts the audio');
     await pill('BACK');
     check((await p.eval('game.phase')) === 'title', 'select: BACK returns to the title');

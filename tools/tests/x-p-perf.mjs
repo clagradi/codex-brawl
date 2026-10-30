@@ -103,6 +103,28 @@ export async function run(t) {
   check(a1.forcedHigh === 0 && a1.forcedLow === 2, 'perf.quality high and low override the adaptive level');
   check(a1.events === 'MEDIUM LOW MEDIUM HIGH MEDIUM', 'every adaptive level change is announced on the BUS as perf:level');
 
+  // late frames (a display capped at 30 Hz, a slow GPU) count as frames over budget; repeated ticks on a fast display do not
+  const a2 = await ev(`(() => {
+    PERF.reset(); const W = PERF.WARMUP, N = PERF.WINDOW, out = {};
+    out.late = PERF.feedFrame(33, 3, W + N);
+    out.stay = PERF.feedFrame(33, 3, N * 5);
+    PERF.reset(); out.fast = PERF.feedFrame(8, 3, W + N * 4);
+    PERF.reset(); out.fastRepeat = PERF.feedFrame(8, 30, W + N * 4, false);
+    PERF.reset(); out.lateRepeat = PERF.feedFrame(33, 30, W + N * 4, false);
+    PERF.reset(); out.sixty = PERF.feedFrame(16.7, 3, W + N * 4);
+    PERF.reset(); PERF.feedFrame(16.7, 3, W);
+    for (let k = 0; k < N; k++) PERF.feedFrame(k % 30 ? 16.7 : 40, 3, 1);
+    out.occasional = PERF.stats().windowAvg;
+    out.level = PERF.level(); out.limit = PERF.LATE;
+    SETTINGS.set('perf.quality', 'high'); PERF.reset(); out.forced = PERF.feedFrame(33, 3, W + N * 2); SETTINGS.set('perf.quality', 'auto');
+    PERF.reset(); return out;
+  })()`);
+  check(a2.late === 1 && a2.stay === 2, 'sustained late frames (33 ms apart) step the quality down even when the main thread is idle, then down again');
+  check(a2.fast === 0 && a2.sixty === 0, 'frames 8 ms (a fast display) or 16.7 ms apart with a light load never step it down');
+  check(a2.fastRepeat === 0 && a2.lateRepeat === 0, 'frames that run no tick are never counted, whatever the gap and the work');
+  check(a2.occasional < 6 && a2.level === 0 && a2.limit === 25, 'one late frame in thirty moves the window average by under 1 ms and leaves the level alone');
+  check(a2.forced === 0, 'a forced quality ignores late frames');
+
   // ---- what the lower levels drop ----
   const l1 = await ev(`(() => {
     PP.fresh(0, 1, true); step(120); game.shake = 0; PERF.reset(); PERF.cache = 'off';

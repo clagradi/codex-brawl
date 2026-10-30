@@ -105,7 +105,7 @@ export async function run(t) {
     const c = K.s().clip; out.clip = c && { size: c.size, type: c.type, dur: c.dur, name: c.name, url: c.url, frames: c.frames };
     out.tracks = K.tracksStopped; out.downloads = K.downloads.length;
     K.until(() => game.phase === 'over', 1500); out.over = game.phase; out.overClip = !!K.s().clip; out.autoDownloads = K.downloads.length;
-    render(); out.border = K.px(41, 173); out.inside = K.px(40 + 108, 172 + 120);
+    render(); out.border = K.px(41, 305); out.inside = K.px(40 + 108, 304 + 120);
     return out;
   })()`);
   check(ko.phase === 'finish' && ko.rec === 1 && ko.cutIn >= 2980 && ko.cutIn <= 3000 && ko.age0 >= 3000 && ko.age0 <= 6000, 'the deciding blow keeps the older recorder (3 to 6 s of lead-up), drops the newer one and schedules the cut 3 s later: ' + JSON.stringify([ko.phase, ko.rec, ko.cutIn, ko.age0, ko.before]));
@@ -120,15 +120,33 @@ export async function run(t) {
   const gold = c => c[0] > 150 && c[1] > 120 && c[2] < 110 && c[0] > c[2] + 60;
   check(gold(ko.border), 'the KO CLIP panel is drawn on the end screen (gold frame): ' + JSON.stringify(ko.border));
 
+  // ---- the left column: the panel sits clear of the report button and gives way to the report and the code review ----
+  const lc = await ev(`(() => {
+    const out = {}, b = OBS.button(), p0 = K.downloads.length, R0 = window.REVIEW;
+    out.clear = b.y + b.h <= 304; out.shown = K.px(41, 305);
+    K.tapAt(b.x + b.w / 2, b.y + b.h / 2); out.btnSaves = K.downloads.length - p0; out.btnOpened = OBS.isOpen();
+    render(); out.underReport = K.px(41, 305); K.tapAt(140, 400); K.key('KeyC'); out.reportSaves = K.downloads.length - p0; OBS.close(); step(1);
+    window.REVIEW = { state: () => ({ open: true }) };
+    render(); out.underReview = K.px(41, 305); K.tapAt(140, 400); K.key('KeyC'); out.reviewSaves = K.downloads.length - p0; K.tapAt(b.x + b.w / 2, b.y + b.h / 2); out.reviewBtn = OBS.isOpen();
+    if (R0 === undefined) delete window.REVIEW; else window.REVIEW = R0;
+    render(); out.back = K.px(41, 305); out.total = K.downloads.length - p0;
+    return out;
+  })()`);
+  check(lc.clear && gold(lc.shown), 'the KO CLIP panel starts below the end-screen report button, so the two never overlap: ' + JSON.stringify([lc.clear, lc.shown]));
+  check(lc.btnOpened === true && lc.btnSaves === 0, 'a tap on the report button opens the report and saves no clip (one tap, one action): ' + JSON.stringify([lc.btnOpened, lc.btnSaves]));
+  check(!gold(lc.underReport) && lc.reportSaves === 0, 'with the match report open the panel is not drawn and neither a tap on it nor C saves: ' + JSON.stringify([lc.underReport, lc.reportSaves]));
+  check(!gold(lc.underReview) && lc.reviewSaves === 0 && lc.reviewBtn === false, 'with the code review open the panel is hidden, takes no tap or C, and the report button does not open: ' + JSON.stringify([lc.underReview, lc.reviewSaves, lc.reviewBtn]));
+  check(gold(lc.back) && lc.total === 0, 'when both are closed the panel is back and nothing was saved along the way: ' + JSON.stringify([lc.back, lc.total]));
+
   // ---- saving: only on C or a tap on the panel ----
   const sv = await ev(`(() => {
     const out = {}, url = K.s().clip.url, name = K.s().clip.name;
     K.key('KeyC'); out.one = K.downloads.slice(); out.consumed = tap('KeyC') === false; out.phase1 = game.phase;
     K.key('KeyC', true); out.repeat = K.downloads.length;
     K.key('KeyC'); out.gap = K.downloads.length;
-    render(); out.green = K.px(41, 173);
+    render(); out.green = K.px(41, 305);
     step(31); K.tapAt(600, 300); out.outside = K.downloads.length;
-    K.tapAt(40 + 100, 172 + 160); out.tapped = K.downloads.length; out.saves = K.s().saves;
+    K.tapAt(40 + 100, 304 + 160); out.tapped = K.downloads.length; out.saves = K.s().saves;
     out.url = url; out.name = name; out.links = document.querySelectorAll('a[download]').length;
     K.key('Escape'); step(2); out.left = game.phase; out.clipAfter = K.s().clip; out.revoked = K.revoked.includes(url);
     K.key('KeyC'); step(1); out.afterLeave = K.downloads.length;
