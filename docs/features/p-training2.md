@@ -56,7 +56,7 @@ Leave from the pause screen with `Q`.
 ## Limits
 
 - The engine has no separate crouch: holding down is the guard state. So CROUCH blocks lows and mids, and only overheads and air attacks hit it.
-- The title menu now has 12 entries, which is more than `titleSlot` lays out cleanly (about 8). This overflow existed before this feature; the layout belongs to the engine or the integrator.
+- The title menu now has 12 entries, which is more than `titleSlot` lays out cleanly (about 8). The release branch has since made the title menu page six entries at a time (`titlePager` in `game.js`), which fixes this.
 
 ## Tests
 

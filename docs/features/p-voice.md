@@ -37,7 +37,7 @@ On the VS screen the engine names the arena at tick 110 and cancels any speech. 
 | --- | --- | --- |
 | `voice.speech` | VOICE LINES | no banter, callout or quote is spoken; a line that is playing is cut; captions stay |
 
-The pause menu has an item for it: `N VOICE LINES ON` / `N VOICE LINES OFF`, toggled with N. The engine announcer and its own setting (`announcer`) are not changed. The general mute (M) also silences voice lines, because they go through the same announcer.
+The pause menu has an item for it: `V VOICE LINES ON` / `V VOICE LINES OFF`, toggled with V. The engine announcer and its own setting (`announcer`) are not changed. The general mute (M) also silences voice lines, because they go through the same announcer.
 
 ## Content rules
 

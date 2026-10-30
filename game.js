@@ -658,7 +658,21 @@ function titleItems() {
   for (const x of HOOKS.collect('titleItems')) if (x && typeof x.label === 'string') items.push(Object.assign({ order: 100 }, x));
   return items.sort((a, b) => a.order - b.order);
 }
-function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six)
+const TITLE_PAGE = 6;   // title entries on screen at once (two columns of three); more entries page, the page follows the highlighted one
+function titlePager(n) { // null while everything fits, else { size, pages, page, x, y }: the page of the highlighted entry and where its PAGE x/y note sits
+  if (n <= TITLE_PAGE) return null;
+  const pages = Math.ceil(n / TITLE_PAGE);
+  return { size: TITLE_PAGE, pages, page: Math.min(Math.floor(game.titleSel / TITLE_PAGE), pages - 1), x: W - 72, y: 458 };
+}
+// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker ...): the page note, the OKRS corner button and the attract demo stay out of its way
+const TITLE_SCREENS = [['JUKEBOX', 'isOpen'], ['VAULT', 'isOpen'], ['OBS', 'isOpen'], ['GAMEPAD', 'isOpen'], ['MUTATORS', 'isOpen'], ['OKRS', 'screen'], ['WATCH', 'screen'], ['DAILY', 'screen']];   // global, member that says a screen is open (function or flag)
+function titleOverlayOpen() {
+  for (const [n, k] of TITLE_SCREENS) { try { const o = window[n], v = o && o[k]; if (typeof v === 'function' ? v.call(o) : v) return true; } catch (e) { /* a feature that is half loaded has no screen open */ } }
+  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen)); } catch (e) { return false; }
+}
+function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six); beyond six the other pages sit off the canvas (hidden: true)
+  const pg = titlePager(n);
+  if (pg) { if (Math.floor(i / pg.size) !== pg.page) return { x: W / 2, y: -200, on: 24, off: 19, hidden: true }; n = Math.min(pg.size, n - pg.page * pg.size); i %= pg.size; }
   if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
   if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
   const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
@@ -856,7 +870,8 @@ function drawTitle() {
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
   const items = titleItems();
-  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); if (sl.hidden) return; drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  const pgr = titlePager(items.length); if (pgr && !titleOverlayOpen()) { uiText('PAGE ' + (pgr.page + 1) + '/' + pgr.pages, pgr.x, pgr.y, 14, '#c9a24a'); uiText(touch.on ? 'TAP FOR MORE' : 'W/S MORE', pgr.x, pgr.y + 18, 11, '#7d7668'); }   // more entries than fit: the page follows the highlight, a tap here flips it
   const sel = items[game.titleSel], twoP = !!(sel && sel.mode && sel.mode.players === 2);
   const keysHint = twoP ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
   uiText(touch.on ? 'TAP 1 PLAYER TO FIGHT · 2 PLAYERS NEEDS A KEYBOARD OR TWO GAMEPADS'

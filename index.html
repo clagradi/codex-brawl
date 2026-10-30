@@ -4428,7 +4428,21 @@ function titleItems() {
   for (const x of HOOKS.collect('titleItems')) if (x && typeof x.label === 'string') items.push(Object.assign({ order: 100 }, x));
   return items.sort((a, b) => a.order - b.order);
 }
-function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six)
+const TITLE_PAGE = 6;   // title entries on screen at once (two columns of three); more entries page, the page follows the highlighted one
+function titlePager(n) { // null while everything fits, else { size, pages, page, x, y }: the page of the highlighted entry and where its PAGE x/y note sits
+  if (n <= TITLE_PAGE) return null;
+  const pages = Math.ceil(n / TITLE_PAGE);
+  return { size: TITLE_PAGE, pages, page: Math.min(Math.floor(game.titleSel / TITLE_PAGE), pages - 1), x: W - 72, y: 458 };
+}
+// true while a screen of some feature sits over the title menu (the JUKEBOX list, the VAULT, the WATCH picker ...): the page note, the OKRS corner button and the attract demo stay out of its way
+const TITLE_SCREENS = [['JUKEBOX', 'isOpen'], ['VAULT', 'isOpen'], ['OBS', 'isOpen'], ['GAMEPAD', 'isOpen'], ['MUTATORS', 'isOpen'], ['OKRS', 'screen'], ['WATCH', 'screen'], ['DAILY', 'screen']];   // global, member that says a screen is open (function or flag)
+function titleOverlayOpen() {
+  for (const [n, k] of TITLE_SCREENS) { try { const o = window[n], v = o && o[k]; if (typeof v === 'function' ? v.call(o) : v) return true; } catch (e) { /* a feature that is half loaded has no screen open */ } }
+  try { return !!((window.TUTORIAL && TUTORIAL.state().screen) || (window.A11Y && A11Y.state().open) || (window.REPLAYS && REPLAYS.screen().open) || (window.OPTIONS && OPTIONS.screen)); } catch (e) { return false; }
+}
+function titleSlot(i, n) { // where title item i of n is drawn: two items keep the classic place, more shrink and from four on split into two columns (room for six); beyond six the other pages sit off the canvas (hidden: true)
+  const pg = titlePager(n);
+  if (pg) { if (Math.floor(i / pg.size) !== pg.page) return { x: W / 2, y: -200, on: 24, off: 19, hidden: true }; n = Math.min(pg.size, n - pg.page * pg.size); i %= pg.size; }
   if (n <= 2) return { x: W / 2, y: 442 + i * 34, on: 28, off: 22 };
   if (n === 3) return { x: W / 2, y: 436 + i * 28, on: 26, off: 20 };
   const half = Math.ceil(n / 2), col = i < half ? 0 : 1, row = col ? i - half : i;
@@ -4626,7 +4640,8 @@ function drawTitle() {
   drawLogo(ctx, W / 2, 112, 1, t);
   ROSTER.forEach((r, i) => drawSprite(ctx, r.id, 'idle', loopFrame('idle', t + i * 11), W / 2 + (i - (ROSTER.length - 1) / 2) * 170, 410, i < 2 ? 1 : i > 2 ? -1 : 1));
   const items = titleItems();
-  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  items.forEach((it, i) => { const on = game.titleSel === i, sl = titleSlot(i, items.length); if (sl.hidden) return; drawTitleText(ctx, it.label, sl.x, sl.y, on ? sl.on : sl.off, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.55, glow: on }); });
+  const pgr = titlePager(items.length); if (pgr && !titleOverlayOpen()) { uiText('PAGE ' + (pgr.page + 1) + '/' + pgr.pages, pgr.x, pgr.y, 14, '#c9a24a'); uiText(touch.on ? 'TAP FOR MORE' : 'W/S MORE', pgr.x, pgr.y + 18, 11, '#7d7668'); }   // more entries than fit: the page follows the highlight, a tap here flips it
   const sel = items[game.titleSel], twoP = !!(sel && sel.mode && sel.mode.players === 2);
   const keysHint = twoP ? 'P1 WASD + J K L I · P2 ARROWS + NUM1 NUM2 NUM3 NUM0' : 'WASD + J K L I OR ARROWS + Z X C V';   // the keys for the mode that is highlighted
   uiText(touch.on ? 'TAP 1 PLAYER TO FIGHT · 2 PLAYERS NEEDS A KEYBOARD OR TWO GAMEPADS'
@@ -6557,6 +6572,7 @@ requestAnimationFrame(frame);
     if (ph !== 'title') return;
     if (fsOK() && inRect(x, y, FSB)) { eat(); ui.fsDown = true; return; }
     const items = titleItems();   // a tap on an entry picks that entry; the engine's tap-anywhere then confirms it
+    const pgr = titlePager(items.length); if (pgr && !titleOverlayOpen() && Math.abs(x - pgr.x) < 56 && Math.abs(y - pgr.y - 8) < 26) { eat(); game.titleSel = ((pgr.page + 1) % pgr.pages) * pgr.size; beep(400, 0.04); return; }   // the PAGE note flips to the next page of entries
     for (let i = 0; i < items.length; i++) { const s = titleSlot(i, items.length); if (Math.abs(x - s.x) < 150 && Math.abs(y - s.y) < 16) { game.titleSel = i; if (!touchy && !touch.on) pressed.Enter = true; break; } }
   }, true);
   addEventListener('pointerup', () => { if (ui.fsDown) { ui.fsDown = false; toggleFullscreen(); } }, true);
@@ -6625,7 +6641,13 @@ requestAnimationFrame(frame);
     PAUSE_ROWS.forEach((s, i) => { const on = ui.psel === i; drawTitleText(ctx, s, W / 2, pauseY(i), on ? 30 : 24, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.6, glow: on }); });
     uiText('W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
     const extra = HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }
-    if (extra.length) uiText(extra.map(it => it.label).join(' · '), W / 2, 480, 16, '#c9a24a');
+    if (extra.length) {   // many features add keys: break them into rows that fit the canvas instead of one line that runs off both sides
+      ctx.save(); ctx.font = '16px Impact, Haettenschweiler, "Arial Narrow", sans-serif';
+      const rows = []; let cur = '';
+      for (const it of extra) { const nx = cur ? cur + ' \u00b7 ' + it.label : it.label; if (cur && ctx.measureText(nx).width > 880) { rows.push(cur); cur = it.label; } else cur = nx; }
+      ctx.restore(); if (cur) rows.push(cur);
+      rows.forEach((r, i) => uiText(r, W / 2, 480 + i * 18, 16, '#c9a24a'));
+    }
   }
   function drawQuit() {
     panel(W / 2 - 190, 190, 380, 140); drawTitleText(ctx, 'QUIT TO TITLE?', W / 2, 226, 30, { align: 'center', style: 'steel' });
@@ -10257,7 +10279,7 @@ requestAnimationFrame(frame);
 //         is dropped from speech while its caption still shows. Without ANNOUNCER.define the feature runs with captions only.
 // Settings: voice.speech (VOICE LINES, default on) mutes the voice lines only; the shared 'announcer' setting and mute silence them too.
 // Hooks used: 'update' (own clock, speech queue, comeback tracking), 'damage' (reads the hit before it lands for COUNTER, never changes it),
-//             'drawTop' (VS bubbles, callouts, quotes), 'pauseItems' (N turns the voice lines on or off).
+//             'drawTop' (VS bubbles, callouts, quotes), 'pauseItems' (V turns the voice lines on or off).
 // BUS used: match:start, phase, round:start, round:end, match:end, hit, block, ko, settings.
 // Content rule: jokes about AI and dev culture only. Wang is played as the in-game persona (calm, bubbles, the lab), nothing about the real person.
 // Public: window.VOICE (data, banterFor, winQuote, callout, state, speechOn, toggle) for tests and other feature files.
@@ -10481,9 +10503,9 @@ requestAnimationFrame(frame);
     while (S.calls.length && S.T - S.calls[0].t0 > CALL_LIFE) S.calls.shift();
     if (S.queue.length) pump(g.phase);
   });
-  const LBL_ON = 'N VOICE LINES ON', LBL_OFF = 'N VOICE LINES OFF';
+  const LBL_ON = 'V VOICE LINES ON', LBL_OFF = 'V VOICE LINES OFF';
   function toggle(v) { try { SETTINGS.set('voice.speech', typeof v === 'boolean' ? v : !speechOn()); } catch (e) { /* settings refused */ } return speechOn(); }
-  HOOKS.add('pauseItems', () => ({ id: 'voice', key: 'KeyN', label: speechOn() ? LBL_ON : LBL_OFF, run: () => toggle() }));
+  HOOKS.add('pauseItems', () => ({ id: 'voice', key: 'KeyV', label: speechOn() ? LBL_ON : LBL_OFF, run: () => toggle() }));
 
   // ---------------------------------------------------------------- drawing (screen space, pixel font)
   function plate(c, x, y, w, h, col) {
@@ -10802,7 +10824,7 @@ requestAnimationFrame(frame);
   // pause menu: restart this lesson or skip to the next one
   const PAUSE = [
     { id: 'tutorial-restart', key: 'KeyR', label: 'R RESTART LESSON', run: () => { if (S.on && game.phase === 'pause') start(S.k, S.pid); } },
-    { id: 'tutorial-next', key: 'KeyN', label: 'N NEXT LESSON', run: () => { if (S.on && game.phase === 'pause') next(); } },
+    { id: 'tutorial-next', key: 'KeyT', label: 'T NEXT LESSON', run: () => { if (S.on && game.phase === 'pause') next(); } },
   ];
   HOOKS.add('pauseItems', () => (S.on ? PAUSE : null));
 
@@ -12407,7 +12429,7 @@ requestAnimationFrame(frame);
   }
   function turn(d) { const p = (page() + d + PAGES) % PAGES; ui.sel = Math.min(TOTAL - 1, p * PER + ui.sel % PER); blip(500); }
   function onUpdate(g) {
-    if (!ui.open) { tickToast(); if (g.phase === 'title' && tap('KeyG')) open(); if (dirty && ++flushT >= 120) flush(); return; }   // a toast waits while the screen is open
+    if (!ui.open) { tickToast(); if (g.phase === 'title' && !covered() && tap('KeyG')) open(); if (dirty && ++flushT >= 120) flush(); return; }   // a toast waits while the screen is open
     const ph = g.phase;
     if (ph !== 'title' && ph !== 'pause') { close(); return; }
     const n = readNav(ph);
@@ -12422,9 +12444,11 @@ requestAnimationFrame(frame);
   HOOKS.add('titleItems', () => [{ id: 'okrs', label: 'OKRS', order: 880, run: () => open() }]);
   HOOKS.add('pauseItems', () => [{ id: 'okrs', key: 'KeyG', label: 'G OKRS', run: () => { if (game.phase === 'pause') open(); } }]);
 
+  // a screen of another feature (the WATCH picker, GAMEPAD SETUP, OBS ...) sits over the title: its picture and its clicks come first, so no corner button or G key here
+  const covered = () => { try { return typeof titleOverlayOpen === 'function' && titleOverlayOpen(); } catch (e) { return false; } };
   const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   addEventListener('pointerdown', e => {
-    const onTitle = !ui.open && game.phase === 'title';
+    const onTitle = !ui.open && game.phase === 'title' && !covered();
     if ((!ui.open && !onTitle) || e.target !== cv) return;
     const [x, y] = canvasPos(e);
     if (onTitle && !inRect(x, y, TITLEB)) return;   // on the title only the corner button is ours
@@ -12494,7 +12518,7 @@ requestAnimationFrame(frame);
     P(cur.name, x + 52, y + 20, 2, '#fff');
     P(cur.desc, x + 52, y + 42, 1, DIM);
   }
-  HOOKS.add('drawTop', () => { if (ui.open) drawScreen(); else { if (game.phase === 'title') drawTitleButton(); drawToast(); } }, 100);
+  HOOKS.add('drawTop', () => { if (ui.open) drawScreen(); else { if (game.phase === 'title' && !covered()) drawTitleButton(); drawToast(); } }, 100);
 
   // the touch buttons would sit on top of the screen (the same trick options.js uses)
   const drawTouch0 = window.drawTouch;
@@ -12630,7 +12654,7 @@ requestAnimationFrame(frame);
     return realGet.apply(SETTINGS, arguments);
   };
 
-  MODES.register({ id: 'ranked', label: 'RANKED', order: 27, players: 1 });
+  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1 });
 
   // ---------------------------------------------------------------- what the next match is worth (for the select and VS screens)
   function preview() {
@@ -13108,7 +13132,7 @@ requestAnimationFrame(frame);
   }, -50);
 
   // ---------------------------------------------------------------- registry and test hook
-  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28, players: 1, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
+  MODES.register({ id: 'daily', label: 'SPRINT OF THE DAY', order: 28.5, players: 1, onPick() { openBriefing(); return false; }, onMatchEnd: finishMatch });
   window.DAILY = {
     dateKey, dayNum, keyOf, prevKey, validKey, dayLabel, hashStr, rng, planFor, goalText, goalMet, sanitize, applyResult, liveStreak, fmtTime,
     MODS, GOALS, BASE_RULES, state: getState, today: todayKey, setToday: k => { override = k || null; },
@@ -14712,6 +14736,7 @@ requestAnimationFrame(frame);
       if (window.MODES2 && MODES2.screen && MODES2.screen()) return true;
       if (window.ARCADE && ARCADE.S && ARCADE.S.screen) return true;
       if (window.BONUS && BONUS.active && BONUS.active()) return true;
+      if (typeof titleOverlayOpen === 'function' && titleOverlayOpen()) return true;   // the screens of the other features (JUKEBOX, VAULT, ...): someone reading or listening is not idle
     } catch (e) { /* a feature that is half loaded is not an overlay */ }
     for (let i = 0; i < guards.length; i++) { try { if (guards[i]()) return true; } catch (e) { /* a broken guard says nothing */ } }
     return false;
@@ -15498,7 +15523,7 @@ requestAnimationFrame(frame);
 //   - Rumble: vibrationActuator 'dual-rumble' on a human fighter's pad for hits taken (scaled by damage), blocks, knockdowns, throws, supers and the KO. Setting gamepad.rumble.
 //   - Button glyphs: when the last thing the player touched was a pad, a strip of glyphs (A / B / Y, shapes, or numbers on a pad with no standard layout) replaces the key hints at the foot of the
 //     title, the select screen and the end screen, and the pause screen offers the setup. Follows the player's remapping. Settings gamepad.hints and gamepad.glyphs.
-//   - Remapping: the GAMEPAD SETUP screen (title entry, pause key G, or the super button on the pause screen) rebinds the ten pad actions per controller id; saved in SETTINGS gamepad.maps.
+//   - Remapping: the GAMEPAD SETUP screen (title entry, pause key H, or the super button on the pause screen) rebinds the ten pad actions per controller id; saved in SETTINGS gamepad.maps.
 //     The engine's pollPads() reads the pad through the 'pad' filter hook, which hands it a virtual pad built from the saved map (no map: the real pad, untouched).
 //   - Hot-plug toast: a short note when a pad appears or goes away, and which player it is.
 // Hooks used: pad (filter, added to game.js for this), menuHint (run, added to game.js for this), update, drawTop, titleItems, pauseItems. BUS: hit, block, knockdown, throw, super, ko, settings.
@@ -15753,7 +15778,7 @@ requestAnimationFrame(frame);
     } else {
       const up = key('KeyW') || key('ArrowUp') || edge(12) || aedge('u') || mapped('u'), dn = key('KeyS') || key('ArrowDown') || edge(13) || aedge('d') || mapped('d');
       const lf = key('KeyA') || key('ArrowLeft') || edge(14) || aedge('l') || mapped('l'), rt = key('KeyD') || key('ArrowRight') || edge(15) || aedge('r') || mapped('r');
-      const ok = key('Enter') || key('Space') || key('KeyJ') || edge(0) || edge(9) || mapped('p'), bk = key('Escape') || key('KeyK') || key('KeyG') || key('KeyP') || edge(1) || edge(8) || mapped('k');
+      const ok = key('Enter') || key('Space') || key('KeyJ') || edge(0) || edge(9) || mapped('p'), bk = key('Escape') || key('KeyK') || key('KeyH') || key('KeyP') || edge(1) || edge(8) || mapped('k');
       if (up !== dn) { P.sel = (P.sel + (up ? list2.length - 1 : 1)) % list2.length; beepSafe(420, 0.03); }
       const r = list2[P.sel];
       if (bk) close();
@@ -15808,7 +15833,7 @@ requestAnimationFrame(frame);
     }
   }, -10);
   HOOKS.add('titleItems', () => P.n > 0 ? { id: 'gamepad', label: 'GAMEPAD', order: 905, run() { open('title'); } } : null);
-  HOOKS.add('pauseItems', () => P.n > 0 ? { key: 'KeyG', label: 'G GAMEPAD SETUP', run() { open('pause'); } } : null);
+  HOOKS.add('pauseItems', () => P.n > 0 ? { key: 'KeyH', label: 'H GAMEPAD SETUP', run() { open('pause'); } } : null);
   HOOKS.add('drawTop', (c, g) => {
     if (P.open) drawScreen(c);
     else if (g.phase === 'pause' && SETTINGS.get('gamepad.hints') && padActive() && !(window.OPTIONS && window.OPTIONS.screen)) drawStrip(c, 'pause');
@@ -15833,9 +15858,9 @@ requestAnimationFrame(frame);
 // Area: dressing for the calendar. Halloween (Oct 20 - Nov 2): pumpkins, bats, ghosts and spiders with a spooky purple tint. Winter holidays (Dec 15 - Jan 6): snow,
 //       string lights, trees and a frosty tint. New Year (Dec 30 - Jan 2): fireworks in the sky and confetti on every KO. April 1: a silly announcer (captions, a
 //       squeaky voice and a slide whistle). Everything is draw-only: no hit, timer, health or input is read for any other purpose than drawing, and none is changed.
-// Setting: events.mode = auto (follow the local date) | off | halloween | winter | newyear | april. Forced modes ignore the date. Pause menu: N cycles the mode.
+// Setting: events.mode = auto (follow the local date) | off | halloween | winter | newyear | april. Forced modes ignore the date. Pause menu: E cycles the mode.
 //          A session override for screenshots and tests: add events=<mode> to the URL hash (it is not saved).
-// Hooks used: 'update' (clock, confetti), 'drawWorld' (confetti), 'drawTop' (April caption, title tag), 'pauseItems' (N = mode).
+// Hooks used: 'update' (clock, confetti), 'drawWorld' (confetti), 'drawTop' (April caption, title tag), 'pauseItems' (E = mode).
 // BUS used: ko, match:start, round:start, phase, settings.
 // Engine touch points that are not hooks (nothing in game.js is edited): drawArena and drawArenaFront (arenas.js) are wrapped to add a layer behind the fighters and one in
 //   front of them; ANNOUNCER.say (hud.js) is wrapped for the April captions; speechSynthesis.speak is wrapped to change the words and pitch of the April voice.
@@ -16256,7 +16281,7 @@ requestAnimationFrame(frame);
   const modeLabel = m => m === 'auto' ? 'AUTO' : m === 'off' ? 'OFF' : DEF[m].short;
   function setMode(m) { if (!MODE_LIST.includes(m)) return modeNow(); hashMode = null; const v = SETTINGS.set('events.mode', m); dirty(); return v; }
   function cycle() { const m = modeNow(); return setMode(MODE_LIST[(MODE_LIST.indexOf(m) + 1) % MODE_LIST.length]); }
-  HOOKS.add('pauseItems', () => [{ id: 'events', key: 'KeyN', label: 'N EVENTS ' + modeLabel(modeNow()), run: () => { cycle(); } }]);
+  HOOKS.add('pauseItems', () => [{ id: 'events', key: 'KeyE', label: 'E EVENTS ' + modeLabel(modeNow()), run: () => { cycle(); } }]);
 
   wrapArena(); wrapAnnouncer(); wrapSpeech();
 

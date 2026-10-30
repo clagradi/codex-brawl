@@ -46,7 +46,7 @@ export async function run(t) {
   })()`);
   check(s0.marker && s0.api && s0.hooks, 'EVENTS is loaded and uses the update, drawWorld and drawTop hooks');
   check(s0.def === 'auto' && s0.modes === 'auto,off,halloween,winter,newyear,april' && s0.ids === 'halloween,winter,newyear,april', 'events.mode defaults to auto and offers off plus the four events: ' + s0.modes);
-  check(s0.item && s0.item[0] === 'KeyN' && s0.item[1] === 'N EVENTS AUTO', 'the pause screen gets an N EVENTS item: ' + JSON.stringify(s0.item));
+  check(s0.item && s0.item[0] === 'KeyE' && s0.item[1] === 'E EVENTS AUTO', 'the pause screen gets an E EVENTS item: ' + JSON.stringify(s0.item));
   check(s0.tags.every(x => /^[A-Z0-9 ]+$/.test(x)), 'event titles are capitals and ASCII only: ' + s0.tags.join(' | '));
 
   // ---- calendar windows, edge to edge (local date, month and day only) ----
@@ -82,16 +82,16 @@ export async function run(t) {
   check(m.viaSettings === 0, 'changing events.mode through SETTINGS takes effect without waiting');
   check(m.cycle === 'off,halloween,winter,newyear,april,auto', 'cycle steps through every mode and wraps: ' + m.cycle);
 
-  // ---- the pause key N ----
+  // ---- the pause key E ----
   const p = await ev(`(() => {
     const [a] = E.fresh(0, 1); E.mode('auto', [7, 15]); const o = {};
     game.phase = 'pause'; const c0 = EVENTS.state().clock; step(5); o.frozen = EVENTS.state().clock === c0;
-    E.T('KeyN'); step(1); o.after = EVENTS.mode(); o.label = HOOKS.collect('pauseItems').find(i => i.id === 'events').label;
-    E.T('KeyN'); step(1); o.second = EVENTS.mode();
+    E.T('KeyE'); step(1); o.after = EVENTS.mode(); o.label = HOOKS.collect('pauseItems').find(i => i.id === 'events').label;
+    E.T('KeyE'); step(1); o.second = EVENTS.mode();
     game.phase = 'fight'; const c1 = EVENTS.state().clock; step(5); o.runs = EVENTS.state().clock - c1;
     EVENTS.setMode('auto'); return o;
   })()`);
-  check(p.after === 'off' && p.label === 'N EVENTS OFF' && p.second === 'halloween', 'N in the pause screen cycles the mode and the label follows: ' + JSON.stringify([p.after, p.label, p.second]));
+  check(p.after === 'off' && p.label === 'E EVENTS OFF' && p.second === 'halloween', 'E in the pause screen cycles the mode and the label follows: ' + JSON.stringify([p.after, p.label, p.second]));
   check(p.frozen && p.runs === 5, 'event animation stands still in pause and runs again after');
 
   // ---- draw-only: the same CPU vs CPU round ends in the same state under every mode ----
@@ -153,7 +153,7 @@ export async function run(t) {
   // ---- April 1: the silly announcer ----
   const si = await ev(`(() => {
     const o = { missing: [], bad: [], n: 0 };
-    for (const key of ANNOUNCER.phrases) for (let n = 0; n < 4; n++) {
+    for (const key of ANNOUNCER.phrases) if (!key.startsWith('voice.')) for (let n = 0; n < 4; n++) {   // voice.* keys belong to p-voice: they carry free text, not a fixed phrase
       const r = EVENTS.silly(key, 'Tibo', n); o.n++;
       if (!r) { o.missing.push(key); continue; }
       if (!/^[A-Z0-9 .,!?'-]+$/.test(r.caption) || !r.spoken || /[^\\x20-\\x7e]/.test(r.spoken)) o.bad.push(key + ':' + r.caption + '|' + r.spoken);
@@ -204,7 +204,7 @@ export async function run(t) {
   await t.open('#demo=0,1&stop&events=winter');
   const h1 = await ev(`(() => { EVENTS.setDate(7, 15); const o = { mode: EVENTS.mode(), active: EVENTS.active().join(), saved: SETTINGS.get('events.mode') }; o.cycled = EVENTS.cycle(); o.modeAfter = EVENTS.mode(); o.savedAfter = SETTINGS.get('events.mode'); SETTINGS.reset('events.mode'); return o; })()`);
   check(h1.mode === 'winter' && h1.active === 'winter' && h1.saved === 'auto', '#events=winter forces the winter lights without saving anything: ' + JSON.stringify(h1));
-  check(h1.cycled === 'newyear' && h1.modeAfter === 'newyear' && h1.savedAfter === 'newyear', 'the first N press after a hash override cycles on from it and saves the new mode');
+  check(h1.cycled === 'newyear' && h1.modeAfter === 'newyear' && h1.savedAfter === 'newyear', 'the first E press after a hash override cycles on from it and saves the new mode');
   await t.open('#demo=0,1&stop&events=bogus');
   check(await ev(`EVENTS.mode() === 'auto'`), '#events= with an unknown mode is ignored');
 

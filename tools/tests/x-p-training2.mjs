@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 export async function run(t) {
   const ck = (c, m) => t.check(c, 'training2: ' + m), ev = code => t.eval(code);
   const dev = readFileSync(new URL('../../dev.html', import.meta.url), 'utf8');
-  ck(/<script src="vfx\.js"><\/script>\s*<script src="p-training2\.js"><\/script>/.test(dev), 'dev.html loads p-training2.js right after vfx.js');
+  ck(dev.indexOf('<script src="vfx.js"></script>') >= 0 && dev.indexOf('<script src="vfx.js"></script>') < dev.indexOf('<script src="p-training2.js"></script>'), 'dev.html loads p-training2.js after vfx.js (other features may sit in between)');
   // Tibo's punch row in docs/FRAMEDATA.md: "+6 / +7" on hit (P1 attacker first) and "-8" on block
   const fd = readFileSync(new URL('../../docs/FRAMEDATA.md', import.meta.url), 'utf8');
   const tibo = fd.slice(fd.indexOf('## TIBO')), row = name => (tibo.split('\n').find(l => l.startsWith('| ' + name + ' |')) || '').split('|').map(s => s.trim());

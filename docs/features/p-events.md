@@ -23,8 +23,8 @@ Reduce flash (an existing option) makes the lights steady and the confetti and f
 
 One setting, `events.mode`, saved with the other options: `auto` (default, follow the date), `off` (no events at all), or `halloween`, `winter`, `newyear`, `april` (force that event on any date).
 
-- In the pause screen, `N` cycles the mode; the label under the pause text reads `N EVENTS AUTO`, `N EVENTS OFF`, `N EVENTS HALLOWEEN` and so on.
-- `#events=<mode>` in the URL hash overrides the mode for that visit only and saves nothing. The first `N` press after that continues the cycle from the override and saves the new mode. Unknown values are ignored.
+- In the pause screen, `E` cycles the mode; the label under the pause text reads `E EVENTS AUTO`, `E EVENTS OFF`, `E EVENTS HALLOWEEN` and so on.
+- `#events=<mode>` in the URL hash overrides the mode for that visit only and saves nothing. The first `E` press after that continues the cycle from the override and saves the new mode. Unknown values are ignored.
 
 ## April 1: the silly announcer
 
@@ -41,7 +41,7 @@ One setting, `events.mode`, saved with the other options: `auto` (default, follo
 - the file loaded, the setting default, the pause item and ASCII capitals in every on-screen title;
 - the windows edge to edge: 19/20 Oct, 2/3 Nov, 14/15 Dec, 29/30 Dec, 2/3 Jan, 6/7 Jan, 29 Feb, 31 Mar to 2 Apr and a summer day;
 - mode resolution: auto follows the date, off beats the date, a forced mode ignores it, unknown values are ignored, the real date is used when none is pinned, `SETTINGS.set` takes effect at once, cycle wraps;
-- the pause key N and that the animation clock stands still while paused;
+- the pause key E and that the animation clock stands still while paused;
 - the draw-only rule: a seeded CPU vs CPU round reaches the same end state under off, Halloween, winter, New Year, April and auto;
 - pictures: Halloween, winter and New Year each change the arena, April does not until the announcer speaks, auto on a summer day draws nothing, the title screen shows the season;
 - confetti: 130 pieces on a New Year KO (70 with reduce flash), none on other days, cap of 300, falls and then is gone, a new match clears it;

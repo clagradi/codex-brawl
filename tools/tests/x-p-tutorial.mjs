@@ -37,7 +37,7 @@ export async function run(t) {
   const L = body => ev(`(() => { const r = {}; try { const T = __T, P = T.P, D = T.D, S = T.S; ${body}
     } catch (e) { r.err = String(e && e.stack || e).slice(0, 300); } return r; })()`);
   const dev = readFileSync(new URL('../../dev.html', import.meta.url), 'utf8');
-  ck(/<script src="vfx\.js"><\/script>\s*<script src="p-tutorial\.js"><\/script>/.test(dev), 'dev.html loads p-tutorial.js right after vfx.js');
+  ck(dev.indexOf('<script src="vfx.js"></script>') >= 0 && dev.indexOf('<script src="vfx.js"></script>') < dev.indexOf('<script src="p-tutorial.js"></script>'), 'dev.html loads p-tutorial.js after vfx.js (other features may sit in between)');
 
   await t.open('');
   await ev(HELP);
@@ -84,7 +84,7 @@ export async function run(t) {
     r.draw = T.draw();
     T.press('KeyR', 2); r.restart = { phase: game.phase, lesson: S().lesson, step: S().step, on: S().on };
     T.until(() => game.phase === 'fight', 300);
-    T.press('KeyP', 1); T.press('KeyN', 2); r.skip = { lesson: S().lesson, step: S().step, phase: game.phase, behaviour: S().behaviour };
+    T.press('KeyP', 1); T.press('KeyT', 2); r.skip = { lesson: S().lesson, step: S().step, phase: game.phase, behaviour: S().behaviour };
     T.until(() => game.phase === 'fight', 300);
     T.press('KeyP', 1); T.press('KeyQ', 3); r.quit = { phase: game.phase, screen: S().screen, sel: S().sel, on: S().on };
     r.itemsOut = HOOKS.collect('pauseItems').map(i => i && i.id).filter(Boolean);
@@ -94,9 +94,9 @@ export async function run(t) {
   ck(B.timer && B.timer[0] === B.timer[1] && B.timer[2] === 'fight' && B.idleStep === 0, 'the round clock does not count down in a lesson (700 ticks) and nothing clears by itself: ' + js(B.timer));
   ck(B.hp && B.hp[0] >= 1 && B.hp[1] >= 1 && B.after === 'fight', 'a huge hit leaves both the player and the dummy standing (no KO): ' + js(B.hp) + ' ' + B.after);
   ck(B.refill && B.refill[0] && B.refill[1] && B.refill[2] === 0, 'health comes back between exchanges and the dummy never builds meter: ' + js(B.refill));
-  ck(B.before === 1 && B.pause === 'pause' && B.items.includes('tutorial-restart') && B.items.includes('tutorial-next') && B.draw === 'ok', 'the pause screen offers R RESTART LESSON and N NEXT LESSON: ' + js(B.items));
+  ck(B.before === 1 && B.pause === 'pause' && B.items.includes('tutorial-restart') && B.items.includes('tutorial-next') && B.draw === 'ok', 'the pause screen offers R RESTART LESSON and T NEXT LESSON: ' + js(B.items));
   ck(B.restart && B.restart.on && B.restart.lesson === 0 && B.restart.step === 0 && B.restart.phase === 'intro', 'R restarts the lesson from its first step: ' + js(B.restart));
-  ck(B.skip && B.skip.lesson === 1 && B.skip.step === 0 && B.skip.behaviour === 'idle', 'N skips to the next lesson: ' + js(B.skip));
+  ck(B.skip && B.skip.lesson === 1 && B.skip.step === 0 && B.skip.behaviour === 'idle', 'T skips to the next lesson: ' + js(B.skip));
   ck(B.quit && B.quit.phase === 'title' && B.quit.screen === 'list' && B.quit.sel === 1 && !B.quit.on, 'Q in the pause menu goes back to the lesson list on the current lesson: ' + js(B.quit));
   ck(B.itemsOut && !B.itemsOut.some(id => /^tutorial/.test(id)), 'outside a lesson the pause menu has no tutorial keys: ' + js(B.itemsOut));
   ck(B.bits === 0 && js(B.steps) === js(['0:0']), 'skipping does not count as clearing; one tutorial:step event so far: ' + js(B.steps));

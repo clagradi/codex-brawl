@@ -236,7 +236,7 @@
   // pause menu: restart this lesson or skip to the next one
   const PAUSE = [
     { id: 'tutorial-restart', key: 'KeyR', label: 'R RESTART LESSON', run: () => { if (S.on && game.phase === 'pause') start(S.k, S.pid); } },
-    { id: 'tutorial-next', key: 'KeyN', label: 'N NEXT LESSON', run: () => { if (S.on && game.phase === 'pause') next(); } },
+    { id: 'tutorial-next', key: 'KeyT', label: 'T NEXT LESSON', run: () => { if (S.on && game.phase === 'pause') next(); } },
   ];
   HOOKS.add('pauseItems', () => (S.on ? PAUSE : null));
 

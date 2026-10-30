@@ -46,7 +46,7 @@ The GET UP lesson checks the quick rise and the roll through the `defense:rise` 
 - Nobody is knocked out: a `damage` filter (order 1000, so it runs after every other filter) never takes the last point of health. Health comes back whenever a fighter is standing or walking.
 - The round clock never counts down, and the dummy never builds super meter or quick-rises.
 - The dummy is driven by an `input` hook at order 1000. It runs after every CPU brain, so no other feature changes what the dummy does.
-- The pause screen gets two extra keys through `pauseItems`: `R` RESTART LESSON and `N` NEXT LESSON. `Q` (quit) goes back to the lesson list on the current lesson. A skipped lesson does not count as cleared.
+- The pause screen gets two extra keys through `pauseItems`: `R` RESTART LESSON and `T` NEXT LESSON. `Q` (quit) goes back to the lesson list on the current lesson. A skipped lesson does not count as cleared.
 
 ## Saved progress and events
 

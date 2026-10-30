@@ -49,7 +49,7 @@ export async function run(t) {
       hooks: ['pad', 'menuHint', 'update', 'drawTop', 'titleItems', 'pauseItems'].every(h => HOOKS.has(h)),
       def: ['gamepad.rumble', 'gamepad.hints', 'gamepad.glyphs', 'gamepad.maps'].map(k => SETTINGS.get(k)), keys: SETTINGS.list().map(d => d.key).filter(k => k.startsWith('gamepad.')) };
     out.badEnum = SETTINGS.set('gamepad.glyphs', 'nope'); G.pads = []; step(2);
-    out.item = HOOKS.collect('titleItems').some(i => i && i.id === 'gamepad'); out.key = HOOKS.collect('pauseItems').some(i => i && i.key === 'KeyG');
+    out.item = HOOKS.collect('titleItems').some(i => i && i.id === 'gamepad'); out.key = HOOKS.collect('pauseItems').some(i => i && i.key === 'KeyH');
     out.active = GAMEPAD.active(); out.st = GAMEPAD.state();
     return out;
   })()`);
@@ -277,14 +277,14 @@ export async function run(t) {
   // ---- the setup screen: from the pause screen, two pads, reset ----
   const ps = await ev(`(() => {
     const out = {}, [a, b] = G.fresh(0, 1); GAMEPAD.reset(G.ID); G.pads = [G.mk(G.ID, [7])]; step(1); G.idle();
-    G.T('KeyP'); step(1); out.paused = game.phase; out.key = HOOKS.collect('pauseItems').some(i => i.key === 'KeyG');
+    G.T('KeyP'); step(1); out.paused = game.phase; out.key = HOOKS.collect('pauseItems').some(i => i.key === 'KeyH');
     G.pads = [G.mk(G.ID, [7])]; step(1); G.idle(); G.pads = [G.mk(G.ID, [3])]; step(1); G.idle();   // the pad's super button on the pause screen
     out.byPad = [GAMEPAD.isOpen(), GAMEPAD.state().from, game.phase]; GAMEPAD.close(); step(1); G.idle(); step(95);
-    G.pads = [G.mk(G.ID, [7])]; step(1); G.idle(); G.T('KeyG'); step(1); out.byKey = [GAMEPAD.isOpen(), GAMEPAD.state().from];
+    G.pads = [G.mk(G.ID, [7])]; step(1); G.idle(); G.T('KeyH'); step(1); out.byKey = [GAMEPAD.isOpen(), GAMEPAD.state().from];
     G.T('KeyQ'); step(1); out.quit = [game.phase, GAMEPAD.isOpen()];   // the screen takes every key: Q does not quit to the title
     render(); out.drew = true;
     G.T('Escape'); step(1); out.closed = [GAMEPAD.isOpen(), game.phase];   // and Esc closes only the screen, it does not resume
-    G.T('KeyG'); step(1); game.phase = 'fight'; step(1); out.auto = GAMEPAD.isOpen();
+    G.T('KeyH'); step(1); game.phase = 'fight'; step(1); out.auto = GAMEPAD.isOpen();
     return out;
   })()`);
   check(ps.paused === 'pause' && ps.key && ps.byPad[0] && ps.byPad[1] === 'pause' && ps.byPad[2] === 'pause', 'on the pause screen the super button opens the setup: ' + JSON.stringify(ps.byPad));
@@ -293,7 +293,7 @@ export async function run(t) {
 
   const two = await ev(`(() => {
     const out = {}, both = (a, b) => { G.pads = [G.mk(G.ID, a, { slot: 0 }), G.mk(G.PS, b, { slot: 1 })]; step(1); };
-    GAMEPAD.reset(G.ID); GAMEPAD.reset(G.PS); G.fresh(0, 1); both([], []); G.T('KeyP'); step(1); G.T('KeyG'); step(2);
+    GAMEPAD.reset(G.ID); GAMEPAD.reset(G.PS); G.fresh(0, 1); both([], []); G.T('KeyP'); step(1); G.T('KeyH'); step(2);
     both([15], []); out.tab = GAMEPAD.state().tab; both([], []);   // right on the first row: the next pad
     both([], [13]); out.sel = GAMEPAD.state().sel; both([], []);   // from now on the second pad drives the screen
     both([], [0]); out.cap = GAMEPAD.state().cap; both([], []);
@@ -306,7 +306,7 @@ export async function run(t) {
   check(two.tab === 1 && two.sel === 1 && two.cap === 'l' && two.capAfter === null && two.ps === '6' && two.xbox === '14' && two.maps.length === 1 && two.maps[0].startsWith('Wireless'), 'with two pads the first row switches pad, and a remap lands on that pad\'s id only: ' + JSON.stringify(two));
 
   const rs = await ev(`(() => {
-    const out = {}; GAMEPAD.reset(G.ID); GAMEPAD.reset(G.PS); G.fresh(0, 1); G.idle(); GAMEPAD.assign(G.ID, 'p', 7); G.T('KeyP'); step(1); G.T('KeyG'); step(2);
+    const out = {}; GAMEPAD.reset(G.ID); GAMEPAD.reset(G.PS); G.fresh(0, 1); G.idle(); GAMEPAD.assign(G.ID, 'p', 7); G.T('KeyP'); step(1); G.T('KeyH'); step(2);
     out.before = GAMEPAD.effective(G.ID).p.join();
     for (let i = 0; i < 14; i++) { G.T('KeyS'); step(1); }   // rows: the pad, ten buttons, rumble, glyphs, hints, then RESET at 14 and DONE at 15
     out.sel = GAMEPAD.state().sel; G.T('Enter'); step(1); out.maps = SETTINGS.get('gamepad.maps'); out.after = GAMEPAD.effective(G.ID).p.join();

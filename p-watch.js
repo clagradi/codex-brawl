@@ -118,6 +118,7 @@
       if (window.MODES2 && MODES2.screen && MODES2.screen()) return true;
       if (window.ARCADE && ARCADE.S && ARCADE.S.screen) return true;
       if (window.BONUS && BONUS.active && BONUS.active()) return true;
+      if (typeof titleOverlayOpen === 'function' && titleOverlayOpen()) return true;   // the screens of the other features (JUKEBOX, VAULT, ...): someone reading or listening is not idle
     } catch (e) { /* a feature that is half loaded is not an overlay */ }
     for (let i = 0; i < guards.length; i++) { try { if (guards[i]()) return true; } catch (e) { /* a broken guard says nothing */ } }
     return false;

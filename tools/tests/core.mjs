@@ -103,7 +103,7 @@ export async function run(t) {
   const r = await ev(`(() => {
     const L = window.__log, names = L.map(x => x[0]), c = n => names.filter(x => x === n).length, first = n => names.indexOf(n), ph = L.filter(x => x[0] === 'phase').map(x => x[1]);
     const re = L.find(x => x[0] === 'round:end'), me = L.find(x => x[0] === 'match:end'), rs = L.find(x => x[0] === 'round:start'), ms = L.find(x => x[0] === 'match:start'), h = L.find(x => x[0] === 'hit');
-    return { ms: c('match:start'), me: c('match:end'), rs: c('round:start'), re: c('round:end'), hit: c('hit'), set: c('settings'),
+    return { ms: c('match:start'), me: c('match:end'), rs: c('round:start'), re: c('round:end'), hit: c('hit'), set: L.filter(x => x[0] === 'settings' && x[1].key === 'rounds').length,   // features may save their own keys during a match (stats, rating): count the one this test changed
       order: first('match:start') < first('round:start') && first('round:start') < first('round:end') && first('round:end') < first('match:end'),
       chain: ph.length > 5 && ph[0].from === 'select' && ph[ph.length - 1].to === 'over' && ph.every((e, i) => i === 0 || ph[i - 1].to === e.from),
       shapes: !!ms && ms[1].modeId === 'versus' && ms[1].fighters.length === 2 && !!rs && rs[1].round === 1 && rs[1].time === 99 && rs[1].sudden === false

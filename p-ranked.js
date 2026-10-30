@@ -113,7 +113,7 @@
     return realGet.apply(SETTINGS, arguments);
   };
 
-  MODES.register({ id: 'ranked', label: 'RANKED', order: 27, players: 1 });
+  MODES.register({ id: 'ranked', label: 'RANKED', order: 27.5, players: 1 });
 
   // ---------------------------------------------------------------- what the next match is worth (for the select and VS screens)
   function preview() {

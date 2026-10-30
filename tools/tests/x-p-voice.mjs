@@ -41,7 +41,7 @@ export async function run(t) {
   })()`);
   check(s0.api && s0.marker && s0.hooks, 'VOICE is loaded and uses the update, damage, drawTop and pauseItems hooks');
   check(s0.defined && s0.phrases, 'p-voice registers its announcer phrases (voice.tibo ... voice.call) through ANNOUNCER.define');
-  check(s0.def === true && s0.item && s0.item.key === 'KeyN' && s0.item.label === 'N VOICE LINES ON', 'voice.speech defaults to on and the pause menu offers N VOICE LINES: ' + JSON.stringify(s0.item));
+  check(s0.def === true && s0.item && s0.item.key === 'KeyV' && s0.item.label === 'V VOICE LINES ON', 'voice.speech defaults to on and the pause menu offers V VOICE LINES: ' + JSON.stringify(s0.item));
   check(s0.roster === 'tibo,poteto,dot,wang,muse' && s0.handles, 'the roster is still the five fighters with empty handles: ' + s0.roster);
 
   // ---- the lines themselves: every pair, every winner, glyphs, wrap widths, banned words ----
@@ -195,7 +195,7 @@ export async function run(t) {
     step(150); out.voiced = V.voiced().length; out.engine = V.said.filter(s => s.k.slice(0, 6) !== 'voice.').map(s => s.k);
     return out;
   })()`);
-  check(off.val === false && off.label === 'N VOICE LINES OFF', 'voice.speech can be turned off and the pause label follows');
+  check(off.val === false && off.label === 'V VOICE LINES OFF', 'voice.speech can be turned off and the pause label follows');
   check(off.queue === 0 && off.voiced === 0, 'with voice.speech off nothing is queued or spoken: ' + JSON.stringify([off.queue, off.voiced]));
   check(off.vs.length === 2 && off.vs.every(r => has(off.d, r)) && off.calls === 1, 'captions stay on with the voice off (VS bubbles and callouts)');
   check(off.engine.includes('arena') && off.engine.includes('fight'), 'the engine announcer still speaks: ' + off.engine.join());
@@ -207,15 +207,15 @@ export async function run(t) {
     SETTINGS.set('voice.speech', false); st = VOICE.state(); out.stopped = V.stops - s0; out.q2 = st.queue.length; out.mine = st.mineUntil;
     SETTINGS.set('voice.speech', true);
     V.fresh(0, 1); const prev = game.phase, T0 = VOICE.state().T, s1 = V.stops;
-    game.phase = 'pause'; pressed.KeyN = true; step(1); out.p1 = SETTINGS.get('voice.speech');
-    pressed.KeyN = true; step(1); out.p2 = SETTINGS.get('voice.speech'); out.pauseT = VOICE.state().T - T0; out.pd = V.drawn().length;
+    game.phase = 'pause'; pressed.KeyV = true; step(1); out.p1 = SETTINGS.get('voice.speech');
+    pressed.KeyV = true; step(1); out.p2 = SETTINGS.get('voice.speech'); out.pauseT = VOICE.state().T - T0; out.pd = V.drawn().length;
     game.phase = prev; out.stops2 = V.stops - s1;
     out.toggle = [VOICE.toggle(false), SETTINGS.get('voice.speech'), VOICE.toggle(true), SETTINGS.get('voice.speech')];
     return out;
   })()`);
   check(cut.spoke >= 1 && cut.playing && cut.q >= 1, 'a VS line is playing with the reply still queued: ' + JSON.stringify([cut.spoke, cut.playing, cut.q]));
   check(cut.stopped === 1 && cut.q2 === 0 && cut.mine === 0, 'turning voice.speech off mid-line stops our line and clears the queue: ' + JSON.stringify([cut.stopped, cut.q2, cut.mine]));
-  check(cut.p1 === false && cut.p2 === true && cut.stops2 === 0, 'N in the pause menu toggles voice.speech off and on again: ' + JSON.stringify([cut.p1, cut.p2]));
+  check(cut.p1 === false && cut.p2 === true && cut.stops2 === 0, 'V in the pause menu toggles voice.speech off and on again: ' + JSON.stringify([cut.p1, cut.p2]));
   check(cut.pauseT === 0, 'the voice clock stops while the game is paused: ' + cut.pauseT);
   check(cut.toggle.join() === 'false,false,true,true', 'VOICE.toggle sets the setting and reports it: ' + cut.toggle.join());
 

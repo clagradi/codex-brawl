@@ -58,7 +58,7 @@ All of them show up in the OPTIONS screen through the settings registry.
 
 - The demo trigger is an `update` hook that reads the engine phase and counts ticks on the title. There is no timer and no `setTimeout`.
 - A WATCH match uses `game.mode = 2` with both fighters flagged as CPU when the match starts, which keeps the engine's share text on its ordinary path. The arcade stats still count a finished WATCH match, because it is a normal match as far as the BUS is concerned; the attract demo never reaches `match:end` and never counts.
-- Other overlays that should stop the idle clock can register through `WATCH.guard(fn)`; the function returns true while the overlay is open. OPTIONS, the controls screen, the arcade screens, the bonus overlay and the modes2 setup screens are already covered.
+- Other overlays that should stop the idle clock can register through `WATCH.guard(fn)`; the function returns true while the overlay is open. OPTIONS, the controls screen, the arcade screens, the bonus overlay and the modes2 setup screens are already covered. On the release branch the demo also waits while the screens of JUKEBOX, VAULT, OBS, GAMEPAD, MUTATORS, OKRS, TUTORIAL (lesson list), A11Y, REPLAYS and DAILY are open.
 - The title menu now holds twelve entries when every feature is loaded, which is more than the screen shows comfortably. Whoever owns the title layout should look at the spacing.
 - The idle clock counts game ticks, not wall time. A test that sits on the title for 20 real seconds will see the demo start. Use `hold(true)` or change `watch.idle` in such a test.
 

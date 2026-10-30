@@ -211,6 +211,7 @@ export async function run(t) {
   check(on === true, 'turning the setting back on re-enables the feature');
   const ph = await ev(`(() => { V.play(); const before = SETTINGS.get('observability.fleet').m, pending = OBS.fleet().m; dispatchEvent(new Event('pagehide')); return { before, pending, after: SETTINGS.get('observability.fleet').m, total: OBS.fleet().m }; })()`);
   check(ph.before === 2 && ph.pending === 3 && ph.after === 3 && ph.total === 3, 'hiding the page stores the matches that are still pending: ' + JSON.stringify(ph));
+  await ev("SETTINGS.set('rounds', 2); 1");   // V.play() plays one-round matches: leave the stored rounds as found for the next file
 }
 
 function V_near(p, q, e) { return p.every((v, k) => Math.abs(v - q[k]) <= e); }

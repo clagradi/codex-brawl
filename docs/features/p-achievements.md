@@ -117,5 +117,5 @@ Add one `D(id, name, desc, goal, val)` line to the list at the top of `p-achieve
 
 ## Notes for the integrator
 
-- The title menu already holds many entries before OKRS (1 PLAYER VS CPU, 2 PLAYERS and the mode registry entries, then OPTIONS). The layout in `titleSlot` (`game.js`) fits about six, so with the shipped modes the last rows already run past the bottom of the canvas and the OKRS entry (order 880, next to last) is not visible there. For that reason the screen also has the corner button and the `G` key on the title, which do not depend on the menu layout. Fixing the title menu layout is left to the integrator; nothing in `game.js` was changed.
+- The title menu already holds many entries before OKRS (1 PLAYER VS CPU, 2 PLAYERS and the mode registry entries, then OPTIONS). The layout in `titleSlot` (`game.js`) fits about six, so with the shipped modes the last rows already run past the bottom of the canvas and the OKRS entry (order 880, next to last) is not visible there. For that reason the screen also has the corner button and the `G` key on the title, which do not depend on the menu layout. The release branch has since made the title menu page six entries at a time (`titlePager` in `game.js`), so the OKRS entry is reachable there as well.
 - Nothing else is needed from the engine: no hook was added.

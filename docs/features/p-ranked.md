@@ -38,7 +38,7 @@ While a ranked match is on screen, `SETTINGS.get('difficulty')` answers the engi
 
 ## Screens
 
-- Title: the RANKED entry (order 27, one player). With it highlighted, a small note shows the rank, the rating and the record. After a forfeit the title shows a note with the cost for seven seconds.
+- Title: the RANKED entry (order 27.5, one player). With it highlighted, a small note shows the rank, the rating and the record. After a forfeit the title shows a note with the cost for seven seconds.
 - Character select: a badge with the rank, the rating and the stakes (`WIN +N LOSE -M`, the base steps against the next opponent).
 - VS screen: the same, with the CPU level and the opponent label.
 - Pause: a red line, QUITTING COUNTS AS A LOSS, with the cost.

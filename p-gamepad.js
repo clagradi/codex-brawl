@@ -3,7 +3,7 @@
 //   - Rumble: vibrationActuator 'dual-rumble' on a human fighter's pad for hits taken (scaled by damage), blocks, knockdowns, throws, supers and the KO. Setting gamepad.rumble.
 //   - Button glyphs: when the last thing the player touched was a pad, a strip of glyphs (A / B / Y, shapes, or numbers on a pad with no standard layout) replaces the key hints at the foot of the
 //     title, the select screen and the end screen, and the pause screen offers the setup. Follows the player's remapping. Settings gamepad.hints and gamepad.glyphs.
-//   - Remapping: the GAMEPAD SETUP screen (title entry, pause key G, or the super button on the pause screen) rebinds the ten pad actions per controller id; saved in SETTINGS gamepad.maps.
+//   - Remapping: the GAMEPAD SETUP screen (title entry, pause key H, or the super button on the pause screen) rebinds the ten pad actions per controller id; saved in SETTINGS gamepad.maps.
 //     The engine's pollPads() reads the pad through the 'pad' filter hook, which hands it a virtual pad built from the saved map (no map: the real pad, untouched).
 //   - Hot-plug toast: a short note when a pad appears or goes away, and which player it is.
 // Hooks used: pad (filter, added to game.js for this), menuHint (run, added to game.js for this), update, drawTop, titleItems, pauseItems. BUS: hit, block, knockdown, throw, super, ko, settings.
@@ -258,7 +258,7 @@
     } else {
       const up = key('KeyW') || key('ArrowUp') || edge(12) || aedge('u') || mapped('u'), dn = key('KeyS') || key('ArrowDown') || edge(13) || aedge('d') || mapped('d');
       const lf = key('KeyA') || key('ArrowLeft') || edge(14) || aedge('l') || mapped('l'), rt = key('KeyD') || key('ArrowRight') || edge(15) || aedge('r') || mapped('r');
-      const ok = key('Enter') || key('Space') || key('KeyJ') || edge(0) || edge(9) || mapped('p'), bk = key('Escape') || key('KeyK') || key('KeyG') || key('KeyP') || edge(1) || edge(8) || mapped('k');
+      const ok = key('Enter') || key('Space') || key('KeyJ') || edge(0) || edge(9) || mapped('p'), bk = key('Escape') || key('KeyK') || key('KeyH') || key('KeyP') || edge(1) || edge(8) || mapped('k');
       if (up !== dn) { P.sel = (P.sel + (up ? list2.length - 1 : 1)) % list2.length; beepSafe(420, 0.03); }
       const r = list2[P.sel];
       if (bk) close();
@@ -313,7 +313,7 @@
     }
   }, -10);
   HOOKS.add('titleItems', () => P.n > 0 ? { id: 'gamepad', label: 'GAMEPAD', order: 905, run() { open('title'); } } : null);
-  HOOKS.add('pauseItems', () => P.n > 0 ? { key: 'KeyG', label: 'G GAMEPAD SETUP', run() { open('pause'); } } : null);
+  HOOKS.add('pauseItems', () => P.n > 0 ? { key: 'KeyH', label: 'H GAMEPAD SETUP', run() { open('pause'); } } : null);
   HOOKS.add('drawTop', (c, g) => {
     if (P.open) drawScreen(c);
     else if (g.phase === 'pause' && SETTINGS.get('gamepad.hints') && padActive() && !(window.OPTIONS && window.OPTIONS.screen)) drawStrip(c, 'pause');

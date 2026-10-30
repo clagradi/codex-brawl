@@ -243,6 +243,7 @@
     if (ph !== 'title') return;
     if (fsOK() && inRect(x, y, FSB)) { eat(); ui.fsDown = true; return; }
     const items = titleItems();   // a tap on an entry picks that entry; the engine's tap-anywhere then confirms it
+    const pgr = titlePager(items.length); if (pgr && !titleOverlayOpen() && Math.abs(x - pgr.x) < 56 && Math.abs(y - pgr.y - 8) < 26) { eat(); game.titleSel = ((pgr.page + 1) % pgr.pages) * pgr.size; beep(400, 0.04); return; }   // the PAGE note flips to the next page of entries
     for (let i = 0; i < items.length; i++) { const s = titleSlot(i, items.length); if (Math.abs(x - s.x) < 150 && Math.abs(y - s.y) < 16) { game.titleSel = i; if (!touchy && !touch.on) pressed.Enter = true; break; } }
   }, true);
   addEventListener('pointerup', () => { if (ui.fsDown) { ui.fsDown = false; toggleFullscreen(); } }, true);
@@ -311,7 +312,13 @@
     PAUSE_ROWS.forEach((s, i) => { const on = ui.psel === i; drawTitleText(ctx, s, W / 2, pauseY(i), on ? 30 : 24, { align: 'center', style: on ? 'gold' : 'steel', alpha: on ? 1 : 0.6, glow: on }); });
     uiText('W/S + ENTER · P / ESC RESUME · Q QUIT TO TITLE · M ' + (muted ? 'UNMUTE' : 'MUTE') + ' · B BLOOD ' + (FX.gore ? 'ON' : 'OFF') + (fsOK() ? ' · F FULLSCREEN' : ''), W / 2, 450, 16, '#c9a24a');
     const extra = HOOKS.collect('pauseItems').filter(it => it && it.id !== 'options' && it.label);   // keys other features add to the pause screen: { key, label, run(game) }
-    if (extra.length) uiText(extra.map(it => it.label).join(' · '), W / 2, 480, 16, '#c9a24a');
+    if (extra.length) {   // many features add keys: break them into rows that fit the canvas instead of one line that runs off both sides
+      ctx.save(); ctx.font = '16px Impact, Haettenschweiler, "Arial Narrow", sans-serif';
+      const rows = []; let cur = '';
+      for (const it of extra) { const nx = cur ? cur + ' \u00b7 ' + it.label : it.label; if (cur && ctx.measureText(nx).width > 880) { rows.push(cur); cur = it.label; } else cur = nx; }
+      ctx.restore(); if (cur) rows.push(cur);
+      rows.forEach((r, i) => uiText(r, W / 2, 480 + i * 18, 16, '#c9a24a'));
+    }
   }
   function drawQuit() {
     panel(W / 2 - 190, 190, 380, 140); drawTitleText(ctx, 'QUIT TO TITLE?', W / 2, 226, 30, { align: 'center', style: 'steel' });

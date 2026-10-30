@@ -160,7 +160,7 @@
   }
   function turn(d) { const p = (page() + d + PAGES) % PAGES; ui.sel = Math.min(TOTAL - 1, p * PER + ui.sel % PER); blip(500); }
   function onUpdate(g) {
-    if (!ui.open) { tickToast(); if (g.phase === 'title' && tap('KeyG')) open(); if (dirty && ++flushT >= 120) flush(); return; }   // a toast waits while the screen is open
+    if (!ui.open) { tickToast(); if (g.phase === 'title' && !covered() && tap('KeyG')) open(); if (dirty && ++flushT >= 120) flush(); return; }   // a toast waits while the screen is open
     const ph = g.phase;
     if (ph !== 'title' && ph !== 'pause') { close(); return; }
     const n = readNav(ph);
@@ -175,9 +175,11 @@
   HOOKS.add('titleItems', () => [{ id: 'okrs', label: 'OKRS', order: 880, run: () => open() }]);
   HOOKS.add('pauseItems', () => [{ id: 'okrs', key: 'KeyG', label: 'G OKRS', run: () => { if (game.phase === 'pause') open(); } }]);
 
+  // a screen of another feature (the WATCH picker, GAMEPAD SETUP, OBS ...) sits over the title: its picture and its clicks come first, so no corner button or G key here
+  const covered = () => { try { return typeof titleOverlayOpen === 'function' && titleOverlayOpen(); } catch (e) { return false; } };
   const canvasPos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   addEventListener('pointerdown', e => {
-    const onTitle = !ui.open && game.phase === 'title';
+    const onTitle = !ui.open && game.phase === 'title' && !covered();
     if ((!ui.open && !onTitle) || e.target !== cv) return;
     const [x, y] = canvasPos(e);
     if (onTitle && !inRect(x, y, TITLEB)) return;   // on the title only the corner button is ours
@@ -247,7 +249,7 @@
     P(cur.name, x + 52, y + 20, 2, '#fff');
     P(cur.desc, x + 52, y + 42, 1, DIM);
   }
-  HOOKS.add('drawTop', () => { if (ui.open) drawScreen(); else { if (game.phase === 'title') drawTitleButton(); drawToast(); } }, 100);
+  HOOKS.add('drawTop', () => { if (ui.open) drawScreen(); else { if (game.phase === 'title' && !covered()) drawTitleButton(); drawToast(); } }, 100);
 
   // the touch buttons would sit on top of the screen (the same trick options.js uses)
   const drawTouch0 = window.drawTouch;

@@ -193,6 +193,7 @@ async function body(t) {
   check(fin.includes('PRINCIPAL') && fin.some(s => /^\+\d+$/.test(s)) && fin.includes('16-10'), 'a PRINCIPAL card renders with the new record');
   for (const [a, b] of [[0, 4], [2, 1], [4, 2]]) { await ev(`RK.start(${a}, ${b}); RK.play('LL'); step(60); render(); 1`); }
   check(await ev("game.phase === 'over' && RANKED.record().games === 29 && RANKED.record().hist.length === 12"), 'matches with other fighters are rated the same way, and the history keeps the last 12 ratings');
+  await ev("RANKED.reset(); for (const k of ['difficulty', 'rounds', 'time']) SETTINGS.reset(k); 1");   // the next files start from the defaults: a ranked match leaves the difficulty on 'easy' (the CPU of a later test would play differently)
 }
 
 function RANKED_CAP(m) { return 5000; }

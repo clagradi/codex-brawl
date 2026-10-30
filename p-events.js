@@ -3,9 +3,9 @@
 // Area: dressing for the calendar. Halloween (Oct 20 - Nov 2): pumpkins, bats, ghosts and spiders with a spooky purple tint. Winter holidays (Dec 15 - Jan 6): snow,
 //       string lights, trees and a frosty tint. New Year (Dec 30 - Jan 2): fireworks in the sky and confetti on every KO. April 1: a silly announcer (captions, a
 //       squeaky voice and a slide whistle). Everything is draw-only: no hit, timer, health or input is read for any other purpose than drawing, and none is changed.
-// Setting: events.mode = auto (follow the local date) | off | halloween | winter | newyear | april. Forced modes ignore the date. Pause menu: N cycles the mode.
+// Setting: events.mode = auto (follow the local date) | off | halloween | winter | newyear | april. Forced modes ignore the date. Pause menu: E cycles the mode.
 //          A session override for screenshots and tests: add events=<mode> to the URL hash (it is not saved).
-// Hooks used: 'update' (clock, confetti), 'drawWorld' (confetti), 'drawTop' (April caption, title tag), 'pauseItems' (N = mode).
+// Hooks used: 'update' (clock, confetti), 'drawWorld' (confetti), 'drawTop' (April caption, title tag), 'pauseItems' (E = mode).
 // BUS used: ko, match:start, round:start, phase, settings.
 // Engine touch points that are not hooks (nothing in game.js is edited): drawArena and drawArenaFront (arenas.js) are wrapped to add a layer behind the fighters and one in
 //   front of them; ANNOUNCER.say (hud.js) is wrapped for the April captions; speechSynthesis.speak is wrapped to change the words and pitch of the April voice.
@@ -426,7 +426,7 @@
   const modeLabel = m => m === 'auto' ? 'AUTO' : m === 'off' ? 'OFF' : DEF[m].short;
   function setMode(m) { if (!MODE_LIST.includes(m)) return modeNow(); hashMode = null; const v = SETTINGS.set('events.mode', m); dirty(); return v; }
   function cycle() { const m = modeNow(); return setMode(MODE_LIST[(MODE_LIST.indexOf(m) + 1) % MODE_LIST.length]); }
-  HOOKS.add('pauseItems', () => [{ id: 'events', key: 'KeyN', label: 'N EVENTS ' + modeLabel(modeNow()), run: () => { cycle(); } }]);
+  HOOKS.add('pauseItems', () => [{ id: 'events', key: 'KeyE', label: 'E EVENTS ' + modeLabel(modeNow()), run: () => { cycle(); } }]);
 
   wrapArena(); wrapAnnouncer(); wrapSpeech();
 

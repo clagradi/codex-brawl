@@ -8,7 +8,7 @@
 //         is dropped from speech while its caption still shows. Without ANNOUNCER.define the feature runs with captions only.
 // Settings: voice.speech (VOICE LINES, default on) mutes the voice lines only; the shared 'announcer' setting and mute silence them too.
 // Hooks used: 'update' (own clock, speech queue, comeback tracking), 'damage' (reads the hit before it lands for COUNTER, never changes it),
-//             'drawTop' (VS bubbles, callouts, quotes), 'pauseItems' (N turns the voice lines on or off).
+//             'drawTop' (VS bubbles, callouts, quotes), 'pauseItems' (V turns the voice lines on or off).
 // BUS used: match:start, phase, round:start, round:end, match:end, hit, block, ko, settings.
 // Content rule: jokes about AI and dev culture only. Wang is played as the in-game persona (calm, bubbles, the lab), nothing about the real person.
 // Public: window.VOICE (data, banterFor, winQuote, callout, state, speechOn, toggle) for tests and other feature files.
@@ -232,9 +232,9 @@
     while (S.calls.length && S.T - S.calls[0].t0 > CALL_LIFE) S.calls.shift();
     if (S.queue.length) pump(g.phase);
   });
-  const LBL_ON = 'N VOICE LINES ON', LBL_OFF = 'N VOICE LINES OFF';
+  const LBL_ON = 'V VOICE LINES ON', LBL_OFF = 'V VOICE LINES OFF';
   function toggle(v) { try { SETTINGS.set('voice.speech', typeof v === 'boolean' ? v : !speechOn()); } catch (e) { /* settings refused */ } return speechOn(); }
-  HOOKS.add('pauseItems', () => ({ id: 'voice', key: 'KeyN', label: speechOn() ? LBL_ON : LBL_OFF, run: () => toggle() }));
+  HOOKS.add('pauseItems', () => ({ id: 'voice', key: 'KeyV', label: speechOn() ? LBL_ON : LBL_OFF, run: () => toggle() }));
 
   // ---------------------------------------------------------------- drawing (screen space, pixel font)
   function plate(c, x, y, w, h, col) {
